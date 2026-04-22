@@ -1,0 +1,12 @@
+legacy/
+docs/build/
+Manifest.toml
+.vscode/
+.VSCodeCounter/
+__test__*
+Example_*
+plot_*
+*_draft*
+mainTest/
+*Old*.jl
+test_Old/

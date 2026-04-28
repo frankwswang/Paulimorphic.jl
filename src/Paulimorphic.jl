@@ -1,5 +1,9 @@
 module Paulimorphic
 
-# Write your package code here.
+include("Types.jl")
+include("Constant.jl")
+
+include("Strings.jl")
+include("Operations.jl")
 
 end

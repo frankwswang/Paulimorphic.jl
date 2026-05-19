@@ -1,7 +1,5 @@
 export DenseGraph, UnweightedGraph, SimpleGraph
 
-using LinearAlgebra: Symmetric
-
 
 struct SimpleGraph{T<:Integer}
     order::T
@@ -17,7 +15,7 @@ struct SimpleGraph{T<:Integer}
     end
 end
 
-function SimpleGraph(order::T, edges::AbstractVector{NTuple{2, Int}}) where {T<:Integer}
+function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}) where {T<:Integer}
     g = SimpleGraph(order)
     for edge in edges
         addEdge!(g, edge)
@@ -26,7 +24,7 @@ function SimpleGraph(order::T, edges::AbstractVector{NTuple{2, Int}}) where {T<:
 end
 
 
-function modEdge!(g::SimpleGraph, edge::NTuple{2, Int}, connect::Bool)
+function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
     i, j = sort(edge)
 
     if i == j
@@ -49,12 +47,12 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Int}, connect::Bool)
     end
 end
 
-addEdge!(g::SimpleGraph, edge::NTuple{2, Int}) = modEdge!(g, edge, true)
+addEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 
-rmvEdge!(g::SimpleGraph, edge::NTuple{2, Int}) = modEdge!(g, edge, false)
+rmvEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
 
-function hasEdge(g::SimpleGraph, edge::NTuple{2, Int})
+function hasEdge(g::SimpleGraph, edge::NTuple{2, Integer})
     i, j = sort(edge)
 
     if i == j
@@ -67,8 +65,8 @@ function hasEdge(g::SimpleGraph, edge::NTuple{2, Int})
 end
 
 
-function listEdge(g::SimpleGraph)
-    edges = NTuple{2, Int}[]
+function listEdge(g::SimpleGraph{T}) where {T<:Integer}
+    edges = NTuple{2, T}[]
 
     for i in 1:g.order
         for j in g.adjacency[begin+i-1]

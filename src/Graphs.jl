@@ -38,11 +38,8 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
             bl = !in!(j, g.adjacency[begin+i-1])
             bl && push!(g.adjacency[begin+j-1], i)
         else
-            bl = in(j, g.adjacency[begin+i-1])
-            if bl
-                pop!(g.adjacency[begin+i-1], j)
-                pop!(g.adjacency[begin+j-1], i)
-            end
+            res = pop!(g.adjacency[begin+i-1], j, nothing)
+            (res === nothing) || pop!(g.adjacency[begin+j-1], i)
         end
 
         bl
@@ -69,7 +66,7 @@ function hasEdge(g::SimpleGraph, edge::NTuple{2, Integer})
 end
 
 
-function listEdge(g::SimpleGraph{T}) where {T<:Integer}
+function listEdges(g::SimpleGraph{T}) where {T<:Integer}
     edges = NTuple{2, T}[]
 
     for i in 1:g.order
@@ -84,7 +81,7 @@ function listEdge(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
-function countEdge(g::SimpleGraph{T}) where {T<:Integer}
+function countEdges(g::SimpleGraph{T}) where {T<:Integer}
     typeC = typemax(T) > typemax(Int) ? T : Int
     count = zero(typeC)
     for list in g.adjacency; (count += (typeC∘length)(list)) end
@@ -93,7 +90,7 @@ function countEdge(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
-function listDegree(g::SimpleGraph)
+function listDegrees(g::SimpleGraph)
     length.(g.adjacency)
 end
 
@@ -105,8 +102,8 @@ function shareEndPoint(nodeEdge1::NTuple{2, Integer}, nodeEdge2::NTuple{2, Integ
 end
 
 
-function getLineGraph(g::SimpleGraph)
-    edges = listEdge(g)
+function genLineGraph(g::SimpleGraph)
+    edges = listEdges(g)
     m = length(edges)
     lg = SimpleGraph(m)
 
@@ -121,7 +118,7 @@ function getLineGraph(g::SimpleGraph)
 end
 
 
-function listComponent(g::SimpleGraph{T}) where {T<:Integer}
+function listComponents(g::SimpleGraph{T}) where {T<:Integer}
     n = g.order
     seen = falses(n)
     components = Vector{T}[]
@@ -153,7 +150,7 @@ end
 
 
 function decompose(g::SimpleGraph{T}) where {T<:Integer}
-    components = listComponent(g)
+    components = listComponents(g)
     subgraphs = SimpleGraph{T}[]
     newLabels = Memory{T}(undef, g.order)
     newLabels .= zero(T)

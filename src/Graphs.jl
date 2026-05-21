@@ -6,7 +6,7 @@ struct SimpleGraph{T<:Integer}
     adjacency::Memory{Set{T}}
 
     function SimpleGraph(order::T) where {T<:Integer}
-        order < 0 && throw("The order of the graph must be non-negative.")
+        order < 0 && throw(DomainError(order, "`order` of the graph must be non-negative."))
         adj = Memory{Set{T}}(undef, order)
         for i in eachindex(adj)
             adj[i] = Set{T}()
@@ -15,17 +15,21 @@ struct SimpleGraph{T<:Integer}
     end
 end
 
-function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}) where {T<:Integer}
+function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
+                     throwError::Bool=false) where {T<:Integer}
     g = SimpleGraph(order)
     for edge in edges
-        addEdge!(g, edge)
+        success = addEdge!(g, edge)
+        if throwError && !success
+            throw(DomainError(edge, "This is an invalid or repeated edge."))
+        end
     end
     g
 end
 
 
 function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
-    i, j = sort(edge)
+    i, j = minmax(edge...)
 
     if i == j
         false
@@ -76,13 +80,42 @@ function listEdge(g::SimpleGraph{T}) where {T<:Integer}
         end
     end
 
-    edges
+    sort!(edges)
 end
 
 
-function countEdge(g::SimpleGraph)
-    count = 0
-    for list in g.adjacency; (count += length(list)) end
-    iseven(count) || throw("The adjacency list of `g` might have been corrupted.")
-    count ÷ 2
+function countEdge(g::SimpleGraph{T}) where {T<:Integer}
+    typeC = typemax(T) > typemax(Int) ? T : Int
+    count = zero(typeC)
+    for list in g.adjacency; (count += (typeC∘length)(list)) end
+    isodd(count) && throw(AssertionError("The adjacency lists of `g` have been corrupted."))
+    count ÷ typeC(2)
+end
+
+
+function listDegree(g::SimpleGraph)
+    length.(g.adjacency)
+end
+
+
+function shareEndPoint(nodeEdge1::NTuple{2, Integer}, nodeEdge2::NTuple{2, Integer})
+    l1, r1 = nodeEdge1
+    l2, r2 = nodeEdge2
+    (l1 == l2 != 0) || (l1 == r2 != 0) || (l2 == r1 != 0) || (r1 == r2 != 0)
+end
+
+
+function getLineGraph(g::SimpleGraph)
+    edges = listEdge(g)
+    m = length(edges)
+    lg = SimpleGraph(m)
+
+    for i in 1:m, j in (i+1):m
+        #> Two edges are adjacent iff they share an endpoint
+        if shareEndPoint(edges[i], edges[j])
+            addEdge!(lg, (i, j))
+        end
+    end
+
+    lg
 end

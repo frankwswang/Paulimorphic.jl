@@ -35,14 +35,14 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
         false
     elseif 1 <= i && j <= g.order
         if connect
-            bl = !in!(j, g.adjacency[begin+i-1])
-            bl && push!(g.adjacency[begin+j-1], i)
+            success = !in!(j, g.adjacency[begin+i-1])
+            success && push!(g.adjacency[begin+j-1], i)
         else
             res = pop!(g.adjacency[begin+i-1], j, nothing)
-            (res === nothing) || pop!(g.adjacency[begin+j-1], i)
+            success = (res === nothing) ? false : (pop!(g.adjacency[begin+j-1], i); true)
         end
 
-        bl
+        success
     else
         false
     end

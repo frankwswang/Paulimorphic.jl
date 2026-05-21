@@ -119,3 +119,65 @@ function getLineGraph(g::SimpleGraph)
 
     lg
 end
+
+
+function listComponent(g::SimpleGraph{T}) where {T<:Integer}
+    n = g.order
+    seen = falses(n)
+    components = Vector{T}[]
+
+    for start in one(T):n
+        seen[begin+start-1] && continue
+
+        component = T[]
+        stack = T[start]
+        seen[begin+start-1] = true
+
+        while !isempty(stack)
+            v = pop!(stack)
+            push!(component, v)
+
+            for w in g.adjacency[begin+v-1]
+                if !seen[begin+w-1]
+                    seen[begin+w-1] = true
+                    push!(stack, w)
+                end
+            end
+        end
+
+        push!(components, sort!(component))
+    end
+
+    components
+end
+
+
+function decompose(g::SimpleGraph{T}) where {T<:Integer}
+    components = listComponent(g)
+    subgraphs = SimpleGraph{T}[]
+    newLabels = Memory{T}(undef, g.order)
+    newLabels .= zero(T)
+
+    for nodes in components
+        for (i, node) in enumerate(nodes)
+            newLabels[begin+node-1] = i
+        end
+
+        sgOrder = (T∘length)(nodes)
+        sg = SimpleGraph(sgOrder)
+
+        for node in nodes, adj in g.adjacency[begin+node-1]
+            if adj > node
+                edge = minmax(newLabels[begin+node-1], newLabels[begin+adj-1])
+                if !(0 < first(edge) < last(edge) <= sgOrder)
+                    throw(AssertionError("The component decomposition is inconsistent."))
+                end
+                addEdge!(sg, edge)
+            end
+        end
+
+        push!(subgraphs, sg)
+    end
+
+    components => subgraphs
+end

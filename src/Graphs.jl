@@ -1,6 +1,27 @@
 export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, countEdges, 
        listEdges, listDegrees, genLineGraph, listComponents, decompose, genRootGraph
 
+
+"""
+    SimpleGraph{T<:Integer}
+
+A simple graph represented by a graph order (`.order`) and adjacency sets (`.adjacency`).
+Vertices are labeled by positive integers of type `T`.
+
+≡≡≡ Initialization Method(s) ≡≡≡
+
+    SimpleGraph(order::T) where {T<:Integer} -> SimpleGraph{T}
+
+Construct a simple graph of `order` with no edges.
+
+    SimpleGraph(order::Integer, edges::AbstractVector{<:NTuple{2, Integer}}, 
+                explicitError::Bool=false) -> 
+    SimpleGraph
+
+Construct a simple graph of `order` with valid (undirected) edge elements from `edges`. All 
+invalid (e.g., self-loop, out-of-bound edges) or duplicate elements in `edges` are silently 
+ignored unless `explicitError=true`, in which case a `DomainError` is thrown.
+"""
 struct SimpleGraph{T<:Integer}
     order::T
     adjacency::Memory{Set{T}}
@@ -16,19 +37,24 @@ struct SimpleGraph{T<:Integer}
 end
 
 function SimpleGraph(order::T, edges::AbstractVector{<:NTuple{2, Integer}}, 
-                     throwError::Bool=false) where {T<:Integer}
+                     explicitError::Bool=false) where {T<:Integer}
     typeO = typemax(T) > typemax(Int) ? T : Int
     g = SimpleGraph(order|>typeO)
     for edge in edges
         success = attachEdge!(g, edge)
-        if throwError && !success
-            throw(DomainError(edge, "This is an invalid or repeated edge."))
+        if explicitError && !success
+            throw(DomainError(edge, "This is an invalid or duplicate edge."))
         end
     end
     g
 end
 
 
+"""
+    countVertices(g::SimpleGraph{T}) where {T<:Integer} -> T
+
+Return the number of vertices (i.e., the order) of `g`.
+"""
 countVertices(g::SimpleGraph) = g.order
 
 
@@ -52,11 +78,28 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
     end
 end
 
+"""
+    attachEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+
+Attach the undirected `edge=(i, j)` to `g`. Return `true` if `edge` was newly attached, 
+and `false` if `edge` is a self-loop (i.e., `i == j`), out of bounds, or already present.
+"""
 attachEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 
+"""
+    removeEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+
+Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existed edge, 
+was successfully removed, and `false` if `edge` was absent or invalid.
+"""
 removeEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
 
+"""
+    containEdge(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+
+Return whether `edge` is a valid non-loop edge present in `g`.
+"""
 function containEdge(g::SimpleGraph, (m, n)::NTuple{2, Integer})
     i, j = minmax(m, n)
 
@@ -70,6 +113,12 @@ function containEdge(g::SimpleGraph, (m, n)::NTuple{2, Integer})
 end
 
 
+"""
+    countEdges(g::SimpleGraph) -> Integer
+
+Return the number of undirected edges in `g`. Throws an `AssertionError` if the
+adjacency representation is internally inconsistent.
+"""
 function countEdges(g::SimpleGraph{T}) where {T<:Integer}
     typeC = typemax(T) > typemax(Int) ? T : Int
     count = zero(typeC)
@@ -79,6 +128,12 @@ function countEdges(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
+"""
+    listEdges(g::SimpleGraph{T}) -> Vector{NTuple{2, T}}
+
+Return all undirected edges of `g` as sorted endpoint pairs `(i, j)` in a lexicographically 
+ordered `Vector`.
+"""
 function listEdges(g::SimpleGraph{T}) where {T<:Integer}
     edges = NTuple{2, T}[]
 
@@ -94,6 +149,11 @@ function listEdges(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
+"""
+    listDegrees(g::SimpleGraph) -> Vector{Int}
+
+Return a `Vector` whose `i`-th entry is the degree of vertex `i`.
+"""
 function listDegrees(g::SimpleGraph)
     length.(g.adjacency)
 end
@@ -106,9 +166,17 @@ function shareEndPoint(nodeEdge1::NTuple{2, Integer}, nodeEdge2::NTuple{2, Integ
 end
 
 
-function genLineGraph(g::SimpleGraph)
+"""
+    genLineGraph(g::SimpleGraph) -> SimpleGraph
+
+Return the line graph of `g`: each edge of `g` becomes a vertex in the returned graph, and 
+every two such vertices are adjacent iff the corresponding edges of `g` share an endpoint. 
+As a result, Vertex `i` of the constructed graph corresponds to `listEdges(g)[i]`.
+"""
+function genLineGraph(g::SimpleGraph{T}) where {T<:Integer}
+    typeO = typemax(T) > typemax(Int) ? T : Int
     edges = listEdges(g)
-    m = length(edges)
+    m = (typeO∘length)(edges)
     lg = SimpleGraph(m)
 
     for i in 1:m, j in (i+1):m
@@ -122,6 +190,12 @@ function genLineGraph(g::SimpleGraph)
 end
 
 
+"""
+    listComponents(g::SimpleGraph{T}) where {T} -> Vector{Vector{T}}
+
+Return the connected components of `g` as a `Vector` of sorted vertices. Components
+are listed in increasing order based on their first listed vertex.
+"""
 function listComponents(g::SimpleGraph{T}) where {T<:Integer}
     n = countVertices(g)
     seen = falses(n)
@@ -153,6 +227,14 @@ function listComponents(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
+"""
+    decompose(g::SimpleGraph{T}) where {T<:Integer} -> 
+    Pair{Vector{Vector{T}}, Vector{SimpleGraph{T}}}
+
+Return `components => subgraphs`, where `components` is the output of `listComponents(g)` 
+and `subgraphs[k]` is the induced subgraph on `components[k]`, with its vertices relabelled 
+by `1:k` respectively.
+"""
 function decompose(g::SimpleGraph{T}) where {T<:Integer}
     components = listComponents(g)
     subgraphs = SimpleGraph{T}[]

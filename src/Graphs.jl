@@ -1,5 +1,5 @@
-export DenseGraph, UnweightedGraph, SimpleGraph
-
+export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, countEdges, 
+       listEdges, listDegrees, genLineGraph, listComponents, decompose, genRootGraph
 
 struct SimpleGraph{T<:Integer}
     order::T
@@ -15,11 +15,12 @@ struct SimpleGraph{T<:Integer}
     end
 end
 
-function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
+function SimpleGraph(order::T, edges::AbstractVector{<:NTuple{2, Integer}}, 
                      throwError::Bool=false) where {T<:Integer}
-    g = SimpleGraph(order)
+    typeO = typemax(T) > typemax(Int) ? T : Int
+    g = SimpleGraph(order|>typeO)
     for edge in edges
-        success = addEdge!(g, edge)
+        success = attachEdge!(g, edge)
         if throwError && !success
             throw(DomainError(edge, "This is an invalid or repeated edge."))
         end
@@ -28,12 +29,15 @@ function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}},
 end
 
 
+countVertices(g::SimpleGraph) = g.order
+
+
 function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
     i, j = minmax(edge...)
 
     if i == j
         false
-    elseif 1 <= i && j <= g.order
+    elseif 1 <= i && j <= countVertices(g)
         if connect
             success = !in!(j, g.adjacency[begin+i-1])
             success && push!(g.adjacency[begin+j-1], i)
@@ -48,36 +52,21 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
     end
 end
 
-addEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
+attachEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 
-rmvEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
+removeEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
 
-function hasEdge(g::SimpleGraph, edge::NTuple{2, Integer})
-    i, j = sort(edge)
+function containEdge(g::SimpleGraph, (m, n)::NTuple{2, Integer})
+    i, j = minmax(m, n)
 
     if i == j
         false
-    elseif 1 <= i && j <= g.order
+    elseif 1 <= i && j <= countVertices(g)
         in(j, g.adjacency[begin+i-1])
     else
         false
     end
-end
-
-
-function listEdges(g::SimpleGraph{T}) where {T<:Integer}
-    edges = NTuple{2, T}[]
-
-    for i in 1:g.order
-        for j in g.adjacency[begin+i-1]
-            if j > i
-                push!(edges, (i, j))
-            end
-        end
-    end
-
-    sort!(edges)
 end
 
 
@@ -87,6 +76,21 @@ function countEdges(g::SimpleGraph{T}) where {T<:Integer}
     for list in g.adjacency; (count += (typeC∘length)(list)) end
     isodd(count) && throw(AssertionError("The adjacency lists of `g` have been corrupted."))
     count ÷ typeC(2)
+end
+
+
+function listEdges(g::SimpleGraph{T}) where {T<:Integer}
+    edges = NTuple{2, T}[]
+
+    for i in 1:countVertices(g)
+        for j in g.adjacency[begin+i-1]
+            if j > i
+                push!(edges, (i, j))
+            end
+        end
+    end
+
+    sort!(edges)
 end
 
 
@@ -110,7 +114,7 @@ function genLineGraph(g::SimpleGraph)
     for i in 1:m, j in (i+1):m
         #> Two edges are adjacent iff they share an endpoint
         if shareEndPoint(edges[i], edges[j])
-            addEdge!(lg, (i, j))
+            attachEdge!(lg, (i, j))
         end
     end
 
@@ -119,7 +123,7 @@ end
 
 
 function listComponents(g::SimpleGraph{T}) where {T<:Integer}
-    n = g.order
+    n = countVertices(g)
     seen = falses(n)
     components = Vector{T}[]
 
@@ -152,7 +156,7 @@ end
 function decompose(g::SimpleGraph{T}) where {T<:Integer}
     components = listComponents(g)
     subgraphs = SimpleGraph{T}[]
-    newLabels = Memory{T}(undef, g.order)
+    newLabels = Memory{T}(undef, countVertices(g))
     newLabels .= zero(T)
 
     for nodes in components
@@ -169,7 +173,7 @@ function decompose(g::SimpleGraph{T}) where {T<:Integer}
                 if !(0 < first(edge) < last(edge) <= sgOrder)
                     throw(AssertionError("The component decomposition is inconsistent."))
                 end
-                addEdge!(sg, edge)
+                attachEdge!(sg, edge)
             end
         end
 

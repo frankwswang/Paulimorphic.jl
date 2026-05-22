@@ -233,7 +233,7 @@ end
 
 Return `components => subgraphs`, where `components` is the output of `listComponents(g)` 
 and `subgraphs[k]` is the induced subgraph on `components[k]`, with its vertices relabelled 
-by `1:k` respectively.
+by `1:length(components[k])` respectively.
 """
 function decompose(g::SimpleGraph{T}) where {T<:Integer}
     components = listComponents(g)

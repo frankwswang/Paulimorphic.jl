@@ -1,5 +1,6 @@
-export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, countEdges, 
-       listEdges, listDegrees, genLineGraph, listComponents, decompose, genRootGraph
+export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDegree, 
+       countEdges, listEdges, listDegrees, genLineGraph, listComponents, decompose, 
+       isIsomorphic, genRootGraph
 
 
 """
@@ -114,6 +115,19 @@ end
 
 
 """
+
+    getDegree(g::SimpleGraph, vertex::Integer) -> Integer
+
+Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
+"""
+function getDegree(g::SimpleGraph{T}, vertex::Integer) where {T<:Integer}
+    vertex < 1 && throw(DomainError(vertex, "`vertex` must be positive integer`"))
+    typeC = typemax(T) > typemax(Int) ? T : Int
+    (typeC∘length)(g.adjacency[begin+vertex-1])
+end
+
+
+"""
     countEdges(g::SimpleGraph) -> Integer
 
 Return the number of undirected edges in `g`. Throws an `AssertionError` if the
@@ -122,7 +136,7 @@ adjacency representation is internally inconsistent.
 function countEdges(g::SimpleGraph{T}) where {T<:Integer}
     typeC = typemax(T) > typemax(Int) ? T : Int
     count = zero(typeC)
-    for list in g.adjacency; (count += (typeC∘length)(list)) end
+    for node in 1:countVertices(g); count += getDegree(g, node) end
     isodd(count) && throw(AssertionError("The adjacency lists of `g` have been corrupted."))
     count ÷ typeC(2)
 end
@@ -263,4 +277,283 @@ function decompose(g::SimpleGraph{T}) where {T<:Integer}
     end
 
     components => subgraphs
+end
+
+
+function isConnected(g::SimpleGraph{T}) where {T<:Integer}
+    countVertices(g) == 0 && (return true)
+
+    seen = falses(countVertices(g))
+    stack = [one(T)]
+    seen[begin] = true
+
+    while !isempty(stack)
+        v = pop!(stack)
+        for w in g.adjacency[begin+v-1]
+            if !seen[begin+w-1]
+                seen[begin+w-1] = true
+                push!(stack, w)
+            end
+        end
+    end
+
+    all(seen)
+end
+
+
+#> Function and types for line graph analysis
+mutable struct NodeEdgeInfo{T<:Integer}
+    const edgeLabel::Memory{NTuple{2, T}} #> The (root-graph) edge labels for nodes
+    const backtrack::Memory{T}            #> Adjacent (witness) nodes in discovered cliques
+    rootOrder::T                          #> Current maximal index for potential root nodes
+    halfMarker::Set{T}
+
+    function NodeEdgeInfo(order::T) where {T<:Integer}
+        edgeLabel = Memory{NTuple{2, T}}(undef, order)
+        backtrack = Memory{T}(undef, order)
+        edgeLabel .= Ref(( T(0), T(0) ))
+        backtrack .= T(0)
+
+        new{T}(edgeLabel, backtrack, T(0), Set{T}())
+    end
+end
+
+
+#> Reference(s): 
+## [DOI] 10.1145/321850.321853
+"""
+    genRootGraph(g::SimpleGraph, checkConnectivity::Bool=true) -> Pair{Bool, SimpleGraph}
+
+Attempt to recognize connected `g` as a line graph using Lehot-style edge-label
+algorithm to reconstruct potentially corresponding root graph `r`. Return `true => r` if 
+`g` is indeed a (connected) line graph; return `false => g` otherwise. This function is 
+only well behaved when the input `g` is a connected `SimpleGraph`. Hence, in default, 
+`checkConnectivity=true` such that any input that is a disconnected graph throws an 
+`AssertionError`. For disconnected graphs, one can first apply [`decompose`](@ref) to 
+obtain connected subgraphs, and then apply `genRootGraph` to each subgraph.
+"""
+function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
+    if checkConnectivity && !isConnected(g)
+        throw(AssertionError("The input graph `g` must be connected."))
+    end
+
+    order = countVertices(g)
+    adjList = g.adjacency
+
+    if order == 0
+        return (true => SimpleGraph(0))
+    elseif order == 1
+        rootGraph = SimpleGraph(2)
+        attachEdge!(rootGraph, (1, 2))
+        return (true => rootGraph)
+    end
+
+    #> Declare two valid vertices to be the basic nodes
+    node12 = 0
+    node12NeighborNum = 0
+    for (i, list) in enumerate(adjList)
+        neighborNum = length(list)
+
+        if i == 1 || node12NeighborNum > neighborNum
+            node12 = i
+            node12NeighborNum = neighborNum
+        end
+    end
+    node23 = first(adjList[begin+node12-1])
+
+    info = NodeEdgeInfo(order)
+    edgeLabels = info.edgeLabel
+    edgeLabels[begin+node12-1] = (1, 2)
+    edgeLabels[begin+node23-1] = (2, 3)
+
+    #> Construct the shared adjacency list w.r.t. basic nodes (1, 2) and (2, 3)
+    sharedAdjs = [n for n in adjList[begin+node12-1] if n in adjList[begin+node23-1]]
+    nSharedAdj = length(sharedAdjs)
+
+    #> Mark the nodes (2, ...) in clique-2 and potentially a cross node (1, 3)
+    if nSharedAdj == 1
+        x = first(sharedAdjs) #> `x` is either (1, 3) or (2, 4)
+        xEdge = isOddTriangle((node12, node23, x), g) ? (2, 4) : (1, 3)
+        edgeLabels[begin+x-1] = xEdge
+        info.rootOrder = last(xEdge)
+    elseif nSharedAdj == 2
+        x = first(sharedAdjs)
+        y =  last(sharedAdjs)
+
+        xEdge, yEdge, newOrder = if y in adjList[begin+x-1]  #> `x` and `y` are adjacent
+            (2, 4), (2, 5), 5
+        else
+            edgePair = if isOddTriangle((node12, node23, x), g)
+                (2, 4), (1, 3)
+            else #> Including when both (1, 2)-(2, 3)-`x` and (1, 2)-(2, 3)-`y` are even
+                (1, 3), (2, 4)
+            end
+
+            first(edgePair), last(edgePair), 4
+        end
+
+        edgeLabels[begin+x-1] = xEdge
+        edgeLabels[begin+y-1] = yEdge
+        info.rootOrder = newOrder
+    elseif nSharedAdj >= 3
+        b = last(sharedAdjs) #> The (one-based indexed) location of `b` is at least 3
+        bAdjs = adjList[begin+b-1]
+        crossNodeNum = 0
+        maxRootOrder = 3
+        bAsCrossNode = false
+
+        for (i, node) in enumerate(sharedAdjs)
+            asCrossNode = if node in bAdjs #> Assuming `b` is not in `bAdjs`
+                false #> If landed on i=1, `b` is assumed to not be a cross node either
+            elseif i == 1 #> When `a` is the first to be investigated in the neighbors
+                tieBreaker = sharedAdjs[begin+1]
+                bAsCrossNode = (node in adjList[begin+tieBreaker-1])
+                !bAsCrossNode
+            else
+                node == b ? bAsCrossNode : !bAsCrossNode
+            end
+
+            asCrossNode && (crossNodeNum += 1)
+            crossNodeNum > 1 && (return (false => g)) #> At most one cross node allowed
+            edgeLabels[begin+node-1] = asCrossNode ? (1, 3) : (2, (maxRootOrder += 1))
+        end
+
+        info.rootOrder = maxRootOrder
+    else #> No shared adjacent nodes so the only indexed nodes are 1, 2, 3
+        info.rootOrder = 3
+    end
+
+    discoveredNodes = push!(sharedAdjs, node12, node23) #> Built upon `sharedAdjs`
+    halfName!(info, adjList, discoveredNodes, 2) #> Half name all nodes adjacent to clique-2
+    fullyName!(info, adjList)
+
+    rootGraph = SimpleGraph(info.rootOrder)
+
+    for edge in edgeLabels
+        (isFullyNamed(edge) && attachEdge!(rootGraph, edge)) || (return (false => g))
+    end
+
+    gEdges = listEdges(g)
+
+    for (nodeL, nodeR) in gEdges
+        edgeL = edgeLabels[begin+nodeL-1]
+        edgeR = edgeLabels[begin+nodeR-1]
+        shareEndPoint(edgeL, edgeR) || (return (false => g))
+    end
+
+    #> In case the line graph is a supergraph of `g`
+    lRootEdgeNum = 0
+    for adjs in rootGraph.adjacency
+        d = length(adjs)
+        lRootEdgeNum += d * (d - 1) ÷ 2
+    end
+    length(gEdges) == lRootEdgeNum ? (true => rootGraph) : (false => g)
+end
+
+
+function isOddTriangle(triangle::NTuple{3, Integer}, g::SimpleGraph)
+    order = countVertices(g)
+    for i in triangle
+        (i < 1 || i > order) && throw(DomainError(i, "The vertex label is out of bounds."))
+    end
+    adjList = g.adjacency
+
+    for v in 1:countVertices(g)
+        v in triangle && continue
+        nAdj = count(t -> t in adjList[begin+v-1], triangle)
+        isodd(nAdj) && return true
+    end
+
+    false
+end
+
+
+function isFullyNamed(nodeEdge::NTuple{2, Integer})
+    first(nodeEdge) != 0 && last(nodeEdge) != 0
+end
+
+function isHalfNamed(nodeEdge::NTuple{2, Integer})
+    first(nodeEdge) != 0 && last(nodeEdge) == 0
+end
+
+function isUnNamed(nodeEdge::NTuple{2, Integer})
+    nodeEdge == (0, 0)
+end
+
+
+function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
+    edgeLabels = info.edgeLabel
+    backtracks = info.backtrack
+    halfNamedNodes = info.halfMarker
+
+    for node in discoveredNodes
+        nodeEdge = edgeLabels[begin+node-1]
+        if !isFullyNamed(nodeEdge)
+            throw(AssertionError("Node $node in `discoveredNodes` is not fully named."))
+        end
+
+        if cliqueLabel in nodeEdge #> Filter out cross nodes and only keep clique nodes
+            rootGraphNodeL, rootGraphNodeR = nodeEdge
+            otherEnd = (cliqueLabel == rootGraphNodeL) ? rootGraphNodeR : rootGraphNodeL
+            for adjNode in adjList[begin+node-1]
+                adjNodeEdge = edgeLabels[begin+adjNode-1]
+                if isUnNamed(adjNodeEdge) #> Initialize a half-named node
+                    edgeLabels[begin+adjNode-1] = (otherEnd, 0)
+                    backtracks[begin+adjNode-1] = node
+                    push!(halfNamedNodes, adjNode)
+                elseif isHalfNamed(adjNodeEdge) #> Fully name an already half-named node
+                    namedEnd = first(adjNodeEdge)
+                    if namedEnd != otherEnd
+                        fullEdgeName = minmax(otherEnd, namedEnd)
+                        edgeLabels[begin+adjNode-1] = fullEdgeName
+                        pop!(info.halfMarker, adjNode)
+                    end #> It's necessary to silently ignore `namedEnd == otherEnd` case
+                end
+            end
+        end
+    end
+end
+
+
+discoverNode!(info, cliqueLabel) = minmax(cliqueLabel, (info.rootOrder += 1))
+
+function fullyName!(info::NodeEdgeInfo{T}, adjList) where {T<:Integer}
+    edgeLabels = info.edgeLabel
+    backtracks = info.backtrack
+    halfNamedNodes = info.halfMarker
+
+    while !isempty(halfNamedNodes)
+        node = pop!(halfNamedNodes)
+        edge = edgeLabels[begin+node-1]
+        bktk = backtracks[begin+node-1]
+
+        #> `node` and `bktk` form the couple of basic nodes for a new clique
+        if bktk == 0 || !shareEndPoint(edge, edgeLabels[begin+bktk-1])
+            throw(AssertionError("A half-named node should have a valid adjacent node " * 
+                                 "that already belongs to a fully discovered clique."))
+        end
+
+        cliqueLabel = first(edge)
+        edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)
+        sharedAdjs = [n for n in adjList[begin+node-1] if n in adjList[begin+bktk-1]]
+
+        for cliqueNode in sharedAdjs
+            cliqueNodeEdge = edgeLabels[begin+cliqueNode-1]
+            if isUnNamed(cliqueNodeEdge)
+                edgeLabels[begin+cliqueNode-1] = discoverNode!(info, cliqueLabel)
+            elseif isHalfNamed(cliqueNodeEdge)
+                namedEnd = first(cliqueNodeEdge)
+                pop!(info.halfMarker, cliqueNode)
+
+                edgeLabels[begin+cliqueNode-1] = if namedEnd == cliqueLabel
+                    discoverNode!(info, cliqueLabel)
+                else
+                    minmax(cliqueLabel, namedEnd)
+                end
+            end
+        end
+
+        discoveredNodes = push!(sharedAdjs, bktk, node)
+        halfName!(info, adjList, discoveredNodes, cliqueLabel)
+    end
 end

@@ -6,17 +6,18 @@ export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
 """
     SimpleGraph{T<:Integer}
 
-A simple graph represented by a graph order (`.order`) and adjacency sets (`.adjacency`).
-Vertices are labeled by positive integers of type `T`.
+A simple graph represented by a graph order (`.order::Int <= typemax(Int)`) and adjacency 
+sets (`.adjacency`). Vertices are labeled by positive integers of type `T`.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
-    SimpleGraph(order::T) where {T<:Integer} -> SimpleGraph{T}
+    SimpleGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
+    SimpleGraph{T}
 
 Construct a simple graph of `order` with no edges.
 
-    SimpleGraph(order::Integer, edges::AbstractVector{<:NTuple{2, Integer}}, 
-                explicitError::Bool=false) -> 
+    SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
+                explicitError::Bool=false) where {T<:Integer} -> 
     SimpleGraph
 
 Construct a simple graph of `order` with valid (undirected) edge elements from `edges`. All 
@@ -24,11 +25,12 @@ invalid (e.g., self-loop, out-of-bound edges) or duplicate elements in `edges` a
 ignored unless `explicitError=true`, in which case a `DomainError` is thrown.
 """
 struct SimpleGraph{T<:Integer}
-    order::T
+    order::Int
     adjacency::Memory{Set{T}}
 
-    function SimpleGraph(order::T) where {T<:Integer}
+    function SimpleGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
         order < 0 && throw(DomainError(order, "`order` of the graph must be non-negative."))
+        order = Int(order)
         adj = Memory{Set{T}}(undef, order)
         for i in eachindex(adj)
             adj[i] = Set{T}()
@@ -37,10 +39,9 @@ struct SimpleGraph{T<:Integer}
     end
 end
 
-function SimpleGraph(order::T, edges::AbstractVector{<:NTuple{2, Integer}}, 
+function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
                      explicitError::Bool=false) where {T<:Integer}
-    typeO = typemax(T) > typemax(Int) ? T : Int
-    g = SimpleGraph(order|>typeO)
+    g = SimpleGraph(order, T)
     for edge in edges
         success = attachEdge!(g, edge)
         if explicitError && !success
@@ -52,7 +53,7 @@ end
 
 
 """
-    countVertices(g::SimpleGraph{T}) where {T<:Integer} -> T
+    countVertices(g::SimpleGraph) -> Int
 
 Return the number of vertices (i.e., the order) of `g`.
 """
@@ -116,29 +117,27 @@ end
 
 """
 
-    getDegree(g::SimpleGraph, vertex::Integer) -> Integer
+    getDegree(g::SimpleGraph, vertex::Integer) -> Int
 
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
 """
-function getDegree(g::SimpleGraph{T}, vertex::Integer) where {T<:Integer}
+function getDegree(g::SimpleGraph, vertex::Integer)
     vertex < 1 && throw(DomainError(vertex, "`vertex` must be positive integer`"))
-    typeC = typemax(T) > typemax(Int) ? T : Int
-    (typeC∘length)(g.adjacency[begin+vertex-1])
+    length(g.adjacency[begin+vertex-1])
 end
 
 
 """
-    countEdges(g::SimpleGraph) -> Integer
+    countEdges(g::SimpleGraph) -> Int
 
-Return the number of undirected edges in `g`. Throws an `AssertionError` if the
-adjacency representation is internally inconsistent.
+Return the number of undirected edges in `g`. Throws an `ArgumentError` if the adjacency 
+representation is internally inconsistent.
 """
-function countEdges(g::SimpleGraph{T}) where {T<:Integer}
-    typeC = typemax(T) > typemax(Int) ? T : Int
-    count = zero(typeC)
+function countEdges(g::SimpleGraph)
+    count = 0
     for node in 1:countVertices(g); count += getDegree(g, node) end
-    isodd(count) && throw(AssertionError("The adjacency lists of `g` have been corrupted."))
-    count ÷ typeC(2)
+    isodd(count) && throw(ArgumentError("The adjacency lists of `g` have been corrupted."))
+    count ÷ 2
 end
 
 
@@ -215,7 +214,7 @@ function listComponents(g::SimpleGraph{T}) where {T<:Integer}
     seen = falses(n)
     components = Vector{T}[]
 
-    for start in one(T):n
+    for start in 1:n
         seen[begin+start-1] && continue
 
         component = T[]
@@ -329,12 +328,12 @@ algorithm to reconstruct potentially corresponding root graph `r`. Return `true 
 `g` is indeed a (connected) line graph; return `false => g` otherwise. This function is 
 only well behaved when the input `g` is a connected `SimpleGraph`. Hence, in default, 
 `checkConnectivity=true` such that any input that is a disconnected graph throws an 
-`AssertionError`. For disconnected graphs, one can first apply [`decompose`](@ref) to 
+`ArgumentError`. For disconnected graphs, one can first apply [`decompose`](@ref) to 
 obtain connected subgraphs, and then apply `genRootGraph` to each subgraph.
 """
 function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
-        throw(AssertionError("The input graph `g` must be connected."))
+        throw(ArgumentError("The input graph `g` must be connected."))
     end
 
     order = countVertices(g)
@@ -489,7 +488,7 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
     for node in discoveredNodes
         nodeEdge = edgeLabels[begin+node-1]
         if !isFullyNamed(nodeEdge)
-            throw(AssertionError("Node $node in `discoveredNodes` is not fully named."))
+            throw(ArgumentError("Node $node in `discoveredNodes` is not fully named."))
         end
 
         if cliqueLabel in nodeEdge #> Filter out cross nodes and only keep clique nodes

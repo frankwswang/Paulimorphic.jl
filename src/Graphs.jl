@@ -556,3 +556,111 @@ function fullyName!(info::NodeEdgeInfo{T}, adjList) where {T<:Integer}
         halfName!(info, adjList, discoveredNodes, cliqueLabel)
     end
 end
+
+
+const MissingOr{T} = Union{Missing, T}
+
+"""
+
+    breadthFirstSearch(f, graph::SimpleGraph{T}, startingPoint::MissingOr{T}, 
+                       cache!Self::AbstractVector{T}=zeros(T, graph.order)
+                       ) where {T<:Integer} -> 
+    Tuple{T, Int}
+
+Perform a breadth-first search (BFS) on `graph`, starting from `startingPoint`. 
+
+If `startingPoint === missing`, the search visits all connected components, iterating 
+through vertices in `1:graph.order` as deterministic component roots. If `startingPoint` is
+a vertex label, only the connected component reachable from `startingPoint` is
+searched.
+
+The predicate `f` is called once for each dequeued vertex as `f(v)::Bool`. If `f(v)` 
+returns `true`, the search terminates immediately and returns `(v, nVisited)`, where `v::T` 
+is the first vertex satisfying `f`, and `nVisited` is the number of vertices dequeued, 
+equivalently the number of calls to `f`. If no vertex satisfies `f`, the function returns 
+`(zero(T), nVisited)` is used as the sentinel value for "not found".
+
+The optional `cache!Self` is used as a buffer to store the deterministic BFS queue. It must 
+have length at least `graph.order`. The elements of `cache!Self` up to the returned 
+`nVisited` position contain the BFS discovery order.
+"""
+function breadthFirstSearch(f::F, graph::SimpleGraph{T}, startingPoint::MissingOr{T}, 
+                            cache!Self::AbstractVector{T}=zeros(T, graph.order)
+                            ) where {T<:Integer, F}
+    order = graph.order
+    register = Memory{Bool}(undef, order)
+    register .= false
+    nodeRange = if ismissing(startingPoint)
+        (1 : order)
+    else
+        (startingPoint < 1 || startingPoint > order) && 
+        throw(DomainError(startingPoint, "`startingPoint` should be between 1 and $order."))
+        (startingPoint,)
+    end
+
+    if length(cache!Self) < order
+        throw(ArgumentError("The length of `cache!Self` must be at least `$order`."))
+    end
+    tail = 0
+    offset = firstindex(cache!Self) - 1
+
+    for localStart in nodeRange #> In case input graph is not connected
+        if !register[begin+localStart-1]
+            register[begin+localStart-1] = true
+            head = (tail += 1)
+            cache!Self[offset+tail] = T(localStart)
+
+            while head <= tail
+                lastNode = Int(cache!Self[offset+head])
+
+                if f(lastNode)::Bool
+                    return (lastNode, head) #> Matched node and call count of `f`
+                else
+                    tailLast = tail
+                    for child in graph.adjacency[begin+lastNode-1]
+                        if !register[begin+child-1]
+                            register[begin+child-1] = true
+                            tail += 1
+                            cache!Self[offset+tail] = child
+                        end
+                    end
+                    iStart = offset + tailLast + 1
+                    iFinal = offset + tail
+                    iStart < iFinal && sort!(@view cache!Self[iStart:iFinal])
+                end
+
+                head += 1
+            end
+        end
+    end
+
+    #> Sanity check for node traversal
+    if ismissing(startingPoint) && tail != order
+        throw(AssertionError("The number of visited vertices is not correct."))
+    end
+
+    #> First index fallbacks to zero if no `node` is found such that `f(node)`
+    (zero(T), tail)
+end
+
+"""
+
+    breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=missing
+                       ) where {T<:Integer} -> 
+    Vector{T}
+
+Return the deterministic breadth-first traversal order of `graph`. Newly discovered 
+children of each visited vertex are sorted before being enqueued into the returned value.
+
+If `startingPoint === missing`, the returned value contains the BFS traversal order over 
+all connected components. Components are started in increasing vertex order from 
+`1:graph.order`. If `startingPoint` is a vertex label, the returned value contains only the 
+BFS order of the connected component reachable from `startingPoint`.
+"""
+function breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=missing
+                            ) where {T<:Integer}
+    storage = zeros(T, graph.order)
+    _, nVisited = breadthFirstSearch(_->false, graph, startingPoint, storage)
+    ismissing(startingPoint) ? storage : storage[begin:begin+nVisited-1]
+end
+

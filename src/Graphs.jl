@@ -664,3 +664,249 @@ function breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=m
     ismissing(startingPoint) ? storage : storage[begin:begin+nVisited-1]
 end
 
+
+const SameTypePair{T} = Pair{T, T}
+
+const SetPair{T} = SameTypePair{Set{T}}
+
+
+struct NodePairInfo{T<:Integer}
+    pair::SameTypePair{T} #> g1Node => g2Cand
+    neighbor::SetPair{T}  #> g1Node neighbors => g2Cand Neighbors (outside matched nodes)
+    source::Bool          #> Is the node adjacent to (previous) matched nodes
+end
+
+NodePairInfo(::Type{T}) where {T<:Integer} = 
+NodePairInfo(zero(T)=>zero(T), Set{T}()=>Set{T}(), false)
+
+struct GraphMapInfo{T<:Integer}
+    graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
+    queue::Vector{NodePairInfo{T}} #> Full history of added matched node pairs
+    neighbor::SetPair{T} #> Each element is (T1,  T2 )
+    leftover::SetPair{T} #> Each element is (T1^, T2^)
+    register::Memory{Bool} #> Each element marks whether a node in g2 is currently used
+
+    function GraphMapInfo(g1::SimpleGraph{T}, g2::SimpleGraph{T}) where {T<:Integer}
+        g1Order = g1.order
+        g2Order = g2.order
+        queue = NodePairInfo{T}[]
+        neighbor = (Set{T}() => Set{T}())
+        leftover = (Set{T}(1:g1Order) => Set{T}(1:g2Order))
+        register = Memory{Bool}(undef, g2Order)
+        register .= false
+        new{T}(g1=>g2, queue, neighbor, leftover, register)
+    end
+end
+
+
+function popMatchPair!(info::GraphMapInfo{T}) where {T<:Integer}
+    queue = info.queue
+    if isempty(queue)
+        NodePairInfo(T) #> Fallback result for an empty history
+    else
+        pairInfo = pop!(queue)
+          g1Node,   g2Cand = pairInfo.pair
+        nodeNgbr, candNgbr = pairInfo.neighbor
+
+        #> Revoke registration of matched candidate
+        if info.register[begin+g2Cand-1]
+            info.register[begin+g2Cand-1] = false
+        else
+            throw(AssertionError("The candidate `$(g2Cand)` should have been registered."))
+        end
+
+        #> Push back `g1Node` and `g2Cand` to their respective sources
+        storage = pairInfo.source ? info.neighbor : info.leftover
+        push!(storage.first,  g1Node)
+        push!(storage.second, g2Cand)
+
+        #> Check the neighbors of matched nodes and restore their affecting sources
+        ngbrSize  = length(nodeNgbr)
+        ngbrSize == length(candNgbr) || throw(AssertionError("Inconsistent neighbor size."))
+
+        if ngbrSize > 0
+            ngbr1, ngbr2 = info.neighbor
+            lfvr1, lfvr2 = info.leftover
+            setdiff!(ngbr1, nodeNgbr)
+            setdiff!(ngbr2, candNgbr)
+            union!(lfvr1, nodeNgbr)
+            union!(lfvr2, candNgbr)
+        end
+
+        pairInfo #> Return the popped node pair
+    end
+end
+
+
+function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:Integer}
+    g1Node, g2Cand = pair
+
+    if info.register[begin+g2Cand-1] #> Check if the candidate has been matched for a pair
+        throw(ArgumentError("The input candidate (`pair.second`) has been used."))
+    end
+
+    queue = info.queue
+    g1, g2 = info.graph
+    adjs1 = g1.adjacency[g1Node]
+    adjs2 = g2.adjacency[g2Cand]
+    ngbr1, ngbr2 = info.neighbor
+    lfvr1, lfvr2 = info.leftover
+
+    #> Node pair feasibility check
+    #>> Cutting rules
+    count(in(adjs1), ngbr1) == count(in(adjs2), ngbr2) || (return false)
+    nodeNgbr = intersect(adjs1, lfvr1)
+    candNgbr = intersect(adjs2, lfvr2)
+    length(nodeNgbr) == length(candNgbr) || (return false)
+
+    #>> Consistency rules (which also serve as a candidate selection scheme)
+    passCheck, fromNeighbor = if g1Node in ngbr1 && g2Cand in ngbr2
+        for pairInfo in queue
+            u, v = pairInfo.pair
+            in(u, adjs1) == in(v, adjs2) || (return false)
+        end
+        pop!(ngbr1, g1Node)
+        pop!(ngbr2, g2Cand)
+        true, true  #>> Paired nodes are both adjacent to matched nodes
+    elseif g1Node in lfvr1 && g2Cand in lfvr2
+        pop!(lfvr1, g1Node)
+        pop!(lfvr2, g2Cand)
+        true, false #>> Paired nodes are both not adjacent to matched nodes
+    else
+        false, false
+    end
+
+    if passCheck
+        for ele1 in nodeNgbr; push!(ngbr1, pop!(lfvr1, ele1)) end
+        for ele2 in candNgbr; push!(ngbr2, pop!(lfvr2, ele2)) end
+        push!(queue, NodePairInfo(g1Node=>g2Cand, nodeNgbr=>candNgbr, fromNeighbor))
+        info.register[begin+g2Cand-1] = true
+    end
+
+    passCheck
+end
+
+
+"""
+    isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
+                 match!Self::MissingOr{AbstractVector{SameTypePair{T}}}=missing) where
+    {T<:Integer} ->
+    Bool
+
+Return whether `g1` and `g2` are isomorphic, i.e., whether there exists a bijection
+between their vertices that preserves vertex adjacency.
+
+The underlying algorithm of this function is a non-recursive variant of the VF2++ 
+algorithm. Instead of applying the full candidate-ordering subroutine in VF2++, the 
+vertices of `g1` are simply processed in non-increasing degree order, and each `g1` vertex 
+is only ever being tried to pair with a `g2` vertex of the same degree.
+
+When the optional argument `match!Self` is set to `missing` (the default), no 
+vertex-to-vertex mapping is recorded. Otherwise, `match!Self` is treated as a mutable 
+buffer of `(g1Vertex => g2Vertex)::Pair{T, T}` pairs. By design it is **never emptied on 
+entry**, so that any data already in it is preserved after the function call. In other 
+words, on success, the discovered mappings are directly *appended* to the buffer. On 
+failure, the buffer is restored to exactly its initial state.
+"""
+function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T}, 
+                      match!Self::MissingOr{AbstractVector{ SameTypePair{T} }}=missing
+                      ) where {T<:Integer}
+    storeMatch = ismissing(match!Self) ? false : true
+
+    nv = countVertices(g1)
+    nv == countVertices(g2) || (return false)
+
+    ne = countEdges(g1)
+    if ne == countEdges(g2)
+        if ne == 0
+            storeMatch && (for n in 1:nv; push!(match!Self, T(n)=>T(n)) end)
+            return true
+        end
+    else
+        (return false)
+    end
+
+    g1Degrees = listDegrees(g1)
+    g2Degrees = listDegrees(g2)
+
+    g1NodeOrder = sortperm(g1Degrees; rev=true)
+    g2NodeOrder = sortperm(g2Degrees; rev=true)
+
+    #> Ensure node labels are one-based integers
+    g1NodeOrder .+= 1 - firstindex(g1Degrees)
+    g2NodeOrder .+= 1 - firstindex(g2Degrees)
+
+    dividers = [0] #> Ending nodes of sectors where nodes have same degrees
+    degree = g1Degrees[begin+first(g1NodeOrder)-1]
+    for (i, cand) in zip(1:nv, g2NodeOrder)
+        if degree != g2Degrees[begin+cand-1]
+            return false #> Find a mismatched node pair and exit
+        end
+
+        addNewPair = isequal(nv, i)
+
+        if !addNewPair
+            degreeNext = g1Degrees[begin+g1NodeOrder[begin+i]-1]
+            if degreeNext != degree
+                degree = degreeNext
+                addNewPair = true
+            end
+        end
+
+        addNewPair && push!(dividers, i)
+    end
+
+    scopes = Iterators.flatten(
+        let iLast=dividers[begin+n-1], iStart=iLast+1
+            space = dividers[begin+n] - iLast
+            Iterators.repeated(iStart=>space, space)
+        end
+        for n in 1:(length(dividers)-1)
+    ) |> collect
+
+    depth = 1
+    info = GraphMapInfo(g1, g2)
+    searchOffsets = Memory{Int}(undef, nv)
+    searchOffsets .= 0
+    foundMatching = false
+
+    while depth >= 1
+        if depth > nv
+            foundMatching = true
+            break
+        end
+
+        node = g1NodeOrder[begin+depth-1]
+        offset = searchOffsets[begin+depth-1]
+        iStart, space = scopes[begin+depth-1]
+        descend = false
+
+        while offset < space
+            cand = g2NodeOrder[begin+iStart-1+offset]
+            offset += 1
+            hasNotBeenUsed = !info.register[begin+cand-1]
+
+            if hasNotBeenUsed
+                newPair = T(node) => T(cand)
+                if addMatchPair!(info, newPair) #> Feasibility check by `addMatchPair!`
+                    storeMatch && push!(match!Self, newPair)
+                    descend = true
+                    #> Memoize the resumed starting point if later ascend to this branch
+                    searchOffsets[begin+depth-1] = offset
+                    break
+                end
+            end
+        end
+
+        if descend
+            depth += 1
+        else
+            evicted = popMatchPair!(info)
+            storeMatch && !all(iszero, evicted.pair) && pop!(match!Self)
+            searchOffsets[begin+depth-1] = 0 #> Reset branch starting offset to be 0
+            depth -= 1
+        end
+    end
+
+    foundMatching
+end

@@ -7,7 +7,8 @@ export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
     SimpleGraph{T<:Integer}
 
 A simple graph represented by a graph order (`.order::Int <= typemax(Int)`) and adjacency 
-sets (`.adjacency`). Vertices are labeled by positive integers of type `T`.
+sets (`.adjacency`). Vertices are labeled by positive integers (i.e., from `1` to `.order`) 
+of type `T`.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -134,10 +135,10 @@ Return the number of undirected edges in `g`. Throws an `ArgumentError` if the a
 representation is internally inconsistent.
 """
 function countEdges(g::SimpleGraph)
-    count = 0
-    for node in 1:countVertices(g); count += getDegree(g, node) end
-    isodd(count) && throw(ArgumentError("The adjacency lists of `g` have been corrupted."))
-    count ÷ 2
+    c = 0
+    for node in 1:countVertices(g); c += getDegree(g, node) end
+    isodd(c) && throw(ArgumentError("The adjacency lists of `g` have been corrupted."))
+    c ÷ 2
 end
 
 
@@ -459,7 +460,7 @@ function isOddTriangle(triangle::NTuple{3, Integer}, g::SimpleGraph)
 
     for v in 1:countVertices(g)
         v in triangle && continue
-        nAdj = count(t -> t in adjList[begin+v-1], triangle)
+        nAdj = count(in(adjList[begin+v-1]), triangle)
         isodd(nAdj) && return true
     end
 

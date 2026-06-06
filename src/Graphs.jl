@@ -683,19 +683,19 @@ NodePairInfo(zero(T)=>zero(T), Set{T}()=>Set{T}(), false)
 struct GraphMapInfo{T<:Integer}
     graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
     queue::Vector{NodePairInfo{T}} #> Full history of added matched node pairs
-    neighbor::SetPair{T} #> Each element is (T1,  T2 )
-    leftover::SetPair{T} #> Each element is (T1^, T2^)
-    register::Memory{Bool} #> Each element marks whether a node in g2 is currently used
+    frontier::SetPair{T} #> (T1,  T2 )
+    leftover::SetPair{T} #> (T1^, T2^)
+    register::Memory{T} #> Each non-zero element marks a g1node g2cand is mapped from
 
     function GraphMapInfo(g1::SimpleGraph{T}, g2::SimpleGraph{T}) where {T<:Integer}
         g1Order = g1.order
         g2Order = g2.order
         queue = NodePairInfo{T}[]
-        neighbor = (Set{T}() => Set{T}())
+        frontier = (Set{T}() => Set{T}())
         leftover = (Set{T}(1:g1Order) => Set{T}(1:g2Order))
-        register = Memory{Bool}(undef, g2Order)
-        register .= false
-        new{T}(g1=>g2, queue, neighbor, leftover, register)
+        register = Memory{T}(undef, g2Order)
+        register .= zero(T)
+        new{T}(g1=>g2, queue, frontier, leftover, register)
     end
 end
 
@@ -710,26 +710,26 @@ function popMatchPair!(info::GraphMapInfo{T}) where {T<:Integer}
         nodeNgbr, candNgbr = pairInfo.neighbor
 
         #> Revoke registration of matched candidate
-        if info.register[begin+g2Cand-1]
-            info.register[begin+g2Cand-1] = false
+        if !iszero(info.register[begin+g2Cand-1])
+            info.register[begin+g2Cand-1] = zero(T)
         else
             throw(AssertionError("The candidate `$(g2Cand)` should have been registered."))
         end
 
         #> Push back `g1Node` and `g2Cand` to their respective sources
-        storage = pairInfo.source ? info.neighbor : info.leftover
+        storage = pairInfo.source ? info.frontier : info.leftover
         push!(storage.first,  g1Node)
         push!(storage.second, g2Cand)
 
         #> Check the neighbors of matched nodes and restore their affecting sources
         ngbrSize  = length(nodeNgbr)
-        ngbrSize == length(candNgbr) || throw(AssertionError("Inconsistent neighbor size."))
+        ngbrSize == length(candNgbr) || throw(AssertionError("Inconsistent frontier size."))
 
         if ngbrSize > 0
-            ngbr1, ngbr2 = info.neighbor
+            frtr1, frtr2 = info.frontier
             lfvr1, lfvr2 = info.leftover
-            setdiff!(ngbr1, nodeNgbr)
-            setdiff!(ngbr2, candNgbr)
+            setdiff!(frtr1, nodeNgbr)
+            setdiff!(frtr2, candNgbr)
             union!(lfvr1, nodeNgbr)
             union!(lfvr2, candNgbr)
         end
@@ -738,11 +738,18 @@ function popMatchPair!(info::GraphMapInfo{T}) where {T<:Integer}
     end
 end
 
+function intersectSize(s1::Set{T}, s2::Set{T}) where {T}
+    length(s1) > length(s2) ? count(in(s1), s2) : count(in(s2), s1)
+end
 
 function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:Integer}
     g1Node, g2Cand = pair
 
-    if info.register[begin+g2Cand-1] #> Check if the candidate has been matched for a pair
+    if iszero(g1Node)
+        throw(ArgumentError("The source vertex (`pair.first`) cannot be equal to zero."))
+    end
+
+    if !iszero(info.register[begin+g2Cand-1]) #> Check if the candidate has been matched
         throw(ArgumentError("The input candidate (`pair.second`) has been used."))
     end
 
@@ -750,24 +757,28 @@ function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:I
     g1, g2 = info.graph
     adjs1 = g1.adjacency[g1Node]
     adjs2 = g2.adjacency[g2Cand]
-    ngbr1, ngbr2 = info.neighbor
+    frtr1, frtr2 = info.frontier
     lfvr1, lfvr2 = info.leftover
 
-    #> Node pair feasibility check
-    #>> Cutting rules
-    count(in(adjs1), ngbr1) == count(in(adjs2), ngbr2) || (return false)
+    if length(adjs1) != length(adjs2) #> Premise of using one-direction consistency rules
+        throw(ArgumentError("The degree of the candidate should equal that of the source."))
+    end
+
+    #> Node-pair feasibility check
+    #>> Cutting rules (Need to be run before the consistency rules)
+    intersectSize(adjs1, frtr1) == intersectSize(adjs2, frtr2) || (return false)
     nodeNgbr = intersect(adjs1, lfvr1)
     candNgbr = intersect(adjs2, lfvr2)
     length(nodeNgbr) == length(candNgbr) || (return false)
 
     #>> Consistency rules (which also serve as a candidate selection scheme)
-    passCheck, fromNeighbor = if g1Node in ngbr1 && g2Cand in ngbr2
-        for pairInfo in queue
-            u, v = pairInfo.pair
-            in(u, adjs1) == in(v, adjs2) || (return false)
+    passCheck, fromFrontier = if g1Node in frtr1 && g2Cand in frtr2
+        for v in adjs2 #>> One-direction check is safe as |match ∪ adjs1|==|match ∪ adjs1|
+            u = info.register[begin+v-1]
+            iszero(u) || in(u, adjs1) || (return false)
         end
-        pop!(ngbr1, g1Node)
-        pop!(ngbr2, g2Cand)
+        pop!(frtr1, g1Node)
+        pop!(frtr2, g2Cand)
         true, true  #>> Paired nodes are both adjacent to matched nodes
     elseif g1Node in lfvr1 && g2Cand in lfvr2
         pop!(lfvr1, g1Node)
@@ -778,13 +789,42 @@ function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:I
     end
 
     if passCheck
-        for ele1 in nodeNgbr; push!(ngbr1, pop!(lfvr1, ele1)) end
-        for ele2 in candNgbr; push!(ngbr2, pop!(lfvr2, ele2)) end
-        push!(queue, NodePairInfo(g1Node=>g2Cand, nodeNgbr=>candNgbr, fromNeighbor))
-        info.register[begin+g2Cand-1] = true
+        for ele1 in nodeNgbr; push!(frtr1, pop!(lfvr1, ele1)) end
+        for ele2 in candNgbr; push!(frtr2, pop!(lfvr2, ele2)) end
+        push!(queue, NodePairInfo(g1Node=>g2Cand, nodeNgbr=>candNgbr, fromFrontier))
+        info.register[begin+g2Cand-1] = g1Node
     end
 
     passCheck
+end
+
+
+function connectivityOrder(g::SimpleGraph{T}, 
+                           rootOrder::AbstractVector{Int}) where {T<:Integer}
+    nv = countVertices(g)
+    if length(rootOrder) != nv
+        throw(ArgumentError("The length of `rootOrder` does not match the order of `g`."))
+    end
+
+    order = Memory{T}(undef, nv)
+    buffer = Memory{T}(undef, nv)
+    ordered = Memory{Bool}(undef, nv)
+    ordered .= false
+    slot = 1
+
+    for root in rootOrder
+        ordered[begin+root-1] && continue
+        _, nVisited = breadthFirstSearch(_->false, g, T(root), buffer)
+
+        for idx in 1:nVisited
+            v = buffer[begin+idx-1]
+            order[begin+slot-1] = v
+            ordered[begin+v-1] = true
+            slot += 1
+        end
+    end
+
+    order
 end
 
 
@@ -794,13 +834,14 @@ end
     {T<:Integer} ->
     Bool
 
-Return whether `g1` and `g2` are isomorphic, i.e., whether there exists a bijection
+Return whether `g1` is isomorphic to `g2`, i.e., whether there exists a bijection
 between their vertices that preserves vertex adjacency.
 
 The underlying algorithm of this function is a non-recursive variant of the VF2++ 
-algorithm. Instead of applying the full candidate-ordering subroutine in VF2++, the 
-vertices of `g1` are simply processed in non-increasing degree order, and each `g1` vertex 
-is only ever being tried to pair with a `g2` vertex of the same degree.
+algorithm. Instead of applying the exact vertex ordering subroutine from VF2++, the 
+vertices of `g1` are directly processed through BFS where the roots for connected 
+components are selected following a non-increasing degree order. Additionally, for a given 
+`g1` vertex, only `g2` vertices of the same degree are promoted as matching candidates.
 
 When the optional argument `match!Self` is set to `missing` (the default), no 
 vertex-to-vertex mapping is recorded. Otherwise, `match!Self` is treated as a mutable 
@@ -830,40 +871,26 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
     g1Degrees = listDegrees(g1)
     g2Degrees = listDegrees(g2)
 
-    g1NodeOrder = sortperm(g1Degrees; rev=true)
-    g2NodeOrder = sortperm(g2Degrees; rev=true)
+    #> Organize the nodes by their degrees in non-increasing order
+    g1NodesByDegree = sortperm(g1Degrees; rev=true)
+    g2NodesByDegree = sortperm(g2Degrees; rev=true)
 
-    #> Ensure node labels are one-based integers
-    g1NodeOrder .+= 1 - firstindex(g1Degrees)
-    g2NodeOrder .+= 1 - firstindex(g2Degrees)
+    #> Ensure nodes are labeled by one-based integers
+    g1NodesByDegree .+= 1 - firstindex(g1Degrees)
+    g2NodesByDegree .+= 1 - firstindex(g2Degrees)
 
-    dividers = [0] #> Ending nodes of sectors where nodes have same degrees
-    degree = g1Degrees[begin+first(g1NodeOrder)-1]
-    for (i, cand) in zip(1:nv, g2NodeOrder)
-        if degree != g2Degrees[begin+cand-1]
-            return false #> Find a mismatched node pair and exit
-        end
-
-        addNewPair = isequal(nv, i)
-
-        if !addNewPair
-            degreeNext = g1Degrees[begin+g1NodeOrder[begin+i]-1]
-            if degreeNext != degree
-                degree = degreeNext
-                addNewPair = true
-            end
-        end
-
-        addNewPair && push!(dividers, i)
+    #> Verify the degree matching and record the info of each degree block
+    blocks = Dict{Int, Pair{Int, Int}}() #>> degree => (blockStartIdx => blockSpace)
+    for i in 1:nv
+        d1 = g1Degrees[begin+g1NodesByDegree[begin+i-1]-1]
+        d2 = g2Degrees[begin+g2NodesByDegree[begin+i-1]-1]
+        d1 == d2 || (return false) #> Mismatched degree sequence
+        haskey(blocks, d2) || (blocks[d2] = i => count(==(d2), g2Degrees))
     end
 
-    scopes = Iterators.flatten(
-        let iLast=dividers[begin+n-1], iStart=iLast+1
-            space = dividers[begin+n] - iLast
-            Iterators.repeated(iStart=>space, space)
-        end
-        for n in 1:(length(dividers)-1)
-    ) |> collect
+    #> Process g1 by connectivity (degrees interleaved); map each depth to its degree block
+    g1NodeOrder = connectivityOrder(g1, g1NodesByDegree)
+    scopes = [blocks[g1Degrees[begin+g1NodeOrder[begin+d-1]-1]] for d in 1:nv]
 
     depth = 1
     info = GraphMapInfo(g1, g2)
@@ -883,9 +910,9 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
         descend = false
 
         while offset < space
-            cand = g2NodeOrder[begin+iStart-1+offset]
+            cand = g2NodesByDegree[begin+iStart-1+offset]
             offset += 1
-            hasNotBeenUsed = !info.register[begin+cand-1]
+            hasNotBeenUsed = iszero(info.register[begin+cand-1])
 
             if hasNotBeenUsed
                 newPair = T(node) => T(cand)

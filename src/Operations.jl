@@ -43,10 +43,27 @@ function getFrustrationGraph(ham::PauliSum;
     validEdges = NTuple{2, Int}[]
     for i in 1:(nodeNum-1), j in i+1:nodeNum
         weight = abs(coeffs[begin+i-1] * coeffs[begin+j-1])
-        if weight > edgeThreshold && checkAntiCom(strings[begin+i-1], strings[begin+j-1])
-            push!(validEdges, (i, j))
-        end
+        weight > edgeThreshold && getFrustrationGraphCore!(validEdges, strings, (i, j))
     end
 
     validNodes => validEdges
+end
+
+function getFrustrationGraph(strings::AbstractVector{PauliStr})
+    nodeNum = length(strings)
+
+    validEdges = NTuple{2, Int}[]
+    for i in 1:(nodeNum-1), j in i+1:nodeNum
+        getFrustrationGraphCore!(validEdges, strings, (i, j))
+    end
+
+    strings => validEdges
+end
+
+function getFrustrationGraphCore!(validEdges::AbstractVector{NTuple{2, Int}}, 
+                                  strings::AbstractVector{PauliStr}, 
+                                  edge::NTuple{2, Int}) #> One-based index
+    i, j = edge
+    checkAntiCom(strings[begin+i-1], strings[begin+j-1]) && push!(validEdges, (i, j))
+    strings => validEdges
 end

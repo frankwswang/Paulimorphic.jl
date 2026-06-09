@@ -9,7 +9,7 @@ function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
         dot(str1z, str2x) + dot(str1x, str2z)
     else
         mapreduce(*, +, str1z, str2x) + mapreduce(*, +, str1x, str2z)
-    end |> iszero
+    end |> iseven
 end
 
 function checkAntiCom(str1::PauliStr, str2::PauliStr)::Bool

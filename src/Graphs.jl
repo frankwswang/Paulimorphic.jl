@@ -891,7 +891,7 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
 
     #> Process g1 by connectivity (degrees interleaved); map each depth to its degree block
     g1NodeOrder = connectivityOrder(g1, g1NodesByDegree)
-    scopes = [blocks[g1Degrees[begin+g1NodeOrder[begin+d-1]-1]] for d in 1:nv]
+    globalCandScopes = [blocks[g1Degrees[begin+g1NodeOrder[begin+d-1]-1]] for d in 1:nv]
 
     depth = 1
     info = GraphMapInfo(g1, g2)
@@ -928,8 +928,8 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
         prevDepth = prevDepths[begin+depth-1]
         descend = false
 
-        localScope = if prevDepth == 0
-            iStart, space = scopes[begin+depth-1]
+        candList = if prevDepth == 0
+            iStart, space = globalCandScopes[begin+depth-1]
             @view g2NodesByDegree[(begin+iStart-1):(begin+iStart+space-2)]
         else
             deg = g1Degrees[begin+node-1]
@@ -939,8 +939,8 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
             end
         end
 
-        while offset < length(localScope)
-            cand = localScope[begin+offset]
+        while offset < length(candList)
+            cand = candList[begin+offset]
             offset += 1
 
             if iszero(info.register[begin+cand-1]) #> Ensure the candidate has not been used

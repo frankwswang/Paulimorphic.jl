@@ -561,6 +561,7 @@ end
 
 const MissingOr{T} = Union{Missing, T}
 
+
 """
 
     breadthFirstSearch(f, graph::SimpleGraph{T}, startingPoint::MissingOr{T}, 
@@ -897,6 +898,24 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
     searchOffsets = Memory{Int}(undef, nv)
     searchOffsets .= 0
     foundMatching = false
+    localCandScopes = Dict{Pair{T, Int}, Vector{T}}()
+
+    #> `nodeDepths[i]`: Depth (one-based position in `g1NodeOrder`) of the i-th node
+    nodeDepths = Memory{Int}(undef, nv)
+    for d in 1:nv; nodeDepths[begin+g1NodeOrder[begin+d-1]-1] = d end
+    #> `prevDepths[i]`: The depth of an already matched node neighboring the i-th node
+    prevDepths = Memory{Int}(undef, nv)
+    for (d, n) in enumerate(g1NodeOrder)
+        nAdjs = g1.adjacency[begin+n-1]
+        best = (typemax(Int), 0) #> (degree, depth); `depth==0` => no previous neighbor
+        for u in nAdjs
+            uPos = nodeDepths[begin+u-1]
+            uPos < d || continue #> Restrict to already-matched (shallower) neighbors
+            key = (g1Degrees[begin+u-1], uPos)
+            key < best && (best = key)
+        end
+        prevDepths[begin+d-1] = last(best)
+    end
 
     while depth >= 1
         if depth > nv
@@ -906,15 +925,25 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
 
         node = g1NodeOrder[begin+depth-1]
         offset = searchOffsets[begin+depth-1]
-        iStart, space = scopes[begin+depth-1]
+        prevDepth = prevDepths[begin+depth-1]
         descend = false
 
-        while offset < space
-            cand = g2NodesByDegree[begin+iStart-1+offset]
-            offset += 1
-            hasNotBeenUsed = iszero(info.register[begin+cand-1])
+        localScope = if prevDepth == 0
+            iStart, space = scopes[begin+depth-1]
+            @view g2NodesByDegree[(begin+iStart-1):(begin+iStart+space-2)]
+        else
+            deg = g1Degrees[begin+node-1]
+            img = info.queue[begin+prevDepth-1].pair.second #> Previously matched candidate
+            get!(localCandScopes, img=>deg) do
+                sort!([v for v in g2.adjacency[begin+img-1] if g2Degrees[begin+v-1]==deg])
+            end
+        end
 
-            if hasNotBeenUsed
+        while offset < length(localScope)
+            cand = localScope[begin+offset]
+            offset += 1
+
+            if iszero(info.register[begin+cand-1]) #> Ensure the candidate has not been used
                 newPair = T(node) => T(cand)
                 if addMatchPair!(info, newPair) #> Feasibility check by `addMatchPair!`
                     storeMatch && push!(match!Self, newPair)

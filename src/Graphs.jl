@@ -669,97 +669,70 @@ end
 
 const SameTypePair{T} = Pair{T, T}
 
-const SetPair{T} = SameTypePair{Set{T}}
-
-
-struct NodePairInfo{T<:Integer}
-    pair::SameTypePair{T} #> g1Node => g2Cand
-    neighbor::SetPair{T}  #> g1Node neighbors => g2Cand Neighbors (outside matched nodes)
-    source::Bool          #> Is the node adjacent to (previous) matched nodes
-end
-
-NodePairInfo(::Type{T}) where {T<:Integer} = 
-NodePairInfo(zero(T)=>zero(T), Set{T}()=>Set{T}(), false)
-
-struct GraphMapInfo{T<:Integer}
-    graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
-    queue::Vector{NodePairInfo{T}} #> Full history of added matched node pairs
-    frontier::SetPair{T} #> (T1,  T2 )
-    leftover::SetPair{T} #> (T1^, T2^)
-    register::Memory{T} #> Each non-zero element marks a g1node g2cand is mapped from
+mutable struct GraphMapInfo{T<:Integer}
+    const graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
+    const track::Memory{Pair{T, T}}           #> Element: prev-matched node => candidate
+    const register::Memory{Bool}              #> `.register[begin+g2Cand-1] == isUsed`
+    const frontier::SameTypePair{Memory{T}}   #> T1 => T2
+    indexer::T                                #> The latest matched node in g1
 
     function GraphMapInfo(g1::SimpleGraph{T}, g2::SimpleGraph{T}) where {T<:Integer}
-        g1Order = g1.order
-        g2Order = g2.order
-        queue = NodePairInfo{T}[]
-        frontier = (Set{T}() => Set{T}())
-        leftover = (Set{T}(1:g1Order) => Set{T}(1:g2Order))
-        register = Memory{T}(undef, g2Order)
-        register .= zero(T)
-        new{T}(g1=>g2, queue, frontier, leftover, register)
+        g1Order, g2Order = g1.order, g2.order
+        track = Memory{Pair{T, T}}(undef, g1Order); track .= (zero(T) => zero(T))
+        g1Front = Memory{T}(undef, g1Order); g1Front .= zero(T)
+        g2Front = Memory{T}(undef, g2Order); g2Front .= zero(T)
+        register = Memory{Bool}(undef, g2Order); register .= false
+        new{T}(g1=>g2, track, register, g1Front=>g2Front, 0)
     end
 end
 
 
 function popMatchPair!(info::GraphMapInfo{T}) where {T<:Integer}
-    queue = info.queue
-    if isempty(queue)
-        NodePairInfo(T) #> Fallback result for an empty history
-    else
-        pairInfo = pop!(queue)
-          g1Node,   g2Cand = pairInfo.pair
-        nodeNgbr, candNgbr = pairInfo.neighbor
+    g1Node = info.indexer
+    matchTrack = info.track
 
-        #> Revoke registration of matched candidate
-        if !iszero(info.register[begin+g2Cand-1])
-            info.register[begin+g2Cand-1] = zero(T)
+    if !iszero(g1Node)
+        #> Remove the record of the pair
+        lastNode, g2Cand = matchTrack[begin+g1Node-1]
+        matchTrack[begin+g1Node-1] = (zero(T) => zero(T))
+        info.indexer = lastNode
+        candReg = info.register
+
+        #> Revoke registration of matched node-candidate pair
+        if candReg[begin+g2Cand-1]
+            candReg[begin+g2Cand-1] = false
         else
             throw(AssertionError("The candidate `$(g2Cand)` should have been registered."))
         end
 
-        #> Push back `g1Node` and `g2Cand` to their respective sources
-        storage = pairInfo.source ? info.frontier : info.leftover
-        push!(storage.first,  g1Node)
-        push!(storage.second, g2Cand)
-
-        #> Check the neighbors of matched nodes and restore their affecting sources
-        ngbrSize  = length(nodeNgbr)
-        ngbrSize == length(candNgbr) || throw(AssertionError("Inconsistent frontier size."))
-
-        if ngbrSize > 0
-            frtr1, frtr2 = info.frontier
-            lfvr1, lfvr2 = info.leftover
-            setdiff!(frtr1, nodeNgbr)
-            setdiff!(frtr2, candNgbr)
-            union!(lfvr1, nodeNgbr)
-            union!(lfvr2, candNgbr)
+        #> Remove the frontier nodes matched `g1Node` by resetting their stamps to zero
+        graph1, graph2 = info.graph
+        front1, front2 = info.frontier
+        for u in graph1.adjacency[begin+g1Node-1]
+            front1[begin+u-1] == g1Node && (front1[begin+u-1] = 0)
         end
-
-        pairInfo #> Return the popped node pair
+        for v in graph2.adjacency[begin+g2Cand-1]
+            front2[begin+v-1] == g1Node && (front2[begin+v-1] = 0)
+        end
     end
+
+    g1Node #> Fallback to `zero(T)` for an empty track
 end
 
-function intersectSize(s1::Set{T}, s2::Set{T}) where {T}
-    length(s1) > length(s2) ? count(in(s1), s2) : count(in(s2), s1)
-end
 
 function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:Integer}
     g1Node, g2Cand = pair
+    candReg = info.register
 
-    if iszero(g1Node)
-        throw(ArgumentError("The source vertex (`pair.first`) cannot be equal to zero."))
+    iszero(g1Node) && throw(ArgumentError("`pair.first` cannot equal zero."))
+    if !iszero(candReg[begin+g2Cand-1])
+        throw(ArgumentError("`pair.second` should not haven been registered."))
     end
 
-    if !iszero(info.register[begin+g2Cand-1]) #> Check if the candidate has been matched
-        throw(ArgumentError("The input candidate (`pair.second`) has been used."))
-    end
-
-    queue = info.queue
     g1, g2 = info.graph
-    adjs1 = g1.adjacency[g1Node]
-    adjs2 = g2.adjacency[g2Cand]
-    frtr1, frtr2 = info.frontier
-    lfvr1, lfvr2 = info.leftover
+    adjs1 = g1.adjacency[begin+g1Node-1]
+    adjs2 = g2.adjacency[begin+g2Cand-1]
+    front1, front2 = info.frontier
 
     if length(adjs1) != length(adjs2) #> Premise of using one-direction consistency rules
         throw(ArgumentError("The degree of the candidate should equal that of the source."))
@@ -767,36 +740,64 @@ function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:I
 
     #> Node-pair feasibility check
     #>> Cutting rules (Need to be run before the consistency rules)
-    intersectSize(adjs1, frtr1) == intersectSize(adjs2, frtr2) || (return false)
-    nodeNgbr = intersect(adjs1, lfvr1)
-    candNgbr = intersect(adjs2, lfvr2)
-    length(nodeNgbr) == length(candNgbr) || (return false)
-
-    #>> Consistency rules (which also serve as a candidate selection scheme)
-    passCheck, fromFrontier = if g1Node in frtr1 && g2Cand in frtr2
-        for v in adjs2 #>> One-direction check is safe as |match ∪ adjs1|==|match ∪ adjs1|
-            u = info.register[begin+v-1]
-            iszero(u) || in(u, adjs1) || (return false)
+    leftoverCount1 = frontierCount1 = leftoverCount2 = frontierCount2 = 0
+    matchTrack = info.track
+    for u in adjs1
+        v = matchTrack[begin+u-1].second
+        if !iszero(v)
+            if !candReg[begin+v-1]
+                throw(AssertionError("Matched candidate `$v` should have been registered."))
+            end
+            continue #> Skip already matched node
         end
-        pop!(frtr1, g1Node)
-        pop!(frtr2, g2Cand)
-        true, true  #>> Paired nodes are both adjacent to matched nodes
-    elseif g1Node in lfvr1 && g2Cand in lfvr2
-        pop!(lfvr1, g1Node)
-        pop!(lfvr2, g2Cand)
-        true, false #>> Paired nodes are both not adjacent to matched nodes
-    else
-        false, false
+        if iszero(front1[begin+u-1]) #> `u` is in the leftover set of g1 nodes (T1^)
+            leftoverCount1 += 1
+        else #> `u` is the frontier of g1 nodes (T1)
+            frontierCount1 += 1
+        end
+    end
+    for v in adjs2
+        candReg[begin+v-1] && continue #> Skip already matched candidate
+        if iszero(front2[begin+v-1]) #> `v` is in the leftover set of g2 nodes (T2^)
+            leftoverCount2 += 1
+        else #> `v` is the frontier of g2 nodes (T2)
+            frontierCount2 += 1
+        end
+    end
+    (leftoverCount1 == leftoverCount2 && frontierCount1 == frontierCount2) || (return false)
+
+    #>> The two nodes must originate from the same set (either frontier or leftover)
+    g1InFrontier = !iszero(front1[begin+g1Node-1]) #> `false` -> `g1Node` is from T1^
+    g2InFrontier = !iszero(front2[begin+g2Cand-1]) #> `false` -> `g2Cand` is from T2^
+    g1InFrontier == g2InFrontier || (return false)
+
+    #> Under the condition: `g1InFrontier == g2InFrontier`
+    #>> Consistency rules (which also serve as a candidate selection scheme)
+    if g1InFrontier #>> One-direction check is safe as |match-n ∩ adjs1|==|match-c ∩ adjs2|
+        for u in adjs1
+            v = matchTrack[begin+u-1].second
+            iszero(v) || in(v, adjs2) || (return false)
+        end
     end
 
-    if passCheck
-        for ele1 in nodeNgbr; push!(frtr1, pop!(lfvr1, ele1)) end
-        for ele2 in candNgbr; push!(frtr2, pop!(lfvr2, ele2)) end
-        push!(queue, NodePairInfo(g1Node=>g2Cand, nodeNgbr=>candNgbr, fromFrontier))
-        info.register[begin+g2Cand-1] = g1Node
+    #> `g1Node` as the stamp for promoted frontier nodes
+    for u in adjs1
+        if iszero(matchTrack[begin+u-1].second) && iszero(front1[begin+u-1])
+            front1[begin+u-1] = g1Node
+        end
+    end
+    for v in adjs2
+        if !candReg[begin+v-1] && iszero(front2[begin+v-1])
+            front2[begin+v-1] = g1Node
+        end
     end
 
-    passCheck
+    #> Success registration
+    matchTrack[begin+g1Node-1] = (info.indexer => g2Cand)
+    candReg[begin+g2Cand-1] = true
+    info.indexer = g1Node
+
+    true
 end
 
 
@@ -891,7 +892,7 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
 
     #> Process g1 by connectivity (degrees interleaved); map each depth to its degree block
     g1NodeOrder = connectivityOrder(g1, g1NodesByDegree)
-    scopes = [blocks[g1Degrees[begin+g1NodeOrder[begin+d-1]-1]] for d in 1:nv]
+    globalCandScopes = [blocks[g1Degrees[begin+g1NodeOrder[begin+d-1]-1]] for d in 1:nv]
 
     depth = 1
     info = GraphMapInfo(g1, g2)
@@ -900,21 +901,24 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
     foundMatching = false
     localCandScopes = Dict{Pair{T, Int}, Vector{T}}()
 
-    #> `nodeDepths[i]`: Depth (one-based position in `g1NodeOrder`) of the i-th node
+    #> `nodeDepths[d]`: Depth (one-based position in `g1NodeOrder`) of node labeled by `d`
     nodeDepths = Memory{Int}(undef, nv)
     for d in 1:nv; nodeDepths[begin+g1NodeOrder[begin+d-1]-1] = d end
-    #> `prevDepths[i]`: The depth of an already matched node neighboring the i-th node
-    prevDepths = Memory{Int}(undef, nv)
+    #> `prevNodes[d]`: An already matched node neighboring the `d`-th node in `g1NodeOrder`
+    prevNodes = Memory{Int}(undef, nv)
     for (d, n) in enumerate(g1NodeOrder)
-        nAdjs = g1.adjacency[begin+n-1]
-        best = (typemax(Int), 0) #> (degree, depth); `depth==0` => no previous neighbor
-        for u in nAdjs
-            uPos = nodeDepths[begin+u-1]
-            uPos < d || continue #> Restrict to already-matched (shallower) neighbors
-            key = (g1Degrees[begin+u-1], uPos)
-            key < best && (best = key)
+        nodeStat = (typemax(Int), typemax(Int)) #> (degree, depth) of the potential neighbor
+        bestNode = zero(T) #> Fall back to zero if no best neighbor found
+        for node in g1.adjacency[begin+n-1]
+            nodePos = nodeDepths[begin+node-1]
+            nodePos < d || continue #> Restrict to already-matched (shallower) neighbors
+            stat = (g1Degrees[begin+node-1], nodePos)
+            if stat < nodeStat
+                nodeStat = stat
+                bestNode = node
+            end
         end
-        prevDepths[begin+d-1] = last(best)
+        prevNodes[begin+d-1] = bestNode
     end
 
     while depth >= 1
@@ -925,25 +929,26 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
 
         node = g1NodeOrder[begin+depth-1]
         offset = searchOffsets[begin+depth-1]
-        prevDepth = prevDepths[begin+depth-1]
+        prevNode = prevNodes[begin+depth-1]
         descend = false
 
-        localScope = if prevDepth == 0
-            iStart, space = scopes[begin+depth-1]
+        candList = if iszero(prevNode) #> `node` has no optimal previous neighbor
+            iStart, space = globalCandScopes[begin+depth-1]
             @view g2NodesByDegree[(begin+iStart-1):(begin+iStart+space-2)]
         else
             deg = g1Degrees[begin+node-1]
-            img = info.queue[begin+prevDepth-1].pair.second #> Previously matched candidate
+            img = info.track[begin+prevNode-1].second #> Previously matched candidate
+            iszero(img) && throw(AssertionError("The matched candidate must not be zero."))
             get!(localCandScopes, img=>deg) do
                 sort!([v for v in g2.adjacency[begin+img-1] if g2Degrees[begin+v-1]==deg])
             end
         end
 
-        while offset < length(localScope)
-            cand = localScope[begin+offset]
+        while offset < length(candList)
+            cand = candList[begin+offset]
             offset += 1
 
-            if iszero(info.register[begin+cand-1]) #> Ensure the candidate has not been used
+            if !info.register[begin+cand-1] #> Ensure the candidate has not been used
                 newPair = T(node) => T(cand)
                 if addMatchPair!(info, newPair) #> Feasibility check by `addMatchPair!`
                     storeMatch && push!(match!Self, newPair)
@@ -958,8 +963,8 @@ function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
         if descend
             depth += 1
         else
-            evicted = popMatchPair!(info)
-            storeMatch && !all(iszero, evicted.pair) && pop!(match!Self)
+            evictedNode = popMatchPair!(info)
+            storeMatch && !iszero(evictedNode) && pop!(match!Self)
             searchOffsets[begin+depth-1] = 0 #> Reset branch starting offset to be 0
             depth -= 1
         end

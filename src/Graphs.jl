@@ -1,6 +1,6 @@
 export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDegree, 
        countEdges, listEdges, listDegrees, genLineGraph, listComponents, decompose, 
-       isIsomorphic, genRootGraph
+       isIsomorphic, genRootGraph, breadthFirstSearch
 
 
 """
@@ -123,7 +123,8 @@ end
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
 """
 function getDegree(g::SimpleGraph, vertex::Integer)
-    vertex < 1 && throw(DomainError(vertex, "`vertex` must be positive integer`"))
+    nv = g.order
+    1 <= vertex <= nv || throw(DomainError(vertex, "`vertex` must be an integer in 1:$nv"))
     length(g.adjacency[begin+vertex-1])
 end
 

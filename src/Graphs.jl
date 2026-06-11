@@ -1,6 +1,6 @@
 export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDegree, 
        countEdges, listEdges, listDegrees, genLineGraph, listComponents, decompose, 
-       isIsomorphic, genRootGraph
+       isIsomorphic, genRootGraph, breadthFirstSearch
 
 
 """
@@ -123,7 +123,8 @@ end
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
 """
 function getDegree(g::SimpleGraph, vertex::Integer)
-    vertex < 1 && throw(DomainError(vertex, "`vertex` must be positive integer`"))
+    nv = g.order
+    1 <= vertex <= nv || throw(DomainError(vertex, "`vertex` must be an integer in 1:$nv"))
     length(g.adjacency[begin+vertex-1])
 end
 
@@ -338,18 +339,19 @@ mutable struct NodeEdgeInfo{T<:Integer}
 end
 
 
-#> Reference(s): 
-## [DOI] 10.1145/321850.321853
+#>-- Reference --<#
+#> [DOI] 10.1145/321850.321853
 """
     genRootGraph(g::SimpleGraph, checkConnectivity::Bool=true) -> Pair{Bool, SimpleGraph}
 
-Attempt to recognize connected `g` as a line graph using Lehot-style edge-label
-algorithm to reconstruct potentially corresponding root graph `r`. Return `true => r` if 
-`g` is indeed a (connected) line graph; return `false => g` otherwise. This function is 
-only well behaved when the input `g` is a connected `SimpleGraph`. Hence, in default, 
-`checkConnectivity=true` such that any input that is a disconnected graph throws an 
-`ArgumentError`. For disconnected graphs, one can first apply [`decompose`](@ref) to 
-obtain connected subgraphs, and then apply `genRootGraph` to each subgraph.
+Attempt to recognize connected `g` as a line graph using [Lehot-style edge-label
+algorithm](https://doi.org/10.1145/321850.321853) to reconstruct potentially corresponding 
+root graph `r`. Return `true => r` if `g` is indeed a (connected) line graph; return 
+`false => g` otherwise. This function is only well behaved when the input `g` is a 
+connected `SimpleGraph`. Hence, in default, `checkConnectivity=true` such that any input 
+that is a disconnected graph throws an `ArgumentError`. For disconnected graphs, one can 
+first apply [`decompose`](@ref) to obtain connected subgraphs, and then apply 
+`genRootGraph` to each subgraph.
 """
 function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
@@ -690,7 +692,7 @@ const SameTypePair{T} = Pair{T, T}
 
 mutable struct GraphMapInfo{T<:Integer}
     const graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
-    const track::Memory{Pair{T, T}}           #> Element: prev-matched node => candidate
+    const track::Memory{SameTypePair{T}}      #> Element: prev-matched node => candidate
     const register::Memory{Bool}              #> `.register[begin+g2Cand-1] == isUsed`
     const frontier::SameTypePair{Memory{T}}   #> T1 => T2
     indexer::T                                #> The latest matched node in g1
@@ -849,20 +851,23 @@ function connectivityOrder(g::SimpleGraph{T},
 end
 
 
+#>-- Reference --<#
+#> [DOI] 10.1016/j.dam.2018.02.018
 """
     isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
-                 match!Self::MissingOr{AbstractVector{SameTypePair{T}}}=missing) where
+                 match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing) where
     {T<:Integer} ->
     Bool
 
 Return whether `g1` is isomorphic to `g2`, i.e., whether there exists a bijection
 between their vertices that preserves vertex adjacency.
 
-The underlying algorithm of this function is a non-recursive variant of the VF2++ 
-algorithm. Instead of applying the exact vertex ordering subroutine from VF2++, the 
-vertices of `g1` are directly processed through BFS where the roots for connected 
-components are selected following a non-increasing degree order. Additionally, for a given 
-`g1` vertex, only `g2` vertices of the same degree are promoted as matching candidates.
+The underlying algorithm of this function is a non-recursive variant of the [VF2++ 
+algorithm](https://doi.org/10.1016/j.dam.2018.02.018). Instead of applying the exact vertex 
+ordering subroutine from VF2++, the vertices of `g1` are directly processed through BFS 
+where the roots for connected components are selected following a non-increasing degree 
+order. Additionally, for a given `g1` vertex, only `g2` vertices of the same degree are 
+promoted as matching candidates.
 
 When the optional argument `match!Self` is set to `missing` (the default), no 
 vertex-to-vertex mapping is recorded. Otherwise, `match!Self` is treated as a mutable 

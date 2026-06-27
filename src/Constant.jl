@@ -33,10 +33,10 @@ getPauliSym(num::Integer) = PauliSym(num)
 
 
 @enum PhaseFactor::UInt8 begin
-    negImg=0 #> 00: -im
-    negRea=1 #> 01: -1
-    posImg=2 #> 10: +im
-    posRea=3 #> 11: +1
+    posRea=0 #> i^0 == +1
+    posImg=1 #> i^1 == +im
+    negRea=2 #> i^2 == -1
+    negImg=3 #> i^3 == -im
 end
 
 

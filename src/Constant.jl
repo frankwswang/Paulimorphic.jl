@@ -32,19 +32,6 @@ end
 getPauliSym(num::Integer) = PauliSym(num)
 
 
-struct PauliX{L<:Unsigned} <: DiscreteOperator
-    label::L
-end
-
-struct PauliY{L<:Unsigned} <: DiscreteOperator
-    label::L
-end
-
-struct PauliZ{L<:Unsigned} <: DiscreteOperator
-    label::L
-end
-
-
 @enum PhaseFactor::UInt8 begin
     negImg=0 #> 00: -im
     negRea=1 #> 01: -1

@@ -12,9 +12,8 @@ const PauliZMatEntries = (1,   0,    0, -1)
     symZ=3
 end
 
-
 function getPauliSym(ele::Char)
-    num = if ele in 'I'
+    num = if ele == 'I'
         0
     elseif ele == 'X'
         1

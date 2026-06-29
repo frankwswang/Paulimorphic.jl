@@ -1,15 +1,14 @@
 export checkCommute, checkAntiCom, evalCommute, evalAntiCom, getFrustrationGraph
 
 function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
-    str1z = str1.zStr
-    str1x = str1.xStr
-    str2z = str2.zStr
-    str2x = str2.xStr
-    if length(str1z) == length(str2z)
-        dot(str1z, str2x) + dot(str1x, str2z)
-    else
-        mapreduce(*, +, str1z, str2x) + mapreduce(*, +, str1x, str2z)
-    end |> iseven
+    z1, x1 = str1.z, str1.x
+    z2, x2 = str2.z, str2.x
+    nWord = min(length(z1), length(z2))   #> Shorter string is complemented with identities
+    parity = 0
+    @inbounds for w in 1:nWord
+        parity += count_ones(z1[w] & x2[w]) + count_ones(x1[w] & z2[w])
+    end
+    iseven(parity)
 end
 
 function checkAntiCom(str1::PauliStr, str2::PauliStr)::Bool

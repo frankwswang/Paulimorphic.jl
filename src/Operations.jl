@@ -27,22 +27,24 @@ end
 
 function getFrustrationGraph(ham::PauliSum; 
                              edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold)
-    strings = ham.string
-     coeffs = ham.coeff
-    nodeNum = 0
+    strs = ham.string
+    coeffs = ham.coeff
 
     validNodes = PauliStr[]
-    for (coeff, str) in zip(coeffs, strings)
+    nodeCoeffs = eltype(coeffs)[]
+    for (coeff, str) in zip(coeffs, strs)
         if abs(coeff) > nodeThreshold
-            nodeNum += 1
             push!(validNodes, str)
+            push!(nodeCoeffs, coeff)
         end
     end
 
+    nodeNum = length(validNodes)
     validEdges = NTuple{2, Int}[]
-    for i in 1:(nodeNum-1), j in i+1:nodeNum
-        weight = abs(coeffs[begin+i-1] * coeffs[begin+j-1])
-        weight > edgeThreshold && getFrustrationGraphCore!(validEdges, strings, (i, j))
+
+    for i in 1:(nodeNum-1), j in (i+1):nodeNum
+        weight = abs(nodeCoeffs[begin+i-1] * nodeCoeffs[begin+j-1])
+        weight > edgeThreshold && getFrustrationGraphCore!(validEdges, validNodes, (i, j))
     end
 
     validNodes => validEdges

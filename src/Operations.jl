@@ -59,6 +59,14 @@ function mul!(s::PauliStr, p::PhaseFactor)
 end
 
 
+"""
+    checkCommute(str1::PauliStr, str2::PauliStr) -> Bool
+
+Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they anticommute
+(any two Pauli strings do one or the other). When the two strings span different numbers of 
+sites, only the overlapping words are examined — the extra sites from the longer string act 
+against implicit identities and does not affect commutation.
+"""
 function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
     z1, x1 = str1.z, str1.x
     z2, x2 = str2.z, str2.x
@@ -70,6 +78,13 @@ function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
     iseven(parity)
 end
 
+
+"""
+    checkAntiCom(str1::PauliStr, str2::PauliStr) -> Bool
+
+Return `true` if `str1` and `str2` anticommute and `false` if they commute. It is the 
+logical negation of [`checkCommute`](@ref).
+"""
 function checkAntiCom(str1::PauliStr, str2::PauliStr)::Bool
     !checkCommute(str1, str2)
 end

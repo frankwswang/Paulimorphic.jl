@@ -445,3 +445,41 @@ function canonicalize!(ham::PauliSum)
     sortStrings!(coeffs, strs)
     ham
 end
+
+
+struct PauliList <: DiscreteOperator
+    str::Memory{PauliStr}
+    function PauliList(strs::AbstractVector{PauliStr}, 
+                      mergeRedundancy::Bool=true)
+        inputSize = length(strs)
+        sInput = Memory{PauliStr}(undef, inputSize)
+        for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], posRea) end
+        if mergeRedundancy
+            perm = sortperm(sInput)
+            #> Merge equal strings into buffers with upper-bound size, then trim once
+            sBuffer = Memory{PauliStr}(undef, inputSize)
+            mergedSize = 0
+            k = 1
+            @inbounds while k <= inputSize
+                p = perm[begin+k-1]
+                str = sInput[p]
+                k += 1
+                while k <= inputSize && sInput[perm[begin+k-1]] == str
+                    k += 1
+                end
+                mergedSize += 1
+                sBuffer[begin+mergedSize-1] = str
+            end
+            if mergedSize == inputSize #>> No duplicates
+                s = sBuffer
+            else
+                s = Memory{PauliStr}(undef, mergedSize)
+                copyto!(s, firstindex(s), sBuffer, firstindex(sBuffer), mergedSize)
+            end
+        else
+            s = sInput
+            sort!(s)
+        end
+        new(s)
+    end
+end

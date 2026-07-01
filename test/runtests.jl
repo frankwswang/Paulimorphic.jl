@@ -25,4 +25,18 @@ using Test
         include("unit-tests/Graphs-test.jl")
     end
     println("$(unit3) test finished in $t3 seconds.\n")
+
+    unit4 = "Encodings"
+    println("Testing $(unit4)...")
+    t4 = @elapsed @testset "$(unit4)" begin
+        include("unit-tests/encodings-test.jl")
+    end
+    println("$(unit4) test finished in $t4 seconds.\n")
+
+    unit5 = "Hamiltonians"
+    println("Testing $(unit5)...")
+    t5 = @elapsed @testset "$(unit5)" begin
+        include("unit-tests/hamiltonian-test.jl")
+    end
+    println("$(unit5) test finished in $t5 seconds.\n")
 end

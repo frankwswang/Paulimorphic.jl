@@ -90,12 +90,31 @@ function checkAntiCom(str1::PauliStr, str2::PauliStr)::Bool
 end
 
 
+"""
+    evalCommute(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
+
+Return the commutator [`str1`, `str2`] = `str1`*`str2` - `str2`*`str1` as a `PauliSum`. 
+Specifically, when the commutator is zero (when `str1` and `str2` commute), this function 
+returns an empty `PauliSum` as the zero operator.
+"""
 function evalCommute(str1::PauliStr, str2::PauliStr)
-    checkCommute(str1, str2) ? PauliStr() : PauliSum([1, -1], [str1, str2])
+    prod1 = mul(str1, str2)
+    prod2 = mul(str2, str1)
+    prod1 == prod2 ? PauliSum() : PauliSum([prod1, mul!(prod2, PhaseFactor(2))])
 end
 
+
+"""
+    evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
+
+Return the anticommutator {`str1`, `str2`} = `str1`*`str2` + `str2`*`str1` as a `PauliSum`. 
+Specifically, when the anticommutator is zero (when `str1` and `str2` commute), this 
+function returns an empty `PauliSum` as the zero operator.
+"""
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
-    checkAntiCom(str1, str2) ? PauliStr() : PauliSum([str1, str2])
+    prod1 = mul(str1, str2)
+    prod2 = mul(str2, str1)
+    prod1 == prod2 ? PauliSum([prod1, prod2]) : PauliSum()
 end
 
 

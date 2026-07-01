@@ -171,6 +171,19 @@ function getPauliSymVec(str::Union{String, AbstractVector{<:Integer}})
     [getPauliSym(c::Union{Char, Integer}) for c in str]
 end
 
+
+"""
+    pauli"..."
+
+A custom string literal that builds a [`PauliStr`](@ref) from single-site Pauli symbols, 
+one character per site (e.g. `'I'`, `'X'`, `'Y'`, `'Z'`), with the `i`-th character acting 
+on site `i`. The resulting `PauliStr` is assigned the unit phase `posRea` (`+1`). 
+
+# Example
+```julia
+pauli"IXYZ"
+```
+"""
 macro pauli_str(ex)
     strOrVecExpr = esc(ex)
     :(getPauliSymVec($strOrVecExpr) |> PauliStr)

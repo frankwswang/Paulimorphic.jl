@@ -61,7 +61,6 @@ Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref)
 `symX`, `symY`, `symZ`) per site, with `list[i]` acting on site `i`. The resulting string 
 spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
 phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
-
 """
 mutable struct PauliStr <: DiscreteOperator
     const x::Memory{UInt}
@@ -69,7 +68,8 @@ mutable struct PauliStr <: DiscreteOperator
     phase  ::PhaseFactor
     const n::Int
 
-    PauliStr(pStr::PauliStr) = new(copy(pStr.x), copy(pStr.z), pStr.phase, pStr.n)
+    PauliStr(pStr::PauliStr, phase::PhaseFactor=pStr.phase) = 
+    new(copy(pStr.x), copy(pStr.z), phase, pStr.n)
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords))

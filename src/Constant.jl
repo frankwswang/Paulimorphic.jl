@@ -1,4 +1,4 @@
-export PauliSym, PauliX, PauliY, PauliZ, PhaseFactor, evalPhase
+export PauliSym, symI, symX, symY, symZ, PhaseFactor, evalPhase
 
 const PauliXMatEntries = (0,   1,    1,  0) #> (m11, m21, m12, m22)
 const PauliYMatEntries = (0, 1im, -1im,  0)

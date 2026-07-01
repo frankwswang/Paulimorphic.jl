@@ -1,7 +1,6 @@
-export PauliStr, PauliSum, @pauli_str
+export PauliStr, @pauli_str, PauliSum, canonicalize!
 
 using LinearAlgebra: dot
-import Base: hash, ==, show
 
 """
     PauliStr <: DiscreteOperator
@@ -70,6 +69,8 @@ mutable struct PauliStr <: DiscreteOperator
     phase  ::PhaseFactor
     const n::Int
 
+    PauliStr(pStr::PauliStr) = new(copy(pStr.x), copy(pStr.z), pStr.phase, pStr.n)
+
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords))
         maxWordNum = length(xWords)
@@ -137,18 +138,32 @@ end
 PauliStr(siteNum::Integer=0, siteOp::PauliSym=symI) = PauliStr(fill(siteOp, siteNum))
 
 
-function hash(pStr::PauliStr, hashCode::UInt)
+function Base.hash(pStr::PauliStr, hashCode::UInt)
     code = hash(pStr.phase, hashCode)
     code = hash(pStr.n, code)
     code = hash(pStr.x, code)
     hash(pStr.z, code)
 end
 
-function ==(pStr1::PauliStr, pStr2::PauliStr)
+function Base.:(==)(pStr1::PauliStr, pStr2::PauliStr)
     isequal(pStr1.phase, pStr2.phase) && 
     isequal(pStr1.n    , pStr2.n    ) && 
     isequal(pStr1.x    , pStr2.x    ) && 
     isequal(pStr1.z    , pStr2.z    )
+end
+
+function Base.isless(a::PauliStr, b::PauliStr)
+    a.n != b.n && return (a.n < b.n)
+
+    @inbounds for i in 1:length(a.x)
+        a.x[begin+i-1] != b.x[begin+i-1] && return (a.x[begin+i-1] < b.x[begin+i-1])
+    end
+
+    @inbounds for i in 1:length(a.z)
+        a.z[begin+i-1] != b.z[begin+i-1] && return (a.z[begin+i-1] < b.z[begin+i-1])
+    end
+
+    UInt8(a.phase) < UInt8(b.phase)
 end
 
 
@@ -202,32 +217,218 @@ end
 Base.show(io::IO, op::PauliStr) = print(io, printOperator(op))
 
 
-struct PauliSum{T<:RealOrComplex} <: DiscreteOperator
-    coeff::Memory{T}
-    string::Memory{PauliStr}
+"""
+    PauliSum{T<:Real} <: DiscreteOperator
 
-    function PauliSum(coeff::AbstractVector{T}, string::AbstractVector{PauliStr}) where {T}
-        if length(coeff) != length(string)
-            throw(ArgumentError("`coeff` and `string` should have the same length."))
+A linear combination of Pauli strings, i.e. a general operator
+
+    ∑_k coeff_k * str_k,
+
+stored as two parallel buffers: the coefficients `.coeff::Memory{Complex{T}}` and their
+associated `PauliStr` `.str::Memory{PauliStr}`. 
+
+# Fields
+- `.coeff::Memory{Complex{T}}`: the coefficients associated with terms of Pauli strings.
+- `.str::Memory{PauliStr}`: the Pauli strings with `length(.str) == length(.coeff)`.
+
+≡≡≡ Initialization Method(s) ≡≡≡
+
+    PauliSum(coeffs::AbstractVector{C}, strs::AbstractVector{PauliStr}, 
+             mergeRedundancy::Bool=true) where {C<:Union{Real, Complex}}
+
+Construct a `PauliSum{T}` with `T = real(C)` from `coeffs` and `strs` of equal length. The 
+strings are deep-copied, and each string's phase is absorbed into its matching coefficient. 
+When `mergeRedundancy=true` (by default), equal strings are combined into one term and any 
+term whose coefficients sum to exactly zero is removed; when `mergeRedundancy=false`, 
+duplicate strings are retained. In both cases the terms in the constructed `res::PauliSum` 
+are stored in a deterministic canonical order such that for 
+`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+    
+    res2.coeff == res.coeff && res2.str == res.str
+
+always returns `true`.
+
+    PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
+             mergeRedundancy::Bool=true) where {T<:Real}
+
+Construct a `PauliSum` with the coefficient of every Pauli string being `one(Complex{T})`.
+
+    PauliSum(strs::AbstractVector{PauliStr})
+
+Shorthand for `PauliSum(Int, strs)`.
+"""
+struct PauliSum{T<:Real} <: DiscreteOperator
+    coeff::Memory{Complex{T}}
+    str::Memory{PauliStr}
+
+    function PauliSum(coeffs::AbstractVector{C}, 
+                      strs::AbstractVector{PauliStr}, 
+                      mergeRedundancy::Bool=true) where {C<:RealOrComplex}
+        T = real(C)
+        inputSize = length(coeffs)
+
+        if inputSize != length(strs)
+            throw(ArgumentError("`coeffs` and `strs` should have the same length."))
         end
 
-        new{T}(convert(Memory{T}, coeff), convert(Memory{PauliStr}, string))
+        cInput = Memory{Complex{T}}(undef, inputSize)
+        sInput = Memory{PauliStr}(undef, inputSize)
+        copyto!(cInput, firstindex(cInput), coeffs, firstindex(coeffs), inputSize)
+        for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1]) end
+        absorbPhases!(cInput, sInput)
+
+        if mergeRedundancy
+            perm = sortperm(sInput)
+
+            #> Merge equal strings into buffers with upper-bound size, then trim once
+            cBuffer = Memory{Complex{T}}(undef, inputSize)
+            sBuffer = Memory{PauliStr}(undef, inputSize)
+            mergedSize = 0
+            k = 1
+
+            @inbounds while k <= inputSize
+                p = perm[begin+k-1]
+                str = sInput[p]
+                acc = cInput[p]
+
+                k += 1
+                while k <= inputSize && sInput[perm[begin+k-1]] == str
+                    acc += cInput[perm[begin+k-1]]
+                    k += 1
+                end
+
+                if !iszero(acc) #>> Drop terms with coefficients exactly equal zero
+                    mergedSize += 1
+                    sBuffer[begin+mergedSize-1] = str
+                    cBuffer[begin+mergedSize-1] = acc
+                end
+            end
+
+            if mergedSize == inputSize #>> No duplicates and no cancellation
+                c = cBuffer
+                s = sBuffer
+            else
+                c = Memory{Complex{T}}(undef, mergedSize)
+                s = Memory{PauliStr}(undef, mergedSize)
+                copyto!(c, firstindex(c), cBuffer, firstindex(cBuffer), mergedSize)
+                copyto!(s, firstindex(s), sBuffer, firstindex(sBuffer), mergedSize)
+            end
+        else
+            c = cInput
+            s = sInput
+            sortStrings!(c, s, true)
+        end
+
+        new{T}(c, s)
     end
 end
 
-function hash(pSum::PauliSum, hashCode::UInt)
-    code = hash(pSum.string, hashCode)
+function Base.hash(pSum::PauliSum, hashCode::UInt)
+    code = hash(pSum.str, hashCode)
     hash(pSum.coeff, code)
 end
 
-function ==(pSum1::PauliSum, pSum2::PauliSum)
-    (pSum1.coeff == pSum2.coeff) && (pSum1.string == pSum2.string)
+function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
+    (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
 end
 
-function PauliSum(::Type{T}, str::AbstractVector{PauliStr}) where {T<:RealOrComplex}
-    coeff = Memory{T}(undef, length(str))
-    coeff .= one(T)
-    PauliSum(coeff, str)
+function PauliSum(::Type{T}, str::AbstractVector{PauliStr}, mergeRedundancy::Bool=true
+                  ) where {T<:Real}
+    coeff = Memory{Complex{T}}(undef, length(str))
+    coeff .= one(Complex{T})
+    PauliSum(coeff, str, mergeRedundancy)
 end
 
 PauliSum(str) = PauliSum(Int, str)
+
+
+"""
+    absorbPhases!(storage::AbstractVector{C}, 
+                  strs::AbstractVector{PauliStr}) where {C<:Complex} -> Nothing
+
+Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
+place. Specifically, for every index `i` whose `strs[i].phase` is not equal to one(C), 
+multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
+`posRea`. Both `storage` and `strs` are mutated and must share the same length (an 
+`ArgumentError` is thrown otherwise).
+"""
+function absorbPhases!(storage::AbstractVector{C}, 
+                       strs::AbstractVector{PauliStr}) where {C<:Complex}
+    nTerm = length(strs)
+    if nTerm != length(storage)
+        throw(ArgumentError("`storage` and `strs` should have the same length."))
+    end
+
+    for (i, str) in enumerate(strs)
+        phase = evalPhase(str.phase)
+        if !isone(phase)
+            str.phase = posRea #>> Reset the phase to be one
+            storage[begin+i-1] *= phase
+        end
+    end
+
+    nothing
+end
+
+
+"""
+    sortStrings!(weights::AbstractVector{C}, strs::AbstractVector{PauliStr}, 
+                 considerWeight::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
+
+Sort `strs` into ascending order and apply the same permutation to the parallel `weights`, 
+in place. When `considerWeight=true` (default), ties among equal strings are broken by 
+`(abs(w), real(w), imag(w))` of the corresponding weight, yielding a total order even when 
+duplicate strings are present; otherwise, the strings alone form the sort key ordered by 
+`isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must share the same 
+length (an`ArgumentError` is thrown otherwise).
+"""
+function sortStrings!(weights::AbstractVector{<:RealOrComplex}, 
+                      strs::AbstractVector{PauliStr}, considerWeight::Bool=true)
+    nTerm = length(strs)
+    if nTerm != length(weights)
+        throw(ArgumentError("`weights` and `strs` should have the same length."))
+    end
+
+    #> Sort the indices of the Pauli strings
+    scope = collect(1:nTerm)
+    sortFunc = if considerWeight
+        function (i)
+            coeff = weights[begin+i-1]
+            (strs[begin+i-1], abs(coeff), real(coeff), imag(coeff))
+        end
+    else
+        i -> strs[begin+i-1]
+    end
+    sort!(scope, by=sortFunc)
+
+    #> Update elements in `weights` and `strs` using sorted `scope`
+    #> The shifting of `scope` is for cases when `weights` & `strs` are not one-based indexed
+    iFirst1 = firstindex(strs)
+    iFirst2 = firstindex(weights)
+    iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
+    strs .= strs[scope]
+    iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
+    weights .= weights[scope]
+
+    nothing
+end
+
+
+"""
+    canonicalize!(ham::PauliSum) -> PauliSum
+
+Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
+its coefficient based on [`absorbPhases!`](@ref), then sort the Pauli terms into a 
+deterministic total order based on [`sortStrings!`](@ref).
+
+This function preserves the term count. In other words, it does **not** merge duplicate 
+strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
+`PauliSum(ham.coeff, ham.str, true)`.
+"""
+function canonicalize!(ham::PauliSum)
+    coeffs = ham.coeff
+    strs = ham.str
+    absorbPhases!(coeffs, strs)
+    sortStrings!(coeffs, strs)
+    ham
+end

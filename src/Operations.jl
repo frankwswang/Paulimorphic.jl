@@ -27,7 +27,7 @@ end
 
 function getFrustrationGraph(ham::PauliSum; 
                              edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold)
-    strs = ham.string
+    strs = ham.str
     coeffs = ham.coeff
 
     validNodes = PauliStr[]

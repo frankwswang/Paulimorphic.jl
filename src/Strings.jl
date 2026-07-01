@@ -266,7 +266,7 @@ always returns `true`.
 
 Construct a `PauliSum` with the coefficient of every Pauli string being `one(Complex{T})`.
 
-    PauliSum(strs::AbstractVector{PauliStr})
+    PauliSum(strs::AbstractVector{PauliStr}=PauliStr[])
 
 Shorthand for `PauliSum(Int, strs)`.
 """
@@ -336,6 +336,15 @@ struct PauliSum{T<:Real} <: DiscreteOperator
     end
 end
 
+function PauliSum(::Type{T}, str::AbstractVector{PauliStr}, mergeRedundancy::Bool=true
+                  ) where {T<:Real}
+    coeff = Memory{Complex{T}}(undef, length(str))
+    coeff .= one(Complex{T})
+    PauliSum(coeff, str, mergeRedundancy)
+end
+
+PauliSum(str::AbstractVector{PauliStr}=PauliStr[]) = PauliSum(Int, str)
+
 function Base.hash(pSum::PauliSum, hashCode::UInt)
     code = hash(pSum.str, hashCode)
     hash(pSum.coeff, code)
@@ -344,15 +353,6 @@ end
 function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
 end
-
-function PauliSum(::Type{T}, str::AbstractVector{PauliStr}, mergeRedundancy::Bool=true
-                  ) where {T<:Real}
-    coeff = Memory{Complex{T}}(undef, length(str))
-    coeff .= one(Complex{T})
-    PauliSum(coeff, str, mergeRedundancy)
-end
-
-PauliSum(str) = PauliSum(Int, str)
 
 
 """

@@ -18,4 +18,11 @@ using Test
         include("unit-tests/Operations-test.jl")
     end
     println("$(unit2) test finished in $t2 seconds.\n")
+
+    unit3 = "Graph-theory functions"
+    println("Testing $(unit3)...")
+    t3 = @elapsed @testset "$(unit3)" begin
+        include("unit-tests/Graphs-test.jl")
+    end
+    println("$(unit3) test finished in $t3 seconds.\n")
 end

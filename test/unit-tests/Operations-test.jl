@@ -6,7 +6,7 @@ using Paulimorphic
 @test string(pauli"") == "I"
 @test string(pauli"I") == "I"
 @test string(pauli"II") == "I"
-@test string(pauli"IIX") == "X₃"
+@test string(pauli"IIX") == "+X₃"
 
 #> `checkCommute` and `checkAntiCom`
 @test checkCommute(pauli"Y", pauli"Y") 
@@ -37,7 +37,7 @@ twoSite = [pauli"II", pauli"IX", pauli"IY", pauli"IZ",
            pauli"ZI", pauli"ZX", pauli"ZY", pauli"ZZ"]
 
 # Reference: parity of the symplectic inner product computed independently
-sympl(a, b) = sum(a.zStr .* b.xStr) + sum(a.xStr .* b.zStr)
+sympl(a, b) = sum(count_ones.(a.z .& b.x) .+ count_ones.(a.x .& b.z))
 bl2 = true
 for a in twoSite, b in twoSite
     bl2 *= checkCommute(a, b) == iseven(sympl(a, b))

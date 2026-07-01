@@ -688,8 +688,6 @@ function breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=m
 end
 
 
-const SameTypePair{T} = Pair{T, T}
-
 mutable struct GraphMapInfo{T<:Integer}
     const graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
     const track::Memory{SameTypePair{T}}      #> Element: prev-matched node => candidate

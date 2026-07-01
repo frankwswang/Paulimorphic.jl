@@ -38,10 +38,10 @@ function mul(s1::PauliStr, s2::PauliStr)
             z3w = z1w ⊻ z2w
             x3[begin+w-1] = x3w
             z3[begin+w-1] = z3w
-            nY1 += count_ones(z1[begin+w-1] & x1[begin+w-1])
-            nY2 += count_ones(z2[begin+w-1] & x2[begin+w-1])
+            nY1 += count_ones(z1w & x1w)
+            nY2 += count_ones(z2w & x2w)
             nY3 += count_ones(z3w & x3w)
-            sgnParity += count_ones(x1[begin+w-1] & z2[begin+w-1])
+            sgnParity += count_ones(x1w & z2w)
         end
 
         phase = (( Int(UInt8(s1.phase)) + Int(UInt8(s2.phase))

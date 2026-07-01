@@ -108,7 +108,7 @@ end
     evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
 
 Return the anticommutator {`str1`, `str2`} = `str1`*`str2` + `str2`*`str1` as a `PauliSum`. 
-Specifically, when the anticommutator is zero (when `str1` and `str2` commute), this 
+Specifically, when the anticommutator is zero (when `str1` and `str2` anitcommute), this 
 function returns an empty `PauliSum` as the zero operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)

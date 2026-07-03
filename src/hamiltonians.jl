@@ -1,42 +1,6 @@
 export hamiltonian
 
 """
-    Hamiltonian{}
-
-A constructor for classes of PauliSums to be automatically generated. 
-
-The specific Hamiltonians which can be generated are among the following:
-    - List of Encoding(s) for different free fermion Hamiltonians
-        - Includes Jordan-Wigner, Balanced Jordan-Wigner, Ternary-Tree, and Kitaev-One-Local
-    - One/Two Dimensional Lattice Hamiltonians 
-        - Gapped 1D, 2D Square, 2D Honeycomb, 2D Kagome
-    - 4-Regular Graph Hamiltonians
-    - 2-local Hamiltonians 
-    - Molecular Hamiltonians
-
-# Inputs 
-- `.n::Integer`: Number of qubits in the Hamiltonian 
-- `.type::Symbol`: Type of Hamiltonian to be generated.
-- `.type2::Symbol`: Secondary arguement for lattice types
-- `encoding_list::Vector{PauliSum}`: List of encodings to be used in the Hamiltonian generation. 
-- `.coeff_type::Symbol`: Type of coefficients to be used in the Hamiltonian, including `:random`, `:uniform`, `:normal`, `:zeropmone`.
-
-≡≡≡ Initialization Method(s) ≡≡≡
-
-    hamiltonian(n::Integer, type::Symbol; type2::Symbol=:none, coeff_type::Symbol=:random)
-
-Construct a PauliSum on `n` qubits. The class of Hamiltonian is determined by the `type` arguement, 
-with secondary type arguement `type2` for lattice Hamiltonians. The coefficients of the PauliSum are 
-determined by the `coeff_type` arguement, which takes one of four values: `:random`, `:uniform`, `:normal`, `:zeropmone`.
-
-    hamiltonian(n::Integer, type::Symbol; type2::Symbol=:none)
-
-Construct a PauliSum on `n` qubits. The class of Hamiltonian is determined by the `type` arguement, 
-with secondary type arguement `type2` for lattice Hamiltonians. The coefficients of the PauliSum are 
-set to all be 1.0, utilizing a version of PauliSum which does not specify coefficients.
-"""
-
-"""
     encoding_check(encoding::PauliSum) -> Bool
 
 Return whether every distinct pair of strings in `encoding` anticommutes. This is the

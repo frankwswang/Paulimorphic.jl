@@ -18,7 +18,7 @@ The specific Hamiltonians which can be generated are among the following:
 - `.n::Integer`: Number of qubits in the Hamiltonian 
 - `.type::Symbol`: Type of Hamiltonian to be generated.
 - `.type2::Symbol`: Secondary arguement for lattice types
-- `encoding_list::Vector{PauliList}`: List of encodings to be used in the Hamiltonian generation. 
+- `encoding_list::Vector{PauliSum}`: List of encodings to be used in the Hamiltonian generation. 
 - `.coeff_type::Symbol`: Type of coefficients to be used in the Hamiltonian, including `:random`, `:uniform`, `:normal`, `:zeropmone`.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
@@ -37,12 +37,12 @@ set to all be 1.0, utilizing a version of PauliSum which does not specify coeffi
 """
 
 """
-    encoding_check(encoding::PauliList) -> Bool
+    encoding_check(encoding::PauliSum) -> Bool
 
 Return whether every distinct pair of strings in `encoding` anticommutes. This is the
 validity condition expected by the encoding-based Hamiltonian constructor.
 """
-function encoding_check(encoding::PauliList)
+function encoding_check(encoding::PauliSum)
     strs = encoding.str
     nTerm = length(strs)
     for i in 1:(nTerm-1)
@@ -55,7 +55,7 @@ function encoding_check(encoding::PauliList)
 end
 
 """
-    generate_encoding_hamiltonian_terms(n::Integer, encoding::PauliList) -> Vector{PauliStr}
+    generate_encoding_hamiltonian_terms(n::Integer, encoding::PauliSum) -> Vector{PauliStr}
 
 Generate all quadratic products from the Pauli strings in `encoding` as
 
@@ -68,7 +68,7 @@ generation.
 An `ArgumentError` is thrown if any string in `encoding` does not act on exactly `n`
 qubits.
 """
-function generate_encoding_hamiltonian_terms(n::Integer, encoding::PauliList)
+function generate_encoding_hamiltonian_terms(n::Integer, encoding::PauliSum)
     nInt = Int(n)
     terms = PauliStr[]
     strs = encoding.str
@@ -293,19 +293,20 @@ function generate_coefficients(num_terms::Int, coeff_type::Symbol)
 end
 
 """
-    hamiltonian(n::Integer, encoding_list::Vector{PauliList}; coeff_type::Symbol=:random) -> PauliSum
+    hamiltonian(n::Integer, encoding_list::Vector{PauliSum}; coeff_type::Symbol=:random) -> PauliSum
 
 Construct a Hamiltonian from one or more fermion-to-qubit encodings. Each encoding must
 contain mutually anticommuting Pauli strings, all with site count `n`. For each encoding,
 all quadratic products `i < j` are generated and assigned sampled coefficients; all terms
 from all encodings are then merged into a single `PauliSum`.
 """
-function hamiltonian(n::Integer, encoding_list::Vector{PauliList}; coeff_type::Symbol=:random)
+function hamiltonian(n::Integer, encoding_list::Vector{PauliSum{T}}; 
+                     coeff_type::Symbol=:random) where {T<:Real}
     nInt = Int(n)
     #> Validate each provided encoding before generating terms.
     for encoding in encoding_list
         #> Check pairwise anticommutation property.
-        encoding_check(encoding) || throw(ArgumentError("Every PauliList in encoding_list must be mutually anticommuting."))
+        encoding_check(encoding) || throw(ArgumentError("Every PauliSum in encoding_list must be mutually anticommuting."))
         for str in encoding.str
             str.n == nInt || throw(ArgumentError("All encoding strings must have length n=$nInt."))
         end

@@ -1,4 +1,4 @@
-export PauliList, Jordan_Wigner_encoding, Ternary_Tree_encoding, Kitaev_One_Local_encoding
+export Jordan_Wigner_encoding, Ternary_Tree_encoding, Kitaev_One_Local_encoding
 
 """
 This file is split into two components
@@ -12,8 +12,8 @@ also has function encoding_check, which checks if all Pauli elements do indeed m
 
 The second half of the file is dedicated to constructing fermionic Hamiltonians from their spin representation and 
 a fermion-to-qubit encoding. This fermionic sum should be formatted [TBD: ALIGN WITH HARTREE-FOCK CODE]. The encoding 
-variable can take two different types: a PauliList above, or a Line Graph. If a line graph is passed in, the function 
-will detect the (a) fermion-to-qubit encoding that solves the Line graph Hamiltonian, and generate the PauliList. 
+variable can take two different types: a `PauliSum` above, or a Line Graph. If a line graph is passed in, the function 
+will detect the (a) fermion-to-qubit encoding that solves the Line graph Hamiltonian, and generate the `PauliSum`. 
 """
 
 function _jw_strings(n::Int)
@@ -34,7 +34,7 @@ end
 function Jordan_Wigner_encoding(n::Integer)
     nInt = Int(n)
     strs = [@pauli_str s for s in _jw_strings(nInt)]
-    PauliList(strs, false)
+    PauliSum(Int, strs, false)
 end
 
 """
@@ -84,7 +84,7 @@ end
 
 function Ternary_Tree_encoding(nmodes::Integer, nqubits::Integer)
     strs = [@pauli_str s for s in ternary_tree_strings(Int(nmodes), Int(nqubits))]
-    return PauliList(strs, false)
+    return PauliSum(Int, strs, false)
 end
 
 #> Standard single-argument form used by the rest of the package/tests.
@@ -96,7 +96,7 @@ function Kitaev_One_Local_encoding(n::Integer)
     #> from a restricted Jordan-Wigner list.
     nInt = Int(n)
     nInt >= 0 || throw(DomainError(n, "`n` must be nonnegative."))
-    nInt == 0 && return PauliList(PauliStr[], false)
+    nInt == 0 && return PauliSum()
 
     local_count = cld(2nInt, 3)
     ancilla_count = nInt - local_count
@@ -118,7 +118,7 @@ function Kitaev_One_Local_encoding(n::Integer)
 
     resize!(strings, min(length(strings), 2nInt))
     strs = [@pauli_str s for s in strings]
-    PauliList(strs, false)
+    PauliSum(Int, strs, false)
 end
 
 

@@ -23,11 +23,11 @@ p1 = pauli"XZ"
 p2 = PauliStr([symX, symZ], PhaseFactor(3))
 p3 = PauliStr([symX, symZ], PhaseFactor(1))
 
-plist_merge = PauliList([p1, p2, p3], true)
+plist_merge = PauliSum([p1, p2, p3])
 @test length(plist_merge.str) == 1
 @test plist_merge.str[1] == PauliStr([symX, symZ], PhaseFactor(0))
 
-plist_keep = PauliList([p1, p2, p3], false)
+plist_keep = PauliSum(Int, [p1, p2, p3], false)
 @test length(plist_keep.str) == 3
 @test all(s -> s == PauliStr([symX, symZ], PhaseFactor(0)), plist_keep.str)
 

@@ -269,10 +269,30 @@ Construct a `PauliSum` with the coefficient of every Pauli string being `one(Com
     PauliSum(strs::AbstractVector{PauliStr}=PauliStr[])
 
 Shorthand for `PauliSum(Int, strs)`.
+
+    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
+
+Low-level constructor that builds a `PauliSum` from the subset of `ham`'s terms picked out 
+by `selector`. The predicate is applied through `Base.findall` to `ham.coeff` when 
+`byCoeff=true`, or to `ham.str` when `byCoeff=false`, and every term at a matching index is 
+kept. Accordingly, `selector` must accept a `Complex{T}` (when `byCoeff=true`) or a 
+`PauliStr` (when `byCoeff=false`) in the sole input and return a `Bool`. This constructor 
+respects the term order of `ham` and performs no phase absorption, merging, or re-sorting.
+
+Unlike other constructor methods, the retained strings are NOT reconstructed (deep-copied). 
+In other words, the returned sum's `.str` entries are the same (subsets of) `PauliStr` held 
+by `ham.str`.
 """
 struct PauliSum{T<:Real} <: DiscreteOperator
     coeff::Memory{Complex{T}}
     str::Memory{PauliStr}
+
+    function PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real}
+        coeffs = ham.coeff
+        strs = ham.str
+        indices = findall(selector, (byCoeff ? coeffs : strs))
+        new{T}(coeffs[indices], strs[indices])
+    end
 
     function PauliSum(coeffs::AbstractVector{C}, 
                       strs::AbstractVector{PauliStr}, 

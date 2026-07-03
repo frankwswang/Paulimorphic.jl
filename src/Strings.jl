@@ -43,7 +43,7 @@ in the final word should always be set to zero.
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
-             phase::PhaseFactor, nSite=8*sizeof(UInt)*length(xWords))
+             phase::PhaseFactor, nSite=8*sizeof(UInt)*length(xWords)) -> PauliStr
 
 Construct a `PauliStr` on `nSite` sites from the bit-packed components, `xWords` and 
 `zWords`. The layouts of `xWords` and `zWords` should follow the layout for fields `.x` and 
@@ -55,7 +55,7 @@ any surplus words from the input are ignored, and bits beyond site `nSite` in th
 word are cleared rather than validated. The components are copied into freshly allocated 
 buffers, so the returned `PauliStr` does not reference `xWords` or `zWords`.
 
-    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$posRea)
+    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$posRea) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symX`, `symY`, `symZ`) per site, with `list[i]` acting on site `i`. The resulting string 
@@ -247,7 +247,8 @@ associated `PauliStr` `.str::Memory{PauliStr}`.
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliSum(coeffs::AbstractVector{C}, strs::AbstractVector{PauliStr}, 
-             mergeRedundancy::Bool=true) where {C<:Union{Real, Complex}}
+             mergeRedundancy::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+    PauliSum{T}
 
 Construct a `PauliSum{T}` with `T = real(C)` from `coeffs` and `strs` of equal length. The 
 strings are deep-copied, and each string's phase is absorbed into its matching coefficient. 
@@ -262,11 +263,11 @@ are stored in a deterministic canonical order such that for
 always returns `true`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
-             mergeRedundancy::Bool=true) where {T<:Real}
+             mergeRedundancy::Bool=true) where {T<:Real} -> PauliSum{T}
 
 Construct a `PauliSum` with the coefficient of every Pauli string being `one(Complex{T})`.
 
-    PauliSum(strs::AbstractVector{PauliStr}=PauliStr[])
+    PauliSum(strs::AbstractVector{PauliStr}=PauliStr[]) -> PauliSum{Int}
 
 Shorthand for `PauliSum(Int, strs)`.
 

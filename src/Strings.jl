@@ -247,13 +247,13 @@ associated `PauliStr` `.str::Memory{PauliStr}`.
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliSum(coeffs::AbstractVector{C}, strs::AbstractVector{PauliStr}, 
-             mergeRedundancy::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+             simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
 Construct a `PauliSum{T}` with `T = real(C)` from `coeffs` and `strs` of equal length. The 
 strings are deep-copied, and each string's phase is absorbed into its matching coefficient. 
-When `mergeRedundancy=true` (by default), equal strings are combined into one term and any 
-term whose coefficients sum to exactly zero is removed; when `mergeRedundancy=false`, 
+When `simplification=true` (by default), equal strings are combined into one term and any 
+term whose coefficients sum to exactly zero is removed; when `simplification=false`, 
 duplicate strings are retained. In both cases the terms in the constructed `res::PauliSum` 
 are stored in a deterministic canonical order such that for 
 `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
@@ -263,13 +263,14 @@ are stored in a deterministic canonical order such that for
 always returns `true`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
-             mergeRedundancy::Bool=true) where {T<:Real} -> PauliSum{T}
+             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
 Construct a `PauliSum` with the coefficient of every Pauli string being `one(Complex{T})`.
 
-    PauliSum(strs::AbstractVector{PauliStr}=PauliStr[]) -> PauliSum{Int}
+    PauliSum(strs::AbstractVector{PauliStr}=PauliStr[], 
+             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
-Shorthand for `PauliSum(Int, strs)`.
+Shorthand for `PauliSum(Int8, strs, simplification)`.
 
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
 
@@ -297,7 +298,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 
     function PauliSum(coeffs::AbstractVector{C}, 
                       strs::AbstractVector{PauliStr}, 
-                      mergeRedundancy::Bool=true) where {C<:RealOrComplex}
+                      simplification::Bool=true) where {C<:RealOrComplex}
         T = real(C)
         inputSize = length(coeffs)
 
@@ -311,7 +312,11 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1]) end
         absorbPhases!(cInput, sInput)
 
-        if mergeRedundancy
+        if !simplification || iszero(inputSize)
+            c = cInput
+            s = sInput
+            sortStrings!(c, s, true)
+        else
             perm = sortperm(sInput)
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
@@ -347,24 +352,21 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 copyto!(c, firstindex(c), cBuffer, firstindex(cBuffer), mergedSize)
                 copyto!(s, firstindex(s), sBuffer, firstindex(sBuffer), mergedSize)
             end
-        else
-            c = cInput
-            s = sInput
-            sortStrings!(c, s, true)
         end
 
         new{T}(c, s)
     end
 end
 
-function PauliSum(::Type{T}, str::AbstractVector{PauliStr}, mergeRedundancy::Bool=true
+function PauliSum(::Type{T}, str::AbstractVector{PauliStr}, simplification::Bool=true
                   ) where {T<:Real}
     coeff = Memory{Complex{T}}(undef, length(str))
     coeff .= one(Complex{T})
-    PauliSum(coeff, str, mergeRedundancy)
+    PauliSum(coeff, str, simplification)
 end
 
-PauliSum(str::AbstractVector{PauliStr}=PauliStr[]) = PauliSum(Int, str)
+PauliSum(str::AbstractVector{PauliStr}=PauliStr[], simplification::Bool=true) = 
+PauliSum(Int8, str, simplification)
 
 function Base.hash(pSum::PauliSum, hashCode::UInt)
     code = hash(pSum.str, hashCode)
@@ -423,26 +425,28 @@ function sortStrings!(weights::AbstractVector{<:RealOrComplex},
         throw(ArgumentError("`weights` and `strs` should have the same length."))
     end
 
-    #> Sort the indices of the Pauli strings
-    scope = collect(1:nTerm)
-    sortFunc = if considerWeight
-        function (i)
-            coeff = weights[begin+i-1]
-            (strs[begin+i-1], abs(coeff), real(coeff), imag(coeff))
+    if nTerm > 0
+        #> Sort the indices of the Pauli strings
+        scope = collect(1:nTerm)
+        sortFunc = if considerWeight
+            function (i)
+                coeff = weights[begin+i-1]
+                (strs[begin+i-1], abs(coeff), real(coeff), imag(coeff))
+            end
+        else
+            i -> strs[begin+i-1]
         end
-    else
-        i -> strs[begin+i-1]
-    end
-    sort!(scope, by=sortFunc)
+        sort!(scope, by=sortFunc)
 
-    #> Update elements in `weights` and `strs` using sorted `scope`
-    #> The shifting of `scope` is for cases when `weights` & `strs` are not one-based indexed
-    iFirst1 = firstindex(strs)
-    iFirst2 = firstindex(weights)
-    iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
-    strs .= strs[scope]
-    iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
-    weights .= weights[scope]
+        #> Update elements in `weights` and `strs` using sorted `scope`
+        #> `scope` is shifted when `weights` & `strs` are not one-based indexed
+        iFirst1 = firstindex(strs)
+        iFirst2 = firstindex(weights)
+        iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
+        strs .= strs[scope]
+        iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
+        weights .= weights[scope]
+    end
 
     nothing
 end

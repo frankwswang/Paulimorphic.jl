@@ -60,6 +60,37 @@ end
 
 
 """
+    scale!(s::PauliStr, p::PhaseFactor) -> PauliStr
+
+Multiply `s` in place by a phase `p` (absorbed into `s.phase`), returning the mutated `s`.
+"""
+function scale!(s::PauliStr, p::PhaseFactor)
+    newPhase = PhaseFactor((UInt8(s.phase) + UInt8(p)) & 3)
+    s.phase = newPhase
+    s
+end
+
+"""
+    scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
+
+Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
+[`evalPhase`](@ref)`(p)`, then absorbed into `h.coeff`. This is to match the canonical form 
+of `PauliSum` in which its phases are carried by coefficients rather than the stored 
+`PauliStr`.
+"""
+scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
+
+"""
+    scale!(h::PauliSum, c::Union{Real, Complex}) -> PauliSum
+
+Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff` is scaled 
+in place, thus each product `h.coeff[i] * c` must be able to be converted to 
+`eltype(h.coeff)`. No re-canonicalization is performed.
+"""
+scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
+
+
+"""
     checkCommute(str1::PauliStr, str2::PauliStr) -> Bool
 
 Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they anticommute

@@ -131,7 +131,7 @@ returns an empty `PauliSum` as the zero operator.
 function evalCommute(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
     prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum() : PauliSum([prod1, mul!(prod2, PhaseFactor(2))])
+    prod1 == prod2 ? PauliSum() : PauliSum([prod1, scale!(prod2, PhaseFactor(2))])
 end
 
 

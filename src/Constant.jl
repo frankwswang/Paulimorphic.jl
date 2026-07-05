@@ -52,6 +52,18 @@ Use [`evalPhase`](@ref) to obtain the value for the corresponding complex coeffi
     negImg=3 #> i^3 == -im
 end
 
+const PhaseOrCoeff = Union{PhaseFactor, RealOrComplex}
+
+
+"""
+    mul(l::PhaseFactor, r::PhaseFactor) -> PhaseFactor
+
+Multiply two phase factors and return their product as another `PhaseFactor`.
+"""
+mul(l::PhaseFactor, r::PhaseFactor) = PhaseFactor((UInt8(l) + UInt8(r)) & 3)
+
+Base.:*(l::PhaseFactor, r::PhaseFactor) = mul(l, r)
+
 
 """
     evalPhase(phase::PhaseFactor) -> Complex{Int}

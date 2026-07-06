@@ -1,4 +1,4 @@
-export PauliStr, @pauli_str, PauliSum, canonicalize!
+export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!
 
 using LinearAlgebra: dot
 
@@ -68,6 +68,21 @@ mutable struct PauliStr <: DiscreteOperator
     phase  ::PhaseFactor
     const n::Int
 
+    function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, 
+                      phase::PhaseFactor=PhaseFactor(0))
+        nSite < 0 && throw(ArgumentError("`nSite` must be non-negative."))
+        nBitPerWord = 8 * sizeof(UInt)
+        nWord = cld(nSite, nBitPerWord)
+        allOneBits = ~zero(UInt) #> Same as `typemax(UInt)`
+        xEle = (siteOp == symX || siteOp == symY) ? allOneBits : zero(UInt)
+        zEle = (siteOp == symZ || siteOp == symY) ? allOneBits : zero(UInt)
+        xStr = Memory{UInt}(undef, nWord); fill!(xStr, xEle)
+        zStr = Memory{UInt}(undef, nWord); fill!(zStr, zEle)
+
+        #> Enforce resetting the padding bits to be zero
+        new(xStr, zStr, phase, Int(nSite)) |> sanitize!
+    end
+
     PauliStr(pStr::PauliStr, phase::PhaseFactor=pStr.phase) = 
     new(copy(pStr.x), copy(pStr.z), phase, pStr.n)
 
@@ -93,14 +108,7 @@ mutable struct PauliStr <: DiscreteOperator
         copyto!(zStr, firstindex(zStr), zWords, firstindex(zWords), nWord)
 
         #> Enforce resetting the padding bits to be zero
-        remSites = nSite & (nBitPerWord - 1) #>> More efficient than `nSite % nBitPerWord`
-        if !iszero(remSites)
-            maskStr = (one(UInt) << remSites) - one(UInt) #>> Last `remSites` bits are one
-            xStr[end] &= maskStr
-            zStr[end] &= maskStr
-        end
-
-        new(xStr, zStr, phase, nSite)
+        new(xStr, zStr, phase, nSite) |> sanitize!
     end
 
     function PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=posRea)
@@ -134,8 +142,6 @@ mutable struct PauliStr <: DiscreteOperator
         new(xStr, zStr, phase, nSite)
     end
 end
-
-PauliStr(siteNum::Integer=0, siteOp::PauliSym=symI) = PauliStr(fill(siteOp, siteNum))
 
 
 function Base.hash(pStr::PauliStr, hashCode::UInt)
@@ -257,7 +263,7 @@ term whose coefficients sum to exactly zero is removed; when `simplification=fal
 duplicate strings are retained. In both cases the terms in the constructed `res::PauliSum` 
 are stored in a deterministic canonical order such that for 
 `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
-    
+
     res2.coeff == res.coeff && res2.str == res.str
 
 always returns `true`.
@@ -489,6 +495,7 @@ function canonicalize!(ham::PauliSum)
     strs = ham.str
     absorbPhases!(coeffs, strs)
     sortStrings!(coeffs, strs)
+
     ham
 end
 

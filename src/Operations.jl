@@ -1,31 +1,43 @@
 export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, getFrustrationInfo
 
+"""
+    mul(str::PauliStr, phase::PhaseFactor) -> PauliStr
+    mul(phase::PhaseFactor, str::PauliStr) -> PauliStr
 
+Multiply a `PauliStr` by a `PhaseFactor`, returning a new `PauliStr` equal to `phase * str` 
+and `str * phase`. The value of `phase` is folded into the result's field `.phase`. The 
+result does not reference any data in `str`.
+"""
+mul(str::PauliStr, phase::PhaseFactor) = PauliStr(str, mul(str.phase, phase))
+
+mul(phase::PhaseFactor, str::PauliStr) = mul(str, phase)
 
 """
-    mul(s1::PauliStr, s2::PauliStr) -> PauliStr
+    mul(str1::PauliStr, str2::PauliStr) -> PauliStr
 
-Multiply two `PauliStr`, returning the product `s3::PauliStr` with the its associated phase 
-folded into `.phase`.
+Multiply two `PauliStr`, returning their product `s3 = str1 * str2` with the its associated 
+phase folded into `s3.phase`. Strings spanning different numbers of sites are handled by 
+padding the shorter with identities. The result does not reference any data in either input.
 """
-function mul(s1::PauliStr, s2::PauliStr)
-    bl1 = iszero(s1.n)
-    if bl1 || iszero(s2.n) #> Trivial case: s * I == s, phases combined
-        controlStr = bl1 ? s2 : s1
+function mul(str1::PauliStr, str2::PauliStr)
+    bl1 = iszero(str1.n)
+    if bl1 || iszero(str2.n) #> Trivial case: s * I == s, phases combined
+        controlStr = bl1 ? str2 : str1
         x3 = controlStr.x
         z3 = controlStr.z
-        n3 = controlStr.n 
-        phase = PhaseFactor((UInt8(s1.phase) + UInt8(s2.phase)) & 0x3)
+        n3 = controlStr.n
+        phase = mul(str1.phase, str2.phase)
+        PauliStr(x3, z3, phase, n3)
     else
-        x1, x2 = s1.x, s2.x
-        z1, z2 = s1.z, s2.z
-        n1, n2 = s1.n, s2.n
+        x1, x2 = str1.x, str2.x
+        z1, z2 = str1.z, str2.z
+        n1, n2 = str1.n, str2.n
         len1, len2 = length(z1), length(z2)
-        nWord, n3 = n1 <= n2 ? (len2, n2) : (len1, n1)
-        z3 = Memory{UInt}(undef, nWord)
-        x3 = Memory{UInt}(undef, nWord)
+        nWord, n3 = n1 < n2 ? (len2, n2) : (len1, n1)
+        s3 = PauliStr(n3)
+        z3, x3 = s3.z, s3.x
         nY1 = nY2 = nY3 = 0
-        sgnParity = 0
+        nXZ = 0
 
         @inbounds for w in 1:nWord
             #> Pad shorter string with identities
@@ -41,22 +53,86 @@ function mul(s1::PauliStr, s2::PauliStr)
             nY1 += count_ones(z1w & x1w)
             nY2 += count_ones(z2w & x2w)
             nY3 += count_ones(z3w & x3w)
-            sgnParity += count_ones(x1w & z2w)
+            nXZ += count_ones(x1w & z2w)
         end
 
-        phase = (( Int(UInt8(s1.phase)) + Int(UInt8(s2.phase))
-                   + 3*(nY1 + nY2) + nY3 + 2*(sgnParity & 1) ) & 3) |> UInt |> PhaseFactor
+        imXpn = (Int(str1.phase) + Int(str2.phase) - 2nXZ - nY1 - nY2 + nY3)
+        s3.phase = PhaseFactor(imXpn & 3)
+        s3
+    end
+end
+
+"""
+    mul(str::PauliStr, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
+    mul(coeff::Union{Real, Complex}, str::PauliStr, simplification::Bool=true) -> PauliSum
+
+Multiply a `PauliStr` by a real or complex scalar `coeff`, returning the product 
+`str * coeff` (equal to `coeff * str`). Unlike multiplication by a [`PhaseFactor`](@ref), a 
+general scalar coefficient may not be stored within a `PauliStr`, so the result is always 
+promoted to a `PauliSum`. If `simplification=true`, the same simplification procedure used 
+by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
+the result. The result does not reference any data in `str`.
+"""
+mul(str::PauliStr, coeff::RealOrComplex, simplification::Bool=true) = 
+PauliSum([coeff], [str], simplification)
+
+mul(coeff::RealOrComplex, str::PauliStr, simplification::Bool=true) = 
+mul(str, coeff, simplification)
+
+"""
+    mul(s::PauliStr, h::PauliSum, simplification::Bool=true) -> PauliSum
+    mul(h::PauliSum, s::PauliStr, simplification::Bool=true) -> PauliSum
+
+Multiply a `PauliStr` with a `PauliSum` and return their product (`s * h` or `h * s`) 
+respectively based on the order of these two operators. Each stored string of `h` is 
+multiplied by `s` on the matching side while the coefficients are carried over. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. The result does 
+not reference any data in either `s` or `h`.
+"""
+function mul(s::PauliStr, h::PauliSum, simplification::Bool=true)
+    newStrs = map(ele->mul(s, ele), h.str)
+    PauliSum(h.coeff, newStrs, simplification)
+end
+
+function mul(h::PauliSum, s::PauliStr, simplification::Bool=true)
+    newStrs = map(ele->mul(ele, s), h.str)
+    PauliSum(h.coeff, newStrs, simplification)
+end
+
+"""
+    mul(h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+Multiply `h1` by `h2`, returning the product equal to `h1 * h2`. If `simplification=true`, 
+the same simplification procedure used by the `PauliSum` constructor (when the same-named 
+argument is set to `true`) is applied to the result. The result does not reference any data 
+in either `h1` or `h2`.
+"""
+function mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+             ) where {T1<:Real, T2<:Real}
+    T = promote_type(T1, T2)
+    cL, sL = h1.coeff, h1.str
+    cR, sR = h2.coeff, h2.str
+    m, n = length(cL), length(cR)
+
+    cs = Memory{Complex{T}}(undef, m * n)
+    ss = Memory{PauliStr}(undef, m * n)
+    k = 0
+    @inbounds for j in 1:n, i in 1:m
+        k += 1
+        cs[begin+k-1] =     cL[begin+i-1] * cR[begin+j-1]
+        ss[begin+k-1] = mul(sL[begin+i-1],  sR[begin+j-1]) #> Phase folded into `.phase`
     end
 
-    PauliStr(x3, z3, phase, n3)
+    PauliSum(cs, ss, simplification)
 end
 
 
-function mul!(s::PauliStr, p::PhaseFactor)
-    newPhase = PhaseFactor((UInt8(s.phase) + UInt8(p)) & 3)
-    s.phase = newPhase
-    s
-end
+Base.:*(op::DiscreteOperator, num::PhaseOrCoeff) = mul(op, num)
+Base.:*(num::PhaseOrCoeff, op::DiscreteOperator) = mul(op, num)
+Base.:*(op1::DiscreteOperator, op2::DiscreteOperator) = mul(op1, op2)
 
 
 """

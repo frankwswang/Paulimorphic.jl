@@ -509,20 +509,23 @@ end
 
 """
     curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-            relative::Bool=false) where {T<:Real} -> PauliSum{T}
+            relative::Bool=false, inclusive::Bool=false) where {T<:Real} -> 
+    PauliSum{T}
 
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
-    abs(c) > tolerance * scale,
+    abs(c) >  tolerance * scale (if inclusive == false)
+    abs(c) >= tolerance * scale (if inclusive == true )
 
 where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
-when `relative=true`. Thus `tolerance` acts as an absolute magnitude floor by default, or 
-as a fraction of the largest coefficient when `relative` is set. For floating-point `T`, 
-the default value of `tolerance` is `8eps(T)`: a small multiple of the machine epsilon, 
-enough to discard the round-off residuals left by operator assembly when the coefficients 
-are well conditioned; for integer `T`, the default value of `tolerance` is `zero(T)`. A 
-negative `tolerance` throws an `ArgumentError`.
+when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 
+as a fraction of the largest coefficient when `relative` is set. The `inclusive` keyword 
+chooses whether coefficients landing exactly on the threshold are kept (`>=`) or dropped 
+(`>`). For floating-point `T`, the default value of `tolerance` is `8eps(T)`: a small 
+multiple of the machine epsilon, enough to discard the round-off residuals left by operator 
+assembly when the coefficients are well conditioned; for integer `T`, the default value of 
+`tolerance` is `zero(T)`. A negative `tolerance` throws an `ArgumentError`.
 
 # String ownership
 The retained terms remain in `ham`'s order, and the returned sum's coefficients are held in 
@@ -531,14 +534,17 @@ other words, the returned sum's `.str` entries are the same (subsets of) `PauliS
 by `ham.str`.
 """
 function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-                 relative::Bool=false) where {T<:Real}
+                 relative::Bool=false, inclusive::Bool=false) where {T<:Real}
     tolerance < 0 && throw(ArgumentError("`tolerance` must be non-negative."))
 
     coeffs = ham.coeff
     scale = relative ? (isempty(coeffs) ? one(T) : maximum(abs, coeffs)) : one(T)
-    cap = function (c::Complex{T})
-        n = abs(c)
-        n > tolerance*scale
+    threshold = tolerance * scale
+
+    cap = if inclusive
+        (c::Complex{T}) -> abs(c) >= threshold
+    else
+        (c::Complex{T}) -> abs(c) >  threshold
     end
 
     PauliSum(cap, true, ham)

@@ -453,6 +453,27 @@ end
 
 
 """
+    sanitize!(str::PauliStr) -> PauliStr
+
+Restore the [`PauliStr`](@ref) invariant that every bit after site `str.n` is zero, and 
+then return the mutated `str`. Only the final word of each buffer can hold such surplus 
+bits, which is subject to the sanitization. When `str.n` is an integer multiple of the word 
+size, the final word holds no padding and the call is a no-op.
+"""
+function sanitize!(str::PauliStr)
+    nBitPerWord = 8 * sizeof(UInt)
+    remSites = str.n & (nBitPerWord - 1) #>> More efficient than `str.n % nBitPerWord`
+    if !iszero(remSites)
+        maskStr = (one(UInt) << remSites) - one(UInt) #>> Last `remSites` bits are one
+        str.x[end] &= maskStr
+        str.z[end] &= maskStr
+    end
+
+    str
+end
+
+
+"""
     canonicalize!(ham::PauliSum) -> PauliSum
 
 Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into

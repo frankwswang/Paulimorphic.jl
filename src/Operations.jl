@@ -1,4 +1,4 @@
-export checkCommute, checkAntiCom, evalCommute, evalAntiCom, getFrustrationInfo
+export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, getFrustrationInfo
 
 
 

@@ -61,6 +61,14 @@ Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref)
 `symX`, `symY`, `symZ`) per site, with `list[i]` acting on site `i`. The resulting string 
 spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
 phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
+
+    PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
+
+Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
+single-site Pauli `siteOp` (one [`PauliSym`](@ref): `symI`, `symX`, `symY`, or `symZ`). 
+`nSite` must be non-negative (an `ArgumentError` is thrown otherwise). 
+`phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
+string as `im^Int(phase)`, which in default is `+1`.
 """
 mutable struct PauliStr <: DiscreteOperator
     const x::Memory{UInt}
@@ -68,8 +76,7 @@ mutable struct PauliStr <: DiscreteOperator
     phase  ::PhaseFactor
     const n::Int
 
-    function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, 
-                      phase::PhaseFactor=PhaseFactor(0))
+    function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=posRea)
         nSite < 0 && throw(ArgumentError("`nSite` must be non-negative."))
         nBitPerWord = 8 * sizeof(UInt)
         nWord = cld(nSite, nBitPerWord)

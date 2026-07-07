@@ -1,74 +1,65 @@
 export getFrustrationInfo
 
 """
-    getFrustrationInfo(ham::PauliSum; 
-                       edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold) -> Pair
+    getFrustrationInfo(ham::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false) -> 
+    Pair{Vector{PauliStr}, Vector{ NTuple{2, Int} }}
 
 Compute the (anticommutation) frustration graph of the Pauli strings in `ham`: each 
-retained term forms a node, and two nodes are joined by an edge whenever their 
-corresponding Pauli strings anticommute (as determined by [`checkAntiCom`](@ref)). Such a 
-graph records which terms of a Hamiltonian fail to commute — e.g. as a basis for 
-partitioning `ham` into mutually commuting groups.
+term (a weighted [`PauliStr`](@ref)) forms a vertex, and whether two vertices are joined by 
+an edge is determined by the anticommutator of their corresponding Pauli strings (evaluated 
+by [`checkAntiCom`](@ref)). The graph is returned not as a [`SimpleGraph`](@ref) but as its 
+structural information: 
 
-The retained nodes are the terms in `ham` whose coefficient magnitude exceeds 
-`nodeThreshold`, taken in by the order in which `ham` stores its terms 
-(see [`PauliSum`](@ref)). A pair of retained nodes `(i, j)` with `i < j` is joined by an 
-edge only when the two strings anticommute *and* the magnitude of the product of their 
-coefficients exceeds `edgeThreshold`; the coefficient weighting lets negligible terms and 
-negligible couplings be pruned in a single pass. Both thresholds are compared strictly 
-(`>`), and `nodeThreshold` defaults to `edgeThreshold`, so passing only `edgeThreshold` 
-applies the same cutoff to both nodes and edges.
+    vertices => edges
 
-The graph is returned not as a [`SimpleGraph`](@ref) but as its structural information: 
-
-    (nodes => edges)::Pair
-
-where `nodes::Vector{PauliStr}` are the retained node strings and 
+where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `ham` and 
 `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
-`(i, j)`, `i < j`, indexing into `nodes` (instead of the original terms of `ham`). If no 
-node survives `nodeThreshold`, both `nodes` and `edges` are empty.
+`(i, j)`, `i < j`, indexing into `vertices`. Such a graph records which terms in a 
+target Hamiltonian fail to commute — e.g. as a basis for partitioning it into mutually 
+commuting groups.
 
-# Keyword Arguments
-- `edgeThreshold::Real=0`: an edge `(i, j)` is kept only if
-  `abs(coeff_i * coeff_j) > edgeThreshold`.
-- `nodeThreshold::Real=edgeThreshold`: a term is kept as a node only if
-  `abs(coeff) > nodeThreshold`.
+# Approximate frustration information
+This method also supports returning an approximate frustration graph through the optional 
+argument `edgeThreshold::Real`. Specifically, an edge `(i, j)` is included in `edges` only 
+if the `i`-th and `j`-th `PauliStr` in `vertices` anticommute *and* the magnitude of the 
+their coefficient product `c_ij` clears `edgeThreshold`:
+
+    abs(c_ij) >  edgeThreshold    (inclusive = false)
+    abs(c_ij) >= edgeThreshold    (inclusive = true )
+
+Additionally, keyword `inclusive` selects whether the `c_ij` that equals `edgeThreshold` 
+exactly is kept (`>=`) or dropped (`>`). When `edgeThreshold = 0`, `inclusive = true` 
+will also admit anticommuting term even when their coefficient product is exactly zero, 
+whereas `inclusive = false` excludes them. A negative `edgeThreshold` throws an 
+`ArgumentError`. To prune *vertices* (terms) by their own magnitude beforehand, apply 
+[`curtail`](@ref) to `ham` first.
 """
-function getFrustrationInfo(ham::PauliSum; 
-                            edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold)
-    strs = ham.str
-    coeffs = ham.coeff
+function getFrustrationInfo(ham::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false)
+    edgeThreshold < 0 && throw(ArgumentError("`edgeThreshold` must be non-negative."))
 
-    validNodes = PauliStr[]
-    nodeCoeffs = eltype(coeffs)[]
-    for (coeff, str) in zip(coeffs, strs)
-        if abs(coeff) > nodeThreshold
-            push!(validNodes, str)
-            push!(nodeCoeffs, coeff)
-        end
-    end
-
+    magnitudes = map(abs, ham.coeff)
+    validNodes = copy(ham.str)
     nodeNum = length(validNodes)
     validEdges = NTuple{2, Int}[]
 
     for i in 1:(nodeNum-1), j in (i+1):nodeNum
-        weight = abs(nodeCoeffs[begin+i-1] * nodeCoeffs[begin+j-1])
-        weight > edgeThreshold && getFrustrationInfoCore!(validEdges, validNodes, (i, j))
+        weight = magnitudes[begin+i-1] * magnitudes[begin+j-1]
+        bl = inclusive ? weight >= edgeThreshold : weight > edgeThreshold
+        bl && getFrustrationInfoCore!(validEdges, validNodes, (i, j))
     end
 
     validNodes => validEdges
 end
 
 """
-    getFrustrationInfo(strings::AbstractVector{PauliStr}) -> Pair
+    getFrustrationInfo(strings::AbstractVector{PauliStr}) -> 
+    Pair{Vector{PauliStr}, Vector{ NTuple{2, Int} }}
 
-Compute the (anticommutation) frustration graph of `strings`, treating every element as a
-node with no coefficient weighting or thresholding. Two nodes are joined by an edge 
-whenever their Pauli strings anticommute (via [`checkAntiCom`](@ref)).
+Compute the (anticommutation) frustration graph of `strings`, treating every its element as 
+a vertex. Two vertices are joined by an edge whenever their Pauli strings anticommute 
+(via [`checkAntiCom`](@ref)). Same as `getFrustrationInfo(::PauliSum)`, this method returns 
+the frustration graph by its underlying information of as a `Pair`:
 
-Same as `getFrustrationInfo(::PauliSum)`, this method returns as the underlying information 
-of the frustration graph as a `Pair` 
-    
     `strings => edges`
 
 where `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index 

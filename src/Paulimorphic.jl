@@ -1,7 +1,7 @@
 module Paulimorphic
 
 include("Types.jl")
-include("Constant.jl")
+include("Constants.jl")
 
 include("Strings.jl")
 include("Operations.jl")

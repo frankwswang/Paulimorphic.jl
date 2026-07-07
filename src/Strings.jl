@@ -515,8 +515,8 @@ end
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
-    abs(c) >  tolerance * scale (if inclusive == false)
-    abs(c) >= tolerance * scale (if inclusive == true )
+    abs(c) >  tolerance * scale    (if inclusive == false)
+    abs(c) >= tolerance * scale    (if inclusive == true )
 
 where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
 when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 

@@ -1,4 +1,4 @@
-export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!
+export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!
 
 using LinearAlgebra: dot
 
@@ -548,4 +548,100 @@ function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(
     end
 
     PauliSum(cap, true, ham)
+end
+
+
+"""
+    shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, 
+               forward::Bool=true) where {T<:$BitUInteger} -> 
+    typeof(words)
+
+Shift the bits packed in `words` in place by a total of `wordOffset` whole words plus
+`bitOffset` bits, treating the buffer as one contiguous bit string in which the
+least-significant bit of the lowest-indexed word comes first. The mutated `words` is
+returned. The element type `T<:$BitUInteger` determines the word width at `8*sizeof(T)` 
+bits.
+
+The optional argument `forward` selects the direction of the shift:
+- `forward = true` moves bits toward the most-significant end. The in-word shift (specified 
+  by `bitOffset`) direction is from the least significant bit (LSB) to the most significant 
+  bit (MSB) (e.g., a 2-bit shift sends `0b0011` to `0b1100`); the shift across words move 
+  from the lower index to higher index (e.g., `[w1, w2, _]` becomes `[_, w1, w2]`).
+- `forward = false` is the exact reverse, moving bits toward the least-significant end.
+
+Bits pushed past either boundary are dropped and vacated positions are filled with zeros, 
+so `length(words)` is preserved. `wordOffset` must be non-negative and `bitOffset` must 
+satisfy `0 <= bitOffset < 8*sizeof(T)`, or a `DomainError` is thrown.
+"""
+function shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, forward::Bool
+                    ) where {T<:BitUInteger}
+    wordOffset < 0 && throw(DomainError(wordOffset, "`wordOffset` must be non-negative."))
+    nBitPerWord = 8 * sizeof(T)
+    if bitOffset >= nBitPerWord || bitOffset < 0
+        throw(DomainError(bitOffset, "`0 <= bitOffset < $nBitPerWord` must hold true."))
+    end
+
+    comOffset = nBitPerWord - bitOffset #> Complementary shift for the inter-word carry
+    nWord = length(words)
+    carryOffset = 1
+    rng = if forward
+           comOffset *= -1
+           bitOffset *= -1
+          wordOffset *= -1
+        carryOffset *= -1
+        nWord:(-1):1
+    else
+        1:( 1):nWord
+    end
+
+    #> E.g., `nBitPerWord = 5; bitOffset = 2`
+    #>> `forward` |`head`        |`tail`
+    #>> `true `   | XXYYY->YYY00 | YYXXX -> 000YY
+    #>> `false`   | YYYXX->00YYY | XXXYY -> YY000
+    @inbounds for i in rng
+        sourcePos = i + wordOffset
+        head = (1 <= sourcePos <= nWord) ? (words[begin+sourcePos-1] >> bitOffset) : zero(T)
+        tail = if !iszero(bitOffset) && 1 <= (sourcePos + carryOffset) <= nWord
+            words[begin+(sourcePos + carryOffset)-1] << comOffset
+        else
+            zero(T)
+        end
+
+        words[begin+i-1] = head | tail
+    end
+
+    words
+end
+
+
+"""
+    shift!(str::PauliStr, n::Integer, toHigher::Bool=false) -> PauliStr
+
+Shift the single-site operators in `str` along the site axis by `n` sites, in place,
+and return the mutated `str`. When `toHigher=true` (default) the operators move toward 
+higher site indices (i.e., a *right* shift): the operator on site `k` is moved to site 
+`k + n`, and anything pushed above site `str.n` is discarded. Similarly, when 
+`toHigher=false` the operators move toward lower site indices (a *left* shift). Vacated 
+sites are refilled with the identity, the site count `str.n` is preserved, and the overall 
+`.phase` is left unchanged.
+
+# Example
+```julia
+julia> shift!(pauli"IIXXII", 3, false)   #> left  shift: site 4 → site 1, site 3 dropped
++X₁
+
+julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site 4 dropped
++X₆
+```
+"""
+function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
+    n < 0 && throw(ArgumentError("`n` must be non-negative."))
+    (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
+
+    nBitPerWord = 8 * sizeof(UInt)
+    wordOffset, bitOffset = divrem(n, nBitPerWord)
+    shiftBits!(str.x, wordOffset, bitOffset, toHigher)
+    shiftBits!(str.z, wordOffset, bitOffset, toHigher)
+
+    sanitize!(str) #> Clear any bits moved into the padding region past site `str.n`
 end

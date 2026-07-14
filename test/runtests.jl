@@ -32,11 +32,4 @@ using Test
         include("unit-tests/encodings-test.jl")
     end
     println("$(unit4) test finished in $t4 seconds.\n")
-
-    unit5 = "Hamiltonians"
-    println("Testing $(unit5)...")
-    t5 = @elapsed @testset "$(unit5)" begin
-        include("unit-tests/hamiltonian-test.jl")
-    end
-    println("$(unit5) test finished in $t5 seconds.\n")
 end

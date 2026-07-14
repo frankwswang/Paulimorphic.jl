@@ -1,4 +1,4 @@
-export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!
+export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!, paste!
 
 using LinearAlgebra: dot
 
@@ -644,4 +644,175 @@ function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
     shiftBits!(str.z, wordOffset, bitOffset, toHigher)
 
     sanitize!(str) #> Clear any bits moved into the padding region past site `str.n`
+end
+
+
+function alignWords(nShift::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
+    nBitPerWord = 8 * sizeof(T)
+    piece1 = (sourceLSB >> nShift)                #> EDCBA -> 00EDC (nShift = 2)
+    piece2 =  sourceMSB << (nBitPerWord - nShift) #> SRQPO -> PO000
+    piece1 | piece2                               #>          POEDC 
+end
+
+function mergeWords(nCover::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
+    keptLSB = ~(typemax(T) << nCover) & sourceLSB #> EDCBA -> 000BA (nCover = 2)
+    keptMSB =  (typemax(T) << nCover) & sourceMSB #> SRQPO -> SRQ00
+    keptMSB | keptLSB                             #>          SRQBA
+end
+
+
+"""
+    pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
+              srcWords::AbstractVector{T}, srcBitIdxLo::Signed, 
+              nBit::Signed) where {T<:$BitUInteger} -> 
+    typeof(dstWords)
+ 
+Copy `nBit` consecutive bits from `srcWords`, beginning at the 1-based bit index 
+`srcBitIdxLo`, into `dstWords` beginning at the bit index `dstBitIdxLo`, in place, and 
+then return the mutated `dstWords`. Both `dstWords` and `srcWords` are treated as one 
+contiguous bit string in which the least-significant bit of the lowest-indexed word comes 
+first, with the word width set by the element type at `8*sizeof(T)` bits. Every bit of 
+`dstWords` outside the written window keeps its original value.
+ 
+`nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
+the bit capacity of its buffer (a `DomainError` is thrown otherwise). `nBit` is allowed to 
+exceed the number of bits available in `dstWords` or `srcWords`, in which case the 
+excessive bits (on the more significant side) are dropped upon copying.
+ 
+!!! warning
+    `dstWords` and `srcWords` must not share any underlying data; otherwise, the 
+    copied result may be corrupted.
+"""
+function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
+                   srcWords::AbstractVector{T}, srcBitIdxLo::Signed, nBit::Signed) where 
+                  {T<:BitUInteger}
+    nBitPerWord = 8 * sizeof(T)
+    nWordDst = length(dstWords)
+    nWordSrc = length(srcWords)
+    nBitMaxDst = (nBitPerWord * nWordDst)
+    nBitMaxSrc = (nBitPerWord * nWordSrc)
+
+    0 <= nBit || throw(DomainError(nBit, "`nBit` must be non-negative."))
+    (1 <= dstBitIdxLo <= nBitMaxDst) || 
+    throw(DomainError(dstBitIdxLo, "`dstBitIdxLo` must be in 1:$nBitMaxDst."))
+    (1 <= srcBitIdxLo <= nBitMaxSrc) || 
+    throw(DomainError(srcBitIdxLo, "`srcBitIdxLo` must be in 1:$nBitMaxSrc."))
+
+    iszero(nBit) && (return dstWords)
+
+    #> `nBit` shall not go out of bound for both `dstWords` and `srcWords`. This clamp is 
+    #>  the sole guarantor of every `@inbounds` fetch below being safe.
+    nBit = min(nBit, nBitMaxDst-dstBitIdxLo+1, nBitMaxSrc-srcBitIdxLo+1)
+
+    dstWordIdxLo, dstBitPosLo = fldmod1(dstBitIdxLo,        nBitPerWord)
+    dstWordIdxHi, dstBitPosHi = fldmod1(dstBitIdxLo+nBit-1, nBitPerWord)
+    wordShift, bitOffset = fldmod(srcBitIdxLo - dstBitIdxLo, nBitPerWord) #> bitOffset >= 0
+    #>> srcBitIdx = dstBitIdx + wordShift * nBitPerWord + bitOffset
+
+    oldHead = dstWords[begin+dstWordIdxLo-1]
+    oldTail = dstWords[begin+dstWordIdxHi-1]
+
+    #> Least-significant and most-significant words
+    singleWordCopy = (dstWordIdxLo == dstWordIdxHi)
+    @inbounds for (isMSW, dstWordIdx, nCover) in zip((false, true), 
+                                                     (dstWordIdxLo, dstWordIdxHi), 
+                                                     (dstBitPosLo-1, dstBitPosHi))
+        srcWordIdx = dstWordIdx + wordShift
+
+        newWord = if singleWordCopy && isMSW #> Tail pass re-reads the head pass's write
+            dstWords[begin+dstWordIdx-1]
+        elseif iszero(bitOffset) #> Word-by-word aligned case
+            srcWords[begin+srcWordIdx-1]
+        else
+            pieceLo = ((isMSW || 1<=srcWordIdx) ? srcWords[begin+srcWordIdx-1] : zero(T))
+            pieceHi = ( (srcWordIdx < nWordSrc) ? srcWords[begin+srcWordIdx  ] : zero(T))
+            alignWords(bitOffset, pieceLo, pieceHi)
+        end
+
+        wordLo, wordHi = isMSW ? (newWord, oldTail) : (oldHead, newWord)
+        newWord = mergeWords(nCover, wordLo, wordHi)
+        dstWords[begin+dstWordIdx-1] = newWord
+    end
+
+    #> Sandwiched words
+    if iszero(bitOffset) #> Word-by-word aligned case
+        nSandwiched = dstWordIdxHi - dstWordIdxLo - 1
+        if nSandwiched > 0 
+            copyto!(dstWords, firstindex(dstWords)+dstWordIdxLo, 
+                    srcWords, firstindex(srcWords)+dstWordIdxLo+wordShift, nSandwiched)
+        end
+    else
+        @inbounds for dstWordIdx in (dstWordIdxLo+1):(dstWordIdxHi-1)
+            srcWordIdx = dstWordIdx + wordShift
+            pieceLo = srcWords[begin+srcWordIdx-1]
+            pieceHi = srcWords[begin+srcWordIdx  ]
+            newWord = alignWords(bitOffset, pieceLo, pieceHi)
+            dstWords[begin+dstWordIdx-1] = newWord
+        end
+    end
+
+    dstWords
+end
+
+
+"""
+    paste!(dst::PauliStr, dstStart::Integer, src::PauliStr, 
+           srcRange::UnitRange{<:Integer}=1:src.n; toHigher::Bool=true) -> PauliStr
+ 
+Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operators that 
+`src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
+The phases of both strings are ignored, so `dst.phase` is left untouched. When 
+`toHigher=true` (default), site `first(srcRange)` of `src` lands on site `dstStart` of 
+`dst`, with the remaining selected sites extending toward higher site indices; when 
+`toHigher=false`, site `last(srcRange)` of `src` lands on site `dstStart`, with the 
+remaining selected sites extending toward lower site indices. In either direction, the 
+selected sites of `src` that fall outside `1:dst.n` are truncated. `dstStart` must be in 
+`1:dst.n`, and a non-empty `srcRange` must be within `1:src.n` (a `DomainError` is thrown 
+otherwise).
+
+Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
+ 
+    toHigher = true  (dstStart=2):     toHigher = false (dstStart=1):
+     dst: [b1, b2, b3] (initial)        dst:         [b1, b2, b3] (initial)
+     src:     [c1, c2, c3]              src: [c1, c2, c3]
+     dst: [b1, c1, c2] (result)         dst:         [c3, b2, b3] (result)
+ 
+    toHigher = true  (dstStart=2, srcRange=2:3):
+     dst: [b1, b2, b3] (initial)
+     src:     [c2, c3] (site 1 of `src` deselected)
+     dst: [b1, c2, c3] (result)
+"""
+function paste!(dst::PauliStr, dstStart::Integer, 
+                src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; toHigher::Bool=true)
+    iBitDstMax = dst.n
+    if !(1 <= dstStart <= iBitDstMax)
+        throw(DomainError(dstStart, "`dstStart` must be in 1:$(iBitDstMax)."))
+    end
+
+    nBitCopied = length(srcRange)
+    iszero(nBitCopied) && (return dst)
+
+    iBitSrcMax = src.n
+    srcBitIdxLo = (Int∘first)(srcRange)
+    if !(1 <= srcBitIdxLo && last(srcRange) <= iBitSrcMax)
+        throw(DomainError(srcRange, "A non-empty `srcRange` must be within 1:$iBitSrcMax."))
+    end
+
+    dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant
+
+    shiftedStart = Int(dstStart) - (toHigher ? 0 : nBitCopied)
+    dstBitIdxLo = if shiftedStart < 0 #> Lower-side truncation for `src`
+             nBitCopied += shiftedStart
+            srcBitIdxLo -= shiftedStart
+            1
+        else
+            shiftedStart + Int(!toHigher)
+        end
+
+    nBitCopied = min(nBitCopied, iBitDstMax - dstBitIdxLo + 1) #> Truncate bits at `dst.n`
+
+    pasteBits!(dst.x, dstBitIdxLo, src.x, srcBitIdxLo, nBitCopied)
+    pasteBits!(dst.z, dstBitIdxLo, src.z, srcBitIdxLo, nBitCopied)
+
+    dst
 end

@@ -74,4 +74,10 @@ evalPhase(phase::PhaseFactor) = im^Int(phase)
 
 
 const CONSTVAR!!subscriptNum = 
-      Dict([0=>'₀', 1=>'₁', 2=>'₂', 3=>'₃', 4=>'₄', 5=>'₅', 6=>'₆', 7=>'₇', 8=>'₈', 9=>'₉'])
+      Dict(['0'=>'₀', '1'=>'₁', '2'=>'₂', '3'=>'₃', '4'=>'₄', 
+            '5'=>'₅', '6'=>'₆', '7'=>'₇', '8'=>'₈', '9'=>'₉'])
+
+function getSubscriptStr(num::Signed)
+    num < 0 && throw(DomainError(num, "`num` must be non-negative."))
+    mapreduce(c->CONSTVAR!!subscriptNum[c], *, string(num))
+end

@@ -227,11 +227,11 @@ function printOperator(pStr::PauliStr)
         x = !iszero(pStr.x[w] & mask)
 
         body *= if z & x
-            'Y' * CONSTVAR!!subscriptNum[i]
+            'Y' * getSubscriptStr(i)
         elseif z
-            'Z' * CONSTVAR!!subscriptNum[i]
+            'Z' * getSubscriptStr(i)
         elseif x
-            'X' * CONSTVAR!!subscriptNum[i]
+            'X' * getSubscriptStr(i)
         else
             ""
         end

@@ -573,8 +573,8 @@ Bits pushed past either boundary are dropped and vacated positions are filled wi
 so `length(words)` is preserved. `wordOffset` must be non-negative and `bitOffset` must 
 satisfy `0 <= bitOffset < 8*sizeof(T)`, or a `DomainError` is thrown.
 """
-function shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, forward::Bool
-                    ) where {T<:BitUInteger}
+function shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, 
+                    forward::Bool=true) where {T<:BitUInteger}
     wordOffset < 0 && throw(DomainError(wordOffset, "`wordOffset` must be non-negative."))
     nBitPerWord = 8 * sizeof(T)
     if bitOffset >= nBitPerWord || bitOffset < 0
@@ -615,7 +615,7 @@ end
 
 
 """
-    shift!(str::PauliStr, n::Integer, toHigher::Bool=false) -> PauliStr
+    shift!(str::PauliStr, n::Integer, toHigher::Bool=true) -> PauliStr
 
 Shift the single-site operators in `str` along the site axis by `n` sites, in place,
 and return the mutated `str`. When `toHigher=true` (default) the operators move toward 

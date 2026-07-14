@@ -79,5 +79,5 @@ const CONSTVAR!!subscriptNum =
 
 function getSubscriptStr(num::Signed)
     num < 0 && throw(DomainError(num, "`num` must be non-negative."))
-    mapreduce(c->CONSTVAR!!subscriptNum[c], *, string(num))
+    mapreduce(c->CONSTVAR!!subscriptNum[c], *, string(num), init="")
 end

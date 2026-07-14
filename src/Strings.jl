@@ -635,7 +635,7 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 ```
 """
 function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
-    n < 0 && throw(ArgumentError("`n` must be non-negative."))
+    n < 0 && throw(DomainError(n, "`n` must be non-negative."))
     (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
 
     nBitPerWord = 8 * sizeof(UInt)

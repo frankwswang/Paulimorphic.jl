@@ -551,12 +551,27 @@ function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(
 end
 
 
+#> Bit order style: MSB-left (MSB ... LSB)
+function alignWords(offset::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
+    nBitPerWord = 8 * sizeof(T)
+    piece1 = (sourceLSB >> offset)                #> EDCBA -> 00EDC (offset = 2)
+    piece2 =  sourceMSB << (nBitPerWord - offset) #> SRQPO -> PO000
+    piece1 | piece2                               #>          POEDC
+end
+
+function mergeWords(offset::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
+    keptLSB = ~(typemax(T) << offset) & sourceLSB #> EDCBA -> 000BA (offset = 2)
+    keptMSB =  (typemax(T) << offset) & sourceMSB #> SRQPO -> SRQ00
+    keptMSB | keptLSB                             #>          SRQBA
+end
+
+
 """
-    shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, 
+    shiftBits!(words::AbstractVector{T}, wordShift::Int, bitOffset::Int, 
                forward::Bool=true) where {T<:$BitUInteger} -> 
     typeof(words)
 
-Shift the bits packed in `words` in place by a total of `wordOffset` whole words plus
+Shift the bits packed in `words` in place by a total of `wordShift` whole words plus
 `bitOffset` bits, treating the buffer as one contiguous bit string in which the
 least-significant bit of the lowest-indexed word comes first. The mutated `words` is
 returned. The element type `T<:$BitUInteger` determines the word width at `8*sizeof(T)` 
@@ -570,44 +585,36 @@ The optional argument `forward` selects the direction of the shift:
 - `forward = false` is the exact reverse, moving bits toward the least-significant end.
 
 Bits pushed past either boundary are dropped and vacated positions are filled with zeros, 
-so `length(words)` is preserved. `wordOffset` must be non-negative and `bitOffset` must 
+so `length(words)` is preserved. `wordShift` must be non-negative and `bitOffset` must 
 satisfy `0 <= bitOffset < 8*sizeof(T)`, or a `DomainError` is thrown.
 """
-function shiftBits!(words::AbstractVector{T}, wordOffset::Int, bitOffset::Int, 
+function shiftBits!(words::AbstractVector{T}, wordShift::Int, bitOffset::Int, 
                     forward::Bool=true) where {T<:BitUInteger}
-    wordOffset < 0 && throw(DomainError(wordOffset, "`wordOffset` must be non-negative."))
+    wordShift < 0 && throw(DomainError(wordShift, "`wordShift` must be non-negative."))
     nBitPerWord = 8 * sizeof(T)
     if bitOffset >= nBitPerWord || bitOffset < 0
         throw(DomainError(bitOffset, "`0 <= bitOffset < $nBitPerWord` must hold true."))
     end
 
-    comOffset = nBitPerWord - bitOffset #> Complementary shift for the inter-word carry
     nWord = length(words)
-    carryOffset = 1
-    rng = if forward
-           comOffset *= -1
-           bitOffset *= -1
-          wordOffset *= -1
-        carryOffset *= -1
-        nWord:(-1):1
+    offset, shift, wordIndexRange = if forward
+        (mod(-bitOffset, nBitPerWord), -!iszero(bitOffset) - wordShift, nWord:-1:1)
     else
-        1:( 1):nWord
+        (     bitOffset,                                     wordShift, 1: 1:nWord)
     end
 
-    #> E.g., `nBitPerWord = 5; bitOffset = 2`
-    #>> `forward` |`head`        |`tail`
-    #>> `true `   | XXYYY->YYY00 | YYXXX -> 000YY
-    #>> `false`   | YYYXX->00YYY | XXXYY -> YY000
-    @inbounds for i in rng
-        sourcePos = i + wordOffset
-        head = (1 <= sourcePos <= nWord) ? (words[begin+sourcePos-1] >> bitOffset) : zero(T)
-        tail = if !iszero(bitOffset) && 1 <= (sourcePos + carryOffset) <= nWord
-            words[begin+(sourcePos + carryOffset)-1] << comOffset
+    #> Alignment for bit words `w[bitOrder, wordIndex]` (`offset=1`, `nBitPerWord=4`):
+    #>> ...|w[1,i      ] w[2,i      ] w[3,i      ] w[4,i        ]|w[1,i+1      ] ...
+    #>> ... w[2,i+shift] w[3,i+shift] w[4,i+shift]|w[1,i+1+shift] w[2,i+1+shift] ...
+    @inbounds for i in wordIndexRange
+        j = i + shift
+        pieceLo = (1 <= j <= nWord) ? words[begin+j-1] : zero(T)
+        words[begin+i-1] = if iszero(offset)
+            pieceLo
         else
-            zero(T)
+            pieceHi = (1 <= j + 1 <= nWord) ? words[begin+j] : zero(T)
+            alignWords(offset, pieceLo, pieceHi)
         end
-
-        words[begin+i-1] = head | tail
     end
 
     words
@@ -639,25 +646,11 @@ function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
     (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
 
     nBitPerWord = 8 * sizeof(UInt)
-    wordOffset, bitOffset = divrem(n, nBitPerWord)
-    shiftBits!(str.x, wordOffset, bitOffset, toHigher)
-    shiftBits!(str.z, wordOffset, bitOffset, toHigher)
+    wordShift, bitOffset = divrem(n, nBitPerWord)
+    shiftBits!(str.x, wordShift, bitOffset, toHigher)
+    shiftBits!(str.z, wordShift, bitOffset, toHigher)
 
     sanitize!(str) #> Clear any bits moved into the padding region past site `str.n`
-end
-
-
-function alignWords(nShift::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
-    nBitPerWord = 8 * sizeof(T)
-    piece1 = (sourceLSB >> nShift)                #> EDCBA -> 00EDC (nShift = 2)
-    piece2 =  sourceMSB << (nBitPerWord - nShift) #> SRQPO -> PO000
-    piece1 | piece2                               #>          POEDC 
-end
-
-function mergeWords(nCover::Int, sourceLSB::T, sourceMSB::T) where {T<:BitUInteger}
-    keptLSB = ~(typemax(T) << nCover) & sourceLSB #> EDCBA -> 000BA (nCover = 2)
-    keptMSB =  (typemax(T) << nCover) & sourceMSB #> SRQPO -> SRQ00
-    keptMSB | keptLSB                             #>          SRQBA
 end
 
 

@@ -65,10 +65,9 @@ phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
     PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
-single-site Pauli `siteOp` (one [`PauliSym`](@ref): `symI`, `symX`, `symY`, or `symZ`). 
-`nSite` must be non-negative (an `ArgumentError` is thrown otherwise). 
-`phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
-string as `im^Int(phase)`, which in default is `+1`.
+single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative (an 
+`DomainError` is thrown otherwise). `phase::`[`PhaseFactor`](@ref) determines the four 
+optional phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
 """
 mutable struct PauliStr <: DiscreteOperator
     const x::Memory{UInt}
@@ -77,9 +76,9 @@ mutable struct PauliStr <: DiscreteOperator
     const n::Int
 
     function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=posRea)
-        nSite < 0 && throw(ArgumentError("`nSite` must be non-negative."))
-        nBitPerWord = 8 * sizeof(UInt)
-        nWord = cld(nSite, nBitPerWord)
+        nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+        nSitePerWord = 8 * sizeof(UInt)
+        nWord = cld(nSite, nSitePerWord)
         allOneBits = ~zero(UInt) #> Same as `typemax(UInt)`
         xEle = (siteOp == symX || siteOp == symY) ? allOneBits : zero(UInt)
         zEle = (siteOp == symZ || siteOp == symY) ? allOneBits : zero(UInt)
@@ -216,13 +215,13 @@ end
 
 
 function printOperator(pStr::PauliStr)
-    nBitPerWord = 8 * sizeof(UInt)
+    nSitePerWord = 8 * sizeof(UInt)
     body = ""
 
     for i in 1:pStr.n
         bitPos = i - 1
-        w    = (bitPos ÷ nBitPerWord) + 1
-        mask = one(UInt) << (bitPos % nBitPerWord)
+        w    = (bitPos ÷ nSitePerWord) + 1
+        mask = one(UInt) << (bitPos % nSitePerWord)
         z = !iszero(pStr.z[w] & mask)
         x = !iszero(pStr.x[w] & mask)
 
@@ -474,8 +473,8 @@ bits, which is subject to the sanitization. When `str.n` is an integer multiple 
 size, the final word holds no padding and the call is a no-op.
 """
 function sanitize!(str::PauliStr)
-    nBitPerWord = 8 * sizeof(UInt)
-    remSites = str.n & (nBitPerWord - 1) #>> More efficient than `str.n % nBitPerWord`
+    nSitePerWord = 8 * sizeof(UInt)
+    remSites = str.n & (nSitePerWord - 1) #>> More efficient than `str.n % nSitePerWord`
     if !iszero(remSites)
         maskStr = (one(UInt) << remSites) - one(UInt) #>> Last `remSites` bits are one
         str.x[end] &= maskStr
@@ -525,7 +524,7 @@ chooses whether coefficients landing exactly on the threshold are kept (`>=`) or
 (`>`). For floating-point `T`, the default value of `tolerance` is `8eps(T)`: a small 
 multiple of the machine epsilon, enough to discard the round-off residuals left by operator 
 assembly when the coefficients are well conditioned; for integer `T`, the default value of 
-`tolerance` is `zero(T)`. A negative `tolerance` throws an `ArgumentError`.
+`tolerance` is `zero(T)`.
 
 # String ownership
 The retained terms remain in `ham`'s order, and the returned sum's coefficients are held in 
@@ -535,7 +534,7 @@ by `ham.str`.
 """
 function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
                  relative::Bool=false, inclusive::Bool=false) where {T<:Real}
-    tolerance < 0 && throw(ArgumentError("`tolerance` must be non-negative."))
+    tolerance < 0 && throw(DomainError(tolerance, "`tolerance` must be non-negative."))
 
     coeffs = ham.coeff
     scale = relative ? (isempty(coeffs) ? one(T) : maximum(abs, coeffs)) : one(T)
@@ -645,8 +644,8 @@ function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
     n < 0 && throw(DomainError(n, "`n` must be non-negative."))
     (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
 
-    nBitPerWord = 8 * sizeof(UInt)
-    wordShift, bitOffset = divrem(n, nBitPerWord)
+    nSitePerWord = 8 * sizeof(UInt)
+    wordShift, bitOffset = divrem(n, nSitePerWord)
     shiftBits!(str.x, wordShift, bitOffset, toHigher)
     shiftBits!(str.z, wordShift, bitOffset, toHigher)
 
@@ -656,8 +655,8 @@ end
 
 """
     pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
-              srcWords::AbstractVector{T}, srcBitIdxLo::Signed, 
-              nBit::Signed) where {T<:$BitUInteger} -> 
+               srcWords::AbstractVector{T}, srcBitIdxLo::Signed, 
+               nBit::Signed) where {T<:$BitUInteger} -> 
     typeof(dstWords)
  
 Copy `nBit` consecutive bits from `srcWords`, beginning at the 1-based bit index 
@@ -670,15 +669,15 @@ first, with the word width set by the element type at `8*sizeof(T)` bits. Every 
 `nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
 the bit capacity of its buffer (a `DomainError` is thrown otherwise). `nBit` is allowed to 
 exceed the number of bits available in `dstWords` or `srcWords`, in which case the 
-excessive bits (on the more significant side) are dropped upon copying.
+excessive bits (on the more significant side) are dropped upon pasting.
  
 !!! warning
     `dstWords` and `srcWords` must not share any underlying data; otherwise, the 
-    copied result may be corrupted.
+    copy-pasted result may be corrupted.
 """
 function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
-                   srcWords::AbstractVector{T}, srcBitIdxLo::Signed, nBit::Signed) where 
-                  {T<:BitUInteger}
+                    srcWords::AbstractVector{T}, srcBitIdxLo::Signed, nBit::Signed) where 
+                   {T<:BitUInteger}
     nBitPerWord = 8 * sizeof(T)
     nWordDst = length(dstWords)
     nWordSrc = length(srcWords)
@@ -706,13 +705,13 @@ function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed,
     oldTail = dstWords[begin+dstWordIdxHi-1]
 
     #> Least-significant and most-significant words
-    singleWordCopy = (dstWordIdxLo == dstWordIdxHi)
+    singleWordPaste = (dstWordIdxLo == dstWordIdxHi)
     @inbounds for (isMSW, dstWordIdx, nCover) in zip((false, true), 
                                                      (dstWordIdxLo, dstWordIdxHi), 
                                                      (dstBitPosLo-1, dstBitPosHi))
         srcWordIdx = dstWordIdx + wordShift
 
-        newWord = if singleWordCopy && isMSW #> Tail pass re-reads the head pass's write
+        newWord = if singleWordPaste && isMSW #> Tail pass re-reads the head pass's write
             dstWords[begin+dstWordIdx-1]
         elseif iszero(bitOffset) #> Word-by-word aligned case
             srcWords[begin+srcWordIdx-1]
@@ -754,16 +753,15 @@ end
  
 Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operators that 
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
-The phases of both strings are ignored, so `dst.phase` is left untouched. When 
-`toHigher=true` (default), site `first(srcRange)` of `src` lands on site `dstStart` of 
-`dst`, with the remaining selected sites extending toward higher site indices; when 
-`toHigher=false`, site `last(srcRange)` of `src` lands on site `dstStart`, with the 
-remaining selected sites extending toward lower site indices. In either direction, the 
-selected sites of `src` that fall outside `1:dst.n` are truncated. `dstStart` must be in 
-`1:dst.n`, and a non-empty `srcRange` must be within `1:src.n` (a `DomainError` is thrown 
-otherwise).
+The phase of `dst` (`dst.phase`) is left untouched. When `toHigher=true` (default), site 
+`first(srcRange)` of `src` lands on site `dstStart` of `dst`, with the remaining selected 
+sites extending toward higher site indices; when `toHigher=false`, site `last(srcRange)` of 
+`src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
+site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
+are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be within 
+`1:src.n` (a `DomainError` is thrown otherwise).
 
-Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
+# Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
  
     toHigher = true  (dstStart=2):     toHigher = false (dstStart=1):
      dst: [b1, b2, b3] (initial)        dst:         [b1, b2, b3] (initial)
@@ -777,35 +775,35 @@ Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
                 src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; toHigher::Bool=true)
-    iBitDstMax = dst.n
-    if !(1 <= dstStart <= iBitDstMax)
-        throw(DomainError(dstStart, "`dstStart` must be in 1:$(iBitDstMax)."))
+    nSiteDst = dst.n
+    if !(1 <= dstStart <= nSiteDst)
+        throw(DomainError(dstStart, "`dstStart` must be in 1:$(nSiteDst)."))
     end
 
-    nBitCopied = length(srcRange)
-    iszero(nBitCopied) && (return dst)
+    nSitePasted = length(srcRange)
+    iszero(nSitePasted) && (return dst)
 
-    iBitSrcMax = src.n
-    srcBitIdxLo = (Int∘first)(srcRange)
-    if !(1 <= srcBitIdxLo && last(srcRange) <= iBitSrcMax)
-        throw(DomainError(srcRange, "A non-empty `srcRange` must be within 1:$iBitSrcMax."))
+    nSiteSrc = src.n
+    srcSiteLo = (Int∘first)(srcRange)
+    if !(1 <= srcSiteLo && last(srcRange) <= nSiteSrc)
+        throw(DomainError(srcRange, "A non-empty `srcRange` must be within 1:$nSiteSrc."))
     end
 
     dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant
 
-    shiftedStart = Int(dstStart) - (toHigher ? 0 : nBitCopied)
-    dstBitIdxLo = if shiftedStart < 0 #> Lower-side truncation for `src`
-             nBitCopied += shiftedStart
-            srcBitIdxLo -= shiftedStart
+    shiftedStart = Int(dstStart) - (toHigher ? 0 : nSitePasted)
+    dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for `src`
+             nSitePasted += shiftedStart
+            srcSiteLo -= shiftedStart
             1
         else
             shiftedStart + Int(!toHigher)
         end
 
-    nBitCopied = min(nBitCopied, iBitDstMax - dstBitIdxLo + 1) #> Truncate bits at `dst.n`
+    nSitePasted = min(nSitePasted, nSiteDst - dstSiteLo + 1) #> Truncate sites at `dst.n`
 
-    pasteBits!(dst.x, dstBitIdxLo, src.x, srcBitIdxLo, nBitCopied)
-    pasteBits!(dst.z, dstBitIdxLo, src.z, srcBitIdxLo, nBitCopied)
+    pasteBits!(dst.x, dstSiteLo, src.x, srcSiteLo, nSitePasted)
+    pasteBits!(dst.z, dstSiteLo, src.z, srcSiteLo, nSitePasted)
 
     dst
 end

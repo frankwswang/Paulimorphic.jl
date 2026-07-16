@@ -807,3 +807,116 @@ function paste!(dst::PauliStr, dstStart::Integer,
 
     dst
 end
+
+
+"""
+    stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
+               nBit::Signed) where {T<:$BitUInteger} -> 
+    typeof(dstWords)
+
+Overwrite `nBit` consecutive bits of `dstWords` with the constant `bitVal`, beginning at 
+the 1-based bit index `dstBitIdxLo`, in place, and then return the mutated `dstWords`. 
+`dstWords` is treated as one contiguous bit string in which the least-significant bit of 
+the lowest-indexed word comes first, with the word width set by the element type at 
+`8*sizeof(T)` bits. Every bit of `dstWords` outside the written window keeps its original 
+value.
+
+`nBit` must be non-negative, and `dstBitIdxLo` must be within the bit capacity of 
+`dstWords` (a `DomainError` is thrown otherwise). `nBit` is allowed to exceed the number 
+of bits available in `dstWords`, in which case the excessive bits (on the more significant 
+side) are dropped upon stamping.
+"""
+function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
+                    nBit::Signed) where {T<:BitUInteger}
+    nBitPerWord = 8 * sizeof(T)
+    nBitMaxDst = nBitPerWord * length(dstWords)
+
+    0 <= nBit || throw(DomainError(nBit, "`nBit` must be non-negative."))
+    (1 <= dstBitIdxLo <= nBitMaxDst) || 
+    throw(DomainError(dstBitIdxLo, "`dstBitIdxLo` must be in 1:$nBitMaxDst."))
+
+    iszero(nBit) && (return dstWords)
+
+    #> `nBit` shall not go out of bound for `dstWords`. This clamp is the sole guarantor 
+    #>  of every `@inbounds` access below being safe.
+    nBit = min(nBit, nBitMaxDst-dstBitIdxLo+1)
+
+    dstWordIdxLo, dstBitPosLo = fldmod1(dstBitIdxLo,        nBitPerWord)
+    dstWordIdxHi, dstBitPosHi = fldmod1(dstBitIdxLo+nBit-1, nBitPerWord)
+
+    wordVal = bitVal ? typemax(T) : zero(T)
+    oldHead = dstWords[begin+dstWordIdxLo-1]
+    oldTail = dstWords[begin+dstWordIdxHi-1]
+
+    #> Least-significant and most-significant words
+    singleWordStamp = (dstWordIdxLo == dstWordIdxHi)
+    @inbounds for (isMSW, dstWordIdx, nCover) in zip((false, true), 
+                                                     (dstWordIdxLo, dstWordIdxHi), 
+                                                     (dstBitPosLo-1, dstBitPosHi))
+        #> Tail pass re-reads the head pass's write
+        newWord = (singleWordStamp && isMSW) ? dstWords[begin+dstWordIdx-1] : wordVal
+        dstWords[begin+dstWordIdx-1] = if iszero(nCover % nBitPerWord)
+            newWord
+        else
+            wordLo, wordHi = isMSW ? (newWord, oldTail) : (oldHead, newWord)
+            mergeWords(nCover, wordLo, wordHi)
+        end
+    end
+
+    #> Sandwiched words
+    @inbounds for dstWordIdx in (dstWordIdxLo+1):(dstWordIdxHi-1)
+        dstWords[begin+dstWordIdx-1] = wordVal
+    end
+
+    dstWords
+end
+
+
+"""
+    stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
+           toHigher::Bool=true) -> PauliStr
+ 
+Overwrite a contiguous window of `nSite` sites of `dst` with the single-site Pauli 
+operator `opSym::`[`PauliSym`](@ref), in place, and then return the mutated `dst`. The 
+phase of `dst` (`dst.phase`) is left untouched. When `toHigher=true` (default), the window 
+starts at site `startSite` and extends toward higher site indices; when `toHigher=false`, 
+the window ends at site `startSite` and extends toward lower site indices. In either 
+direction, the part of the window that falls outside `1:dst.n` is truncated. `startSite` 
+must be in `1:dst.n`, and `nSite` must be non-negative (a `DomainError` is thrown 
+otherwise).
+
+# Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
+ 
+    toHigher = true  (startSite=2, nSite=3):   toHigher = false (startSite=1, nSite=3):
+     dst: [b1, b2, b3]     (initial)           dst:         [b1, b2, b3] (initial)
+     op:      [op, op, op]                     op:  [op, op, op]
+     dst: [b1, op, op]     (result)            dst:         [op, b2, b3] (result)
+"""
+function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
+                toHigher::Bool=true)
+    nSiteDst = dst.n
+    if !(1 <= startSite <= nSiteDst)
+        throw(DomainError(startSite, "`startSite` must be in 1:$(nSiteDst)."))
+    end
+
+    nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+    iszero(nSite) && (return dst)
+    nSiteStamped = Int(nSite)
+
+    shiftedStart = Int(startSite) - (toHigher ? 0 : nSiteStamped)
+    dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for the window
+            nSiteStamped += shiftedStart
+            1
+        else
+            shiftedStart + Int(!toHigher)
+        end
+
+    nSiteStamped = min(nSiteStamped, nSiteDst - dstSiteLo + 1) #> Truncate sites at `dst.n`
+
+    xBit = (opSym == symX || opSym == symY)
+    zBit = (opSym == symZ || opSym == symY)
+    stampBits!(dst.x, dstSiteLo, xBit, nSiteStamped)
+    stampBits!(dst.z, dstSiteLo, zBit, nSiteStamped)
+
+    dst
+end

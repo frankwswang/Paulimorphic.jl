@@ -1,4 +1,5 @@
-export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!, paste!
+export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!, paste!, 
+       stamp!
 
 using LinearAlgebra: dot
 

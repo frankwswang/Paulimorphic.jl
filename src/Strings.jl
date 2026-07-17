@@ -48,13 +48,13 @@ in the final word should always be set to zero.
 
 Construct a `PauliStr` on `nSite` sites from the bit-packed components, `xWords` and 
 `zWords`. The layouts of `xWords` and `zWords` should follow the layout for fields `.x` and 
-`.z` of `PauliStr`, respectively. `phase::`[`PhaseFactor`](@ref) assigns the 
-value of field `.phase`. `nSite` assigns the value of field `.n`, which in default is to 
-set to the inputs' full capacity, `8 * sizeof(UInt) * length(xWords)`. When `nSite` is less 
-than the full capacity, only the leading  `cld(nSite, 8 * sizeof(UInt))` words are taken; 
-any surplus words from the input are ignored, and bits beyond site `nSite` in the final 
-word are cleared rather than validated. The components are copied into freshly allocated 
-buffers, so the returned `PauliStr` does not reference `xWords` or `zWords`.
+`.z` of `PauliStr`, respectively. `phase::`[`PhaseFactor`](@ref) assigns the value of field 
+`.phase`. `nSite` assigns the value of field `.n`, which in default is set to the inputs' 
+full capacity, `8 * sizeof(UInt) * length(xWords)`. `nSite` may fall on either side of that 
+capacity: when it is smaller, only the leading `cld(nSite, 8 * sizeof(UInt))` words of each 
+input are taken — any surplus words are ignored; when it is larger, every site past `nSite` 
+carries the identity. The components are copied into freshly allocated buffers, so the 
+returned `PauliStr` does not reference `xWords` or `zWords`.
 
     PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$posRea) -> PauliStr
 
@@ -95,24 +95,23 @@ mutable struct PauliStr <: DiscreteOperator
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords))
+        nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         maxWordNum = length(xWords)
-
         if maxWordNum != length(zWords)
             throw(ArgumentError("`xWords` and `zWords` must have the same length."))
         end
-
-        nBitPerWord = 8 * sizeof(UInt)
-        maxSiteNum = nBitPerWord * maxWordNum
-        if !(0 <= nSite <= maxSiteNum) #> `0` => empty string => identity
-            throw(DomainError(nSite, "`nSite` must be in 0:$maxSiteNum."))
-        end
-
         #> Ensure string fields are not linked to inputs
-        nWord = cld(nSite, nBitPerWord)
+        nWord = cld(nSite, 8sizeof(UInt))
         xStr = Memory{UInt}(undef, nWord)
         zStr = Memory{UInt}(undef, nWord)
-        copyto!(xStr, firstindex(xStr), xWords, firstindex(xWords), nWord)
-        copyto!(zStr, firstindex(zStr), zWords, firstindex(zWords), nWord)
+
+        #> Zero only the words above the loaded prefix
+        nWordLoad = min(nWord, maxWordNum)
+        @inbounds for i in (nWordLoad + 1):nWord; xStr[begin+i-1] = zero(UInt) end
+        @inbounds for i in (nWordLoad + 1):nWord; zStr[begin+i-1] = zero(UInt) end
+
+        copyto!(xStr, firstindex(xStr), xWords, firstindex(xWords), nWordLoad)
+        copyto!(zStr, firstindex(zStr), zWords, firstindex(zWords), nWordLoad)
 
         #> Enforce resetting the padding bits to be zero
         new(xStr, zStr, phase, nSite) |> sanitize!

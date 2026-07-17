@@ -69,6 +69,14 @@ Build a uniform `PauliStr` on `nSite` sites in which every site carries the same
 single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative (an 
 `DomainError` is thrown otherwise). `phase::`[`PhaseFactor`](@ref) determines the four 
 optional phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
+
+    PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
+
+Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites and in default 
+preserves the site count of `pStr`. When `nSite > pStr.n` every site above `pStr.n` carries 
+the identity; when `nSite < pStr.n`, the sites above `nSite` are cropped away. `phase` 
+assigns the value of field `.phase`. The returned `PauliStr` holds freshly allocated 
+buffers and does not reference the data in `pStr`.
 """
 mutable struct PauliStr <: DiscreteOperator
     const x::Memory{UInt}
@@ -89,9 +97,6 @@ mutable struct PauliStr <: DiscreteOperator
         #> Enforce resetting the padding bits to be zero
         new(xStr, zStr, phase, Int(nSite)) |> sanitize!
     end
-
-    PauliStr(pStr::PauliStr, phase::PhaseFactor=pStr.phase) = 
-    new(copy(pStr.x), copy(pStr.z), phase, pStr.n)
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords))
@@ -148,6 +153,9 @@ mutable struct PauliStr <: DiscreteOperator
         new(xStr, zStr, phase, nSite)
     end
 end
+
+PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) = 
+PauliStr(pStr.x, pStr.z, phase, nSite)
 
 
 function Base.hash(pStr::PauliStr, hashCode::UInt)

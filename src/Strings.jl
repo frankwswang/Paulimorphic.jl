@@ -1,5 +1,5 @@
-export PauliStr, @pauli_str, PauliSum, canonicalize!, curtail, sanitize!, shift!, paste!, 
-       stamp!
+export PauliStr, @pauli_str, PauliSum, countSites, canonicalize!, curtail, sanitize!, 
+       shift!, paste!, stamp!
 
 using LinearAlgebra: dot
 
@@ -388,6 +388,25 @@ end
 
 function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
+end
+
+
+"""
+    countSites(str::PauliStr) -> Int
+
+Return the number of sites `str` acts on, i.e., its field `.n`.
+"""
+countSites(str::PauliStr) = str.n
+
+"""
+    countSites(ham::PauliSum) -> Int
+
+Return the number of sites spanned by `ham` as a whole, i.e., the maximum site count over 
+its Pauli strings. Therefore, this method does not require each string in `ham.str` to 
+explicitly act on the same number of sites. When `ham` holds no terms, `0` is returned. 
+"""
+function countSites(ham::PauliSum)
+    isempty(ham.str) ? 0 : maximum(countSites, ham.str)
 end
 
 

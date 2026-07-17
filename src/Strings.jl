@@ -282,6 +282,21 @@ are stored in a deterministic canonical order such that for
 
 always returns `true`.
 
+Construct a `res::PauliSum{T}` with `T=real(C)` from `coeffs` and `strs` of equal length. 
+The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
+over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
+(equal to [`countSites`](@ref)`(res)`). Each string's phase is absorbed into its matching 
+coefficient. When `simplification=true` (by default), equal strings — including strings 
+that become equal only after the rebuild (e.g., `X` and `XI`) — are combined into one term 
+and any term whose coefficient is exactly zero is removed; when `simplification=false`, 
+such equal strings are retained. In both cases the terms in the constructed `res` are 
+stored in a deterministic canonical order such that for 
+`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+
+    res2.coeff == res.coeff && res2.str == res.str
+
+always returns `true`.
+
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
              simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
@@ -301,9 +316,10 @@ kept. Accordingly, `selector` must accept a `Complex{T}` (when `byCoeff=true`) o
 `PauliStr` (when `byCoeff=false`) in the sole input and return a `Bool`. This constructor 
 respects the term order of `ham` and performs no phase absorption, merging, or re-sorting.
 
-Unlike other constructor methods, the retained strings are NOT reconstructed (deep-copied). 
-In other words, the returned sum's `.str` entries are the same (subsets of) `PauliStr` held 
-by `ham.str`.
+!!! warning
+    Unlike other constructor methods, the retained strings are NOT reconstructed 
+    (deep-copied). In other words, the entires in the field `.str` of the returned 
+    `PauliStr` by this constructor are the same (subset of) `PauliStr` held by `ham.str`.
 """
 struct PauliSum{T<:Real} <: DiscreteOperator
     coeff::Memory{Complex{T}}
@@ -329,7 +345,8 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         cInput = Memory{Complex{T}}(undef, inputSize)
         sInput = Memory{PauliStr}(undef, inputSize)
         copyto!(cInput, firstindex(cInput), coeffs, firstindex(coeffs), inputSize)
-        for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1]) end
+        nSite = iszero(inputSize) ? 0 : maximum(countSites, strs)
+        for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
         absorbPhases!(cInput, sInput)
 
         if !simplification || iszero(inputSize)

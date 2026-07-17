@@ -406,16 +406,16 @@ end
 """
     countSites(str::PauliStr) -> Int
 
-Return the number of sites `str` acts on, i.e., its field `.n`.
+Return the number of sites `str` acts on, i.e., its site count (stored in its field `.n`).
 """
 countSites(str::PauliStr) = str.n
 
 """
     countSites(ham::PauliSum) -> Int
 
-Return the number of sites spanned by `ham` as a whole, i.e., the maximum site count over 
-its Pauli strings. Therefore, this method does not require each string in `ham.str` to 
-explicitly act on the same number of sites. When `ham` holds no terms, `0` is returned. 
+Return the overall site count of `ham`, i.e., the maximum site count over its Pauli 
+strings. Therefore, this method does not require each string in `ham.str` to explicitly 
+act on the same number of sites. When `ham` holds no terms, `0` is returned.
 """
 function countSites(ham::PauliSum)
     isempty(ham.str) ? 0 : maximum(countSites, ham.str)
@@ -795,10 +795,10 @@ are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must 
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
  
-    toHigher = true  (dstStart=2):     toHigher = false (dstStart=1):
-     dst: [b1, b2, b3] (initial)        dst:         [b1, b2, b3] (initial)
-     src:     [c1, c2, c3]              src: [c1, c2, c3]
-     dst: [b1, c1, c2] (result)         dst:         [c3, b2, b3] (result)
+    toHigher = true  (dstStart=2):    toHigher = false (dstStart=1):
+     dst: [b1, b2, b3] (initial)       dst:         [b1, b2, b3] (initial)
+     src:     [c1, c2, c3]             src: [c1, c2, c3]
+     dst: [b1, c1, c2] (result)        dst:         [c3, b2, b3] (result)
  
     toHigher = true  (dstStart=2, srcRange=2:3):
      dst: [b1, b2, b3] (initial)
@@ -907,7 +907,7 @@ end
 """
     stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
            toHigher::Bool=true) -> PauliStr
- 
+
 Overwrite a contiguous window of `nSite` sites of `dst` with the single-site Pauli 
 operator `opSym::`[`PauliSym`](@ref), in place, and then return the mutated `dst`. The 
 phase of `dst` (`dst.phase`) is left untouched. When `toHigher=true` (default), the window 
@@ -918,11 +918,11 @@ must be in `1:dst.n`, and `nSite` must be non-negative (a `DomainError` is throw
 otherwise).
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
- 
+
     toHigher = true  (startSite=2, nSite=3):   toHigher = false (startSite=1, nSite=3):
-     dst: [b1, b2, b3]     (initial)           dst:         [b1, b2, b3] (initial)
-     op:      [op, op, op]                     op:  [op, op, op]
-     dst: [b1, op, op]     (result)            dst:         [op, b2, b3] (result)
+     dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
+     op:      [op, op, op]                      op:  [op, op, op]
+     dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 toHigher::Bool=true)

@@ -270,18 +270,6 @@ associated `PauliStr` `.str::Memory{PauliStr}`.
              simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
-Construct a `PauliSum{T}` with `T = real(C)` from `coeffs` and `strs` of equal length. The 
-strings are deep-copied, and each string's phase is absorbed into its matching coefficient. 
-When `simplification=true` (by default), equal strings are combined into one term and any 
-term whose coefficients sum to exactly zero is removed; when `simplification=false`, 
-duplicate strings are retained. In both cases the terms in the constructed `res::PauliSum` 
-are stored in a deterministic canonical order such that for 
-`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
-
-    res2.coeff == res.coeff && res2.str == res.str
-
-always returns `true`.
-
 Construct a `res::PauliSum{T}` with `T=real(C)` from `coeffs` and `strs` of equal length. 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 

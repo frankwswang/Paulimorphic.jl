@@ -258,7 +258,7 @@ A linear combination of Pauli strings, i.e. a general operator
     ∑_k coeff_k * str_k,
 
 stored as two parallel buffers: the coefficients `.coeff::Memory{Complex{T}}` and their
-associated `PauliStr` `.str::Memory{PauliStr}`. 
+associated `PauliStr` `.str::Memory{PauliStr}`.
 
 # Fields
 - `.coeff::Memory{Complex{T}}`: the coefficients associated with terms of Pauli strings.
@@ -653,13 +653,13 @@ end
 
 
 """
-    shift!(str::PauliStr, n::Integer, toHigher::Bool=true) -> PauliStr
+    shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true) -> PauliStr
 
 Shift the single-site operators in `str` along the site axis by `n` sites, in place,
-and return the mutated `str`. When `toHigher=true` (default) the operators move toward 
+and return the mutated `str`. When `lowToHigh=true` (default) the operators move toward 
 higher site indices (i.e., a *right* shift): the operator on site `k` is moved to site 
 `k + n`, and anything pushed above site `str.n` is discarded. Similarly, when 
-`toHigher=false` the operators move toward lower site indices (a *left* shift). Vacated 
+`lowToHigh=false` the operators move toward lower site indices (a *left* shift). Vacated 
 sites are refilled with the identity, the site count `str.n` is preserved, and the overall 
 `.phase` is left unchanged.
 
@@ -672,14 +672,14 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 +X₆
 ```
 """
-function shift!(str::PauliStr, n::Integer, toHigher::Bool=true)
+function shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true)
     n < 0 && throw(DomainError(n, "`n` must be non-negative."))
     (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
 
     nSitePerWord = 8 * sizeof(UInt)
     wordShift, bitOffset = divrem(n, nSitePerWord)
-    shiftBits!(str.x, wordShift, bitOffset, toHigher)
-    shiftBits!(str.z, wordShift, bitOffset, toHigher)
+    shiftBits!(str.x, wordShift, bitOffset, lowToHigh)
+    shiftBits!(str.z, wordShift, bitOffset, lowToHigh)
 
     sanitize!(str) #> Clear any bits moved into the padding region past site `str.n`
 end
@@ -690,19 +690,19 @@ end
                srcWords::AbstractVector{T}, srcBitIdxLo::Signed, 
                nBit::Signed) where {T<:$BitUInteger} -> 
     typeof(dstWords)
- 
+
 Copy `nBit` consecutive bits from `srcWords`, beginning at the 1-based bit index 
 `srcBitIdxLo`, into `dstWords` beginning at the bit index `dstBitIdxLo`, in place, and 
 then return the mutated `dstWords`. Both `dstWords` and `srcWords` are treated as one 
 contiguous bit string in which the least-significant bit of the lowest-indexed word comes 
 first, with the word width set by the element type at `8*sizeof(T)` bits. Every bit of 
 `dstWords` outside the written window keeps its original value.
- 
+
 `nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
 the bit capacity of its buffer (a `DomainError` is thrown otherwise). `nBit` is allowed to 
 exceed the number of bits available in `dstWords` or `srcWords`, in which case the 
 excessive bits (on the more significant side) are dropped upon pasting.
- 
+
 !!! warning
     `dstWords` and `srcWords` must not share any underlying data; otherwise, the 
     copy-pasted result may be corrupted.
@@ -761,7 +761,7 @@ function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed,
     #> Sandwiched words
     if iszero(bitOffset) #> Word-by-word aligned case
         nSandwiched = dstWordIdxHi - dstWordIdxLo - 1
-        if nSandwiched > 0 
+        if nSandwiched > 0
             copyto!(dstWords, firstindex(dstWords)+dstWordIdxLo, 
                     srcWords, firstindex(srcWords)+dstWordIdxLo+wordShift, nSandwiched)
         end
@@ -781,32 +781,32 @@ end
 
 """
     paste!(dst::PauliStr, dstStart::Integer, src::PauliStr, 
-           srcRange::UnitRange{<:Integer}=1:src.n; toHigher::Bool=true) -> PauliStr
- 
+           srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true) -> PauliStr
+
 Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operators that 
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
-The phase of `dst` (`dst.phase`) is left untouched. When `toHigher=true` (default), site 
+The phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default), site 
 `first(srcRange)` of `src` lands on site `dstStart` of `dst`, with the remaining selected 
-sites extending toward higher site indices; when `toHigher=false`, site `last(srcRange)` of 
+sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` of 
 `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
 are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be within 
 `1:src.n` (a `DomainError` is thrown otherwise).
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
- 
-    toHigher = true  (dstStart=2):    toHigher = false (dstStart=1):
+
+    lowToHigh = true  (dstStart=2):    lowToHigh = false (dstStart=1):
      dst: [b1, b2, b3] (initial)       dst:         [b1, b2, b3] (initial)
      src:     [c1, c2, c3]             src: [c1, c2, c3]
      dst: [b1, c1, c2] (result)        dst:         [c3, b2, b3] (result)
- 
-    toHigher = true  (dstStart=2, srcRange=2:3):
+
+    lowToHigh = true  (dstStart=2, srcRange=2:3):
      dst: [b1, b2, b3] (initial)
      src:     [c2, c3] (site 1 of `src` deselected)
      dst: [b1, c2, c3] (result)
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
-                src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; toHigher::Bool=true)
+                src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
     nSiteDst = dst.n
     if !(1 <= dstStart <= nSiteDst)
         throw(DomainError(dstStart, "`dstStart` must be in 1:$(nSiteDst)."))
@@ -823,13 +823,13 @@ function paste!(dst::PauliStr, dstStart::Integer,
 
     dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant
 
-    shiftedStart = Int(dstStart) - (toHigher ? 0 : nSitePasted)
+    shiftedStart = Int(dstStart) - (lowToHigh ? 0 : nSitePasted)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for `src`
              nSitePasted += shiftedStart
             srcSiteLo -= shiftedStart
             1
         else
-            shiftedStart + Int(!toHigher)
+            shiftedStart + Int(!lowToHigh)
         end
 
     nSitePasted = min(nSitePasted, nSiteDst - dstSiteLo + 1) #> Truncate sites at `dst.n`
@@ -906,12 +906,12 @@ end
 
 """
     stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
-           toHigher::Bool=true) -> PauliStr
+           lowToHigh::Bool=true) -> PauliStr
 
 Overwrite a contiguous window of `nSite` sites of `dst` with the single-site Pauli 
 operator `opSym::`[`PauliSym`](@ref), in place, and then return the mutated `dst`. The 
-phase of `dst` (`dst.phase`) is left untouched. When `toHigher=true` (default), the window 
-starts at site `startSite` and extends toward higher site indices; when `toHigher=false`, 
+phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default), the window 
+starts at site `startSite` and extends toward higher site indices; when `lowToHigh=false`, 
 the window ends at site `startSite` and extends toward lower site indices. In either 
 direction, the part of the window that falls outside `1:dst.n` is truncated. `startSite` 
 must be in `1:dst.n`, and `nSite` must be non-negative (a `DomainError` is thrown 
@@ -919,13 +919,13 @@ otherwise).
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
 
-    toHigher = true  (startSite=2, nSite=3):   toHigher = false (startSite=1, nSite=3):
+    lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
      dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
      op:      [op, op, op]                      op:  [op, op, op]
      dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
-                toHigher::Bool=true)
+                lowToHigh::Bool=true)
     nSiteDst = dst.n
     if !(1 <= startSite <= nSiteDst)
         throw(DomainError(startSite, "`startSite` must be in 1:$(nSiteDst)."))
@@ -935,12 +935,12 @@ function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integ
     iszero(nSite) && (return dst)
     nSiteStamped = Int(nSite)
 
-    shiftedStart = Int(startSite) - (toHigher ? 0 : nSiteStamped)
+    shiftedStart = Int(startSite) - (lowToHigh ? 0 : nSiteStamped)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for the window
             nSiteStamped += shiftedStart
             1
         else
-            shiftedStart + Int(!toHigher)
+            shiftedStart + Int(!lowToHigh)
         end
 
     nSiteStamped = min(nSiteStamped, nSiteDst - dstSiteLo + 1) #> Truncate sites at `dst.n`
@@ -1024,7 +1024,7 @@ function reframe(ham::PauliSum, nSite::Integer=countSites(ham); lowToHigh::Bool=
         newStr = PauliStr(nSite, filler, oldStr.phase)
         if nSite > 0
             iSiteStart = ifelse(lowToHigh, 1, nSite)
-            paste!(newStr, iSiteStart, oldStr, toHigher=lowToHigh)
+            paste!(newStr, iSiteStart, oldStr; lowToHigh)
         end
         newStr
     end

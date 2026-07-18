@@ -1,5 +1,5 @@
 export PauliStr, @pauli_str, PauliSum, countSites, canonicalize!, curtail, sanitize!, 
-       shift!, paste!, stamp!
+       shift!, paste!, stamp!, reframe
 
 using LinearAlgebra: dot
 
@@ -951,4 +951,82 @@ function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integ
     stampBits!(dst.z, dstSiteLo, zBit, nSiteStamped)
 
     dst
+end
+
+
+"""
+    reframe(ham::PauliSum{T}, nSite::Integer=countSites(ham); lowToHigh::Bool=true, 
+            filler::PauliSym=symI, simplification::Bool=true) where {T<:Real} -> 
+    PauliSum{T}
+
+Return a `res::PauliSum{T}` by rebuilding each `PauliStr` in `ham.str` as a `PauliStr` in 
+`res.str` within a fixed frame of exactly `nSite` sites, i.e., a reframed string. `nSite` 
+must be non-negative (a `DomainError` is thrown otherwise), and when `length(res.str) > 0`, 
+`res` holds the following property:
+
+    minimum(countSites, res.str) == countSites(res) == nSite
+
+When `lowToHigh=true` (default), each single-site operator from the original string is 
+placed site-by-site starting from the frame's low edge: the site-`k` operator of the 
+reframed string `strR` is set to be the operator acting on site `k` in the original string 
+`strO`. Conversely, when `lowToHigh=false`, the site-`k` operator in `strR` is set to be 
+the operator acting on site [`countSites`](@ref)`(strO) - nSite + k` in `strO`. In either 
+case, every site in the frame not covered by the operators (including single-site 
+identities) in the original string is assigned a `filler::`[`PauliSym`](@ref) operator, 
+while any of those operators falling outside the frame is cropped away. Regardless of the 
+value of `nSite`, each original string's phase information is transferred to the 
+corresponding reframed string.
+
+After the reframed strings are constructed, they are then collected (along with the 
+coefficients associated with their respective original strings held by `ham`) to construct 
+`res::PauliSum{T}` in canonical order. If `simplification=true`, the same simplification 
+procedure used by the constructor of [`PauliSum`](@ref) is applied to `res` before it is 
+returned. Depending on the specific choice of `filler`, or the value of `nSite` compared to 
+`countSites(ham)`, `res` may not be algebraically equivalent to `ham`. Only when 
+`filler=symI` and `nSite >= countSites(ham)` is `res` guaranteed to represent the same 
+operator as `ham` (up to numerical round-off errors if `simplification=true`).
+
+# Mechanism illustration (`[c1, c2, c3]` represents a three-site string, `fl` the filler):
+
+    lowToHigh = true  (nSite=5):    lowToHigh = false (nSite=5):
+     old: [c1, c2, c3]               old:         [c1, c2, c3]
+     new: [c1, c2, c3, fl, fl]       new: [fl, fl, c1, c2, c3]
+
+    lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
+     old: [c1, c2, c3]               old: [c1, c2, c3]
+     new: [c1, c2]                   new:     [c2, c3]
+
+# String ownership
+The returned sum does not reference any data in `ham`: its coefficients are held in an 
+independent buffer, and its `PauliStr`s are freshly constructed.
+
+# Example
+```julia
+julia> ham = PauliSum([1, 2], [pauli"XZ", pauli"YIX"]);
+
+julia> countSites(ham) #> The constructor has rebuilt `pauli"XZ"` onto 3 sites as `XZI`
+3
+
+julia> reframe(ham, 5) == PauliSum([1, 2], [pauli"XZIII", pauli"YIXII"])
+true
+
+julia> reframe(ham, 5, lowToHigh=false) == PauliSum([1, 2], [pauli"IIXZI", pauli"IIYIX"])
+true
+```
+"""
+function reframe(ham::PauliSum, nSite::Integer=countSites(ham); lowToHigh::Bool=true, 
+                 filler::PauliSym=symI, simplification::Bool=true)
+    nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+    nSite = Int(nSite)
+
+    coeffs = ham.coeff
+    strs = map(ham.str) do oldStr
+        newStr = PauliStr(nSite, filler, oldStr.phase)
+        if nSite > 0
+            iSiteStart = ifelse(lowToHigh, 1, nSite)
+            paste!(newStr, iSiteStart, oldStr, toHigher=lowToHigh)
+        end
+        newStr
+    end
+    PauliSum(coeffs, strs, simplification)
 end

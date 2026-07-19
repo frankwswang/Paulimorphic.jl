@@ -45,4 +45,11 @@ for a in twoSite, b in twoSite
 end
 @test bl2
 
+#> `evalCommute` and `evalAntiCom`
+@test evalCommute(pauli"X", pauli"Z") == PauliSum([pauli"Y"], -2im)  #> [X,Z] = −2iY
+@test evalCommute(pauli"X", pauli"Z") isa PauliSum{Int}
+@test evalCommute(pauli"X", pauli"X") == PauliSum(Int)               #> zero commutator
+@test evalAntiCom(pauli"X", pauli"X") == PauliSum([pauli"I"], 2)     #> {X,X} = 2I, merged
+@test evalAntiCom(pauli"X", pauli"Z") == PauliSum(Int)               #> zero anticommutator
+
 end

@@ -346,7 +346,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         end
         nSite = iszero(inputSize) ? 0 : maximum(countSites, strs)
         for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
-        absorbPhases!(cInput, sInput)
+        absorbPhases!(sInput, cInput)
 
         if !simplification || iszero(inputSize)
             c = cInput
@@ -431,16 +431,16 @@ end
 
 
 """
-    absorbPhases!(storage::AbstractVector{C}, 
-                  strs::AbstractVector{PauliStr}) where {C<:Complex} -> Nothing
+    absorbPhases!(strs::AbstractVector{PauliStr}, 
+                  storage::AbstractVector{C}) where {C<:Complex} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` whose `strs[i].phase` is not equal to one(C), 
 multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
 `posRea`. Both `storage` and `strs` are mutated and must share the same length.
 """
-function absorbPhases!(storage::AbstractVector{C}, 
-                       strs::AbstractVector{PauliStr}) where {C<:Complex}
+function absorbPhases!(strs::AbstractVector{PauliStr}, 
+                       storage::AbstractVector{C}) where {C<:Complex}
     nTerm = length(strs)
     if nTerm != length(storage)
         throw(ArgumentError("`storage` and `strs` should have the same length."))
@@ -538,7 +538,7 @@ strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild t
 function canonicalize!(ham::PauliSum)
     coeffs = ham.coeff
     strs = ham.str
-    absorbPhases!(coeffs, strs)
+    absorbPhases!(strs, coeffs)
     sortStrings!(strs, coeffs)
 
     ham

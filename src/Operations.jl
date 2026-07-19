@@ -74,7 +74,7 @@ by the `PauliSum` constructor (when the same-named argument is set to `true`) is
 the result. The result does not reference any data in `str`.
 """
 mul(str::PauliStr, coeff::RealOrComplex, simplification::Bool=true) = 
-PauliSum([coeff], [str], simplification)
+PauliSum([str], coeff, simplification)
 
 mul(coeff::RealOrComplex, str::PauliStr, simplification::Bool=true) = 
 mul(str, coeff, simplification)
@@ -92,12 +92,12 @@ not reference any data in either `s` or `h`.
 """
 function mul(s::PauliStr, h::PauliSum, simplification::Bool=true)
     newStrs = map(ele->mul(s, ele), h.str)
-    PauliSum(h.coeff, newStrs, simplification)
+    PauliSum(newStrs, h.coeff, simplification)
 end
 
 function mul(h::PauliSum, s::PauliStr, simplification::Bool=true)
     newStrs = map(ele->mul(ele, s), h.str)
-    PauliSum(h.coeff, newStrs, simplification)
+    PauliSum(newStrs, h.coeff, simplification)
 end
 
 """
@@ -126,7 +126,7 @@ function mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
         ss[begin+k-1] = mul(sL[begin+i-1],  sR[begin+j-1]) #> Phase folded into `.phase`
     end
 
-    PauliSum(cs, ss, simplification)
+    PauliSum(ss, cs, simplification)
 end
 
 
@@ -207,7 +207,7 @@ returns an empty `PauliSum` as the zero operator.
 function evalCommute(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
     prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum() : PauliSum([prod1, scale!(prod2, PhaseFactor(2))])
+    prod1 == prod2 ? PauliSum(Int) : PauliSum([prod1, scale!(prod2, PhaseFactor(2))])
 end
 
 
@@ -221,5 +221,5 @@ function returns an empty `PauliSum` as the zero operator.
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
     prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum([prod1, prod2]) : PauliSum()
+    prod1 == prod2 ? PauliSum([prod1, prod2]) : PauliSum(Int)
 end

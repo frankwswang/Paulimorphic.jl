@@ -96,7 +96,7 @@ function Kitaev_One_Local_encoding(n::Integer)
     #> from a restricted Jordan-Wigner list.
     nInt = Int(n)
     nInt >= 0 || throw(DomainError(n, "`n` must be nonnegative."))
-    nInt == 0 && return PauliSum()
+    nInt == 0 && return PauliSum(Int)
 
     local_count = cld(2nInt, 3)
     ancilla_count = nInt - local_count

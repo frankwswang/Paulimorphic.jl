@@ -30,20 +30,20 @@ using Paulimorphic
     @testset "PauliSum merge semantics into the graph" begin
         #> Two X's each below threshold individually, but their coeffs SUM above it,
         #> so after merging a single X node survives (would vanish if merge were skipped)
-        h = PauliSum([0.06, 0.06, 1.0], [X, X, Z])
+        h = PauliSum([X, X, Z], [0.06, 0.06, 1.0])
         nodes, edges = getFrustrationInfo(curtail(h, 0.1))
         @test nodes == [Z, X]   #>> canonical order Z < X
         @test edges == [(1, 2)] #>> Z, X anticommute
 
         #> Exact cancellation: X + (−X) merges to zero and is dropped, leaving only Z
-        nodes, edges = PauliSum([1.0, -1.0, 1.0], [X, X, Z]) |> getFrustrationInfo
+        nodes, edges = PauliSum([X, X, Z], [1.0, -1.0, 1.0]) |> getFrustrationInfo
         @test nodes == [Z]
         @test isempty(edges)
     end
 
     @testset "node filtering & index alignment — front drop" begin
-        #> [I, Z, X] with I (coeff 0.01) filtered -> [Z, X].
-        h = PauliSum([0.01, 1.0, 1.0], [Id, Z, X])
+        #> [Id, Z, X] with I (coeff 0.01) filtered -> [Z, X].
+        h = PauliSum([Id, Z, X], [0.01, 1.0, 1.0])
         nodes, edges = getFrustrationInfo(curtail(h, 0.1))
         @test nodes == [Z, X]
         @test edges == [(1, 2)]
@@ -53,7 +53,7 @@ using Paulimorphic
         ZI, IZ = PauliStr([symZ, symI]), PauliStr([symI, symZ])
         XX, YY = PauliStr([symX, symX]), PauliStr([symY, symY])
         #> [ZI, IZ, XX, YY] with IZ (coeff 0.01) filtered -> [ZI, XX, YY].
-        h = PauliSum([1.0, 0.01, 1.0, 1.0], [ZI, IZ, XX, YY])
+        h = PauliSum([ZI, IZ, XX, YY], [1.0, 0.01, 1.0, 1.0])
         nodes, edges = getFrustrationInfo(curtail(h, 0.1))
         @test nodes == [ZI, XX, YY]
         @test edges == [(1, 2), (1, 3)]
@@ -63,19 +63,19 @@ using Paulimorphic
 
     @testset "edge thresholds are strict (>) by default" begin
         # canonical [Z(0.5), X(1.0)]; |c_i·c_j| = 0.5 exactly at edgeThreshold -> excluded
-        _, atBound = getFrustrationInfo(PauliSum([1.0, 0.5], [X, Z]), 0.5)
+        _, atBound = getFrustrationInfo(PauliSum([X, Z], [1.0, 0.5]), 0.5)
         @test isempty(atBound)
-        _, below = getFrustrationInfo(PauliSum([1.0, 0.5], [X, Z]), 0.4)
+        _, below = getFrustrationInfo(PauliSum([X, Z], [1.0, 0.5]), 0.4)
         @test below == [(1, 2)]
 
         # every coeff below threshold -> empty graph (zero survives no strict `> 0`)
-        nodes, edges = getFrustrationInfo(PauliSum([0.0, 0.0], [X, Z]))
+        nodes, edges = getFrustrationInfo(PauliSum([X, Z], [0.0, 0.0]))
         @test isempty(nodes) && isempty(edges)
     end
 
     @testset "complex coefficients (abs path)" begin
         # canonical [Z(1+0im), X(0+1im)]; both |·| = 1 > 0.5 kept; |1·i| = 1 > 0 -> edge
-        h = PauliSum([1im, 1.0 + 0im], [X, Z])
+        h = PauliSum([X, Z], [1im, 1.0 + 0im])
         nodes, edges = getFrustrationInfo(curtail(h, 0.5))
         @test nodes == [Z, X]
         @test edges == [(1, 2)]
@@ -92,7 +92,7 @@ using Paulimorphic
     @testset "structural invariants" begin
         nodes, edges = getFrustrationInfo([X, Y, Z])
         @test wellFormed(nodes, edges)
-        h = PauliSum([0.01, 1.0, 1.0], [Id, X, Z])
+        h = PauliSum([Id, X, Z], [0.01, 1.0, 1.0])
         nodes, edges = getFrustrationInfo(curtail(h, 0.5))
         @test wellFormed(nodes, edges)
     end

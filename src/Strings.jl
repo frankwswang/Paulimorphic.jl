@@ -334,7 +334,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         (T <: Bool) && throw(ArgumentError("`coeffs::$(typeof(coeffs))` is disallowed "*
                                            "because phase absorption cannot be supported."))
         if coeffsAsVec && inputSize != length(coeffs)
-            throw(ArgumentError("`coeffs` and `strs` should have the same length."))
+            throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
 
         cInput = Memory{Complex{T}}(undef, inputSize)

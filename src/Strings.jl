@@ -351,7 +351,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         if !simplification || iszero(inputSize)
             c = cInput
             s = sInput
-            sortStrings!(c, s, true)
+            sortStrings!(s, c, true)
         else
             perm = sortperm(sInput)
 
@@ -459,7 +459,7 @@ end
 
 
 """
-    sortStrings!(weights::AbstractVector{C}, strs::AbstractVector{PauliStr}, 
+    sortStrings!(strs::AbstractVector{PauliStr}, weights::AbstractVector{C}, 
                  considerWeight::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `weights`, 
@@ -469,11 +469,11 @@ duplicate strings are present; otherwise, the strings alone form the sort key or
 `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must share the same 
 length.
 """
-function sortStrings!(weights::AbstractVector{<:RealOrComplex}, 
-                      strs::AbstractVector{PauliStr}, considerWeight::Bool=true)
+function sortStrings!(strs::AbstractVector{PauliStr}, 
+                      weights::AbstractVector{<:RealOrComplex}, considerWeight::Bool=true)
     nTerm = length(strs)
     if nTerm != length(weights)
-        throw(ArgumentError("`weights` and `strs` should have the same length."))
+        throw(ArgumentError("`strs` and `weights` should have the same length."))
     end
 
     if nTerm > 0
@@ -539,7 +539,7 @@ function canonicalize!(ham::PauliSum)
     coeffs = ham.coeff
     strs = ham.str
     absorbPhases!(coeffs, strs)
-    sortStrings!(coeffs, strs)
+    sortStrings!(strs, coeffs)
 
     ham
 end

@@ -66,9 +66,9 @@ phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
     PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
-single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative (an 
-`DomainError` is thrown otherwise). `phase::`[`PhaseFactor`](@ref) determines the four 
-optional phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
+single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative. 
+`phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
+string as `im^Int(phase)`, which in default is `+1`.
 
     PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
 
@@ -435,15 +435,15 @@ end
                   storage::AbstractVector{C}) where {C<:Complex} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
-place. Specifically, for every index `i` whose `strs[i].phase` is not equal to one(C), 
+place. Specifically, for every index `i` of which `evalPhase(strs[i].phase) != one(C)`, 
 multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
-`posRea`. Both `storage` and `strs` are mutated and must share the same length.
+`posRea`. Both `strs` and `storage` are mutated and must share the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex}
     nTerm = length(strs)
     if nTerm != length(storage)
-        throw(ArgumentError("`storage` and `strs` should have the same length."))
+        throw(ArgumentError("`strs` and `storage` should have the same length."))
     end
 
     for (i, str) in enumerate(strs)
@@ -624,7 +624,7 @@ The optional argument `forward` selects the direction of the shift:
 
 Bits pushed past either boundary are dropped and vacated positions are filled with zeros, 
 so `length(words)` is preserved. `wordShift` must be non-negative and `bitOffset` must 
-satisfy `0 <= bitOffset < 8*sizeof(T)`, or a `DomainError` is thrown.
+satisfy `0 <= bitOffset < 8*sizeof(T)`.
 """
 function shiftBits!(words::AbstractVector{T}, wordShift::Int, bitOffset::Int, 
                     forward::Bool=true) where {T<:BitUInteger}
@@ -706,9 +706,9 @@ first, with the word width set by the element type at `8*sizeof(T)` bits. Every 
 `dstWords` outside the written window keeps its original value.
 
 `nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
-the bit capacity of its buffer (a `DomainError` is thrown otherwise). `nBit` is allowed to 
-exceed the number of bits available in `dstWords` or `srcWords`, in which case the 
-excessive bits (on the more significant side) are dropped upon pasting.
+the bit capacity of its buffer. `nBit` is allowed to exceed the number of bits available 
+in `dstWords` or `srcWords`, in which case the excessive bits (on the more significant 
+side) are dropped upon pasting.
 
 !!! warning
     `dstWords` and `srcWords` must not share any underlying data; otherwise, the 
@@ -798,7 +798,7 @@ sites extending toward higher site indices; when `lowToHigh=false`, site `last(s
 `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
 are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be within 
-`1:src.n` (a `DomainError` is thrown otherwise).
+`1:src.n`.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
 
@@ -861,9 +861,8 @@ the lowest-indexed word comes first, with the word width set by the element type
 value.
 
 `nBit` must be non-negative, and `dstBitIdxLo` must be within the bit capacity of 
-`dstWords` (a `DomainError` is thrown otherwise). `nBit` is allowed to exceed the number 
-of bits available in `dstWords`, in which case the excessive bits (on the more significant 
-side) are dropped upon stamping.
+`dstWords`. `nBit` is allowed to exceed the number of bits available in `dstWords`, in 
+which case the excessive bits (on the more significant side) are dropped upon stamping.
 """
 function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
                     nBit::Signed) where {T<:BitUInteger}
@@ -921,8 +920,7 @@ phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default),
 starts at site `startSite` and extends toward higher site indices; when `lowToHigh=false`, 
 the window ends at site `startSite` and extends toward lower site indices. In either 
 direction, the part of the window that falls outside `1:dst.n` is truncated. `startSite` 
-must be in `1:dst.n`, and `nSite` must be non-negative (a `DomainError` is thrown 
-otherwise).
+must be in `1:dst.n`, and `nSite` must be non-negative.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
 
@@ -968,8 +966,7 @@ end
 
 Return a `res::PauliSum{T}` by rebuilding each `PauliStr` in `ham.str` as a `PauliStr` in 
 `res.str` within a fixed frame of exactly `nSite` sites, i.e., a reframed string. `nSite` 
-must be non-negative (a `DomainError` is thrown otherwise), and when `length(res.str) > 0`, 
-`res` holds the following property:
+must be non-negative, and when `length(res.str) > 0`, `res` holds the following property:
 
     minimum(countSites, res.str) == countSites(res) == nSite
 

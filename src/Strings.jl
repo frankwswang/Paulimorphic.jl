@@ -509,7 +509,7 @@ end
                   storage::AbstractVector{C}) where {C<:Complex} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
-place. Specifically, for every index `i` of which `evalPhase(strs[i].phase) != one(C)`, 
+place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
 multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
 `posRea`. Both `strs` and `storage` are mutated and must share the same length.
 """

@@ -1,5 +1,5 @@
 export PauliStr, @pauli_str, PauliSum, countSites, canonicalize!, curtail, sanitize!, 
-       shift!, paste!, stamp!, reframe
+       shift!, paste!, stamp!, reframe, indexTerm, collectTerms
 
 using LinearAlgebra: dot
 
@@ -421,6 +421,67 @@ end
 
 function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
+end
+
+
+"""
+    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
+    Pair{PauliStr, Complex{T}}
+
+Return the `i`-th term of `ham` as `res::Pair`. Specifically, `res.first` corresponds to 
+`ham.str[begin+i-1]`. When `copyStr=true` (by default), `res.first` is a fresh copy holding 
+no reference to the data in `ham`; when `copyStr=false`, `res.first===ham.str[begin+i-1]`, 
+which can be used to avoid copying. Additionally, `res.second` corresponds to the 
+coefficient associated with the `i`-th term.
+
+!!! warning
+    When `copyStr=false`, mutating `res.first` modifies `ham` in place and can 
+    disturb its canonical layout.
+"""
+function indexTerm(ham::PauliSum, i::Integer, copyStr::Bool=true)
+    str = ham.str[begin+i-1]
+    (copyStr ? PauliStr(str) : str) => ham.coeff[begin+i-1]
+end
+
+
+"""
+    setCoeff!(ham::PauliSum{T}, coeff::RealOrComplex, i::Integer, 
+              copyStr::Bool=true) where {T<:Real} -> Pair{PauliStr, Complex{T}}
+
+Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
+`Complex{T}`, then return the updated term `res::Pair{PauliStr, Complex{T}}`. Same as for 
+[`indexTerm`](@ref), the optional argument `copyStr` controls whether `res.first` is a copy 
+of `ham.str[begin+i-1]`.
+
+!!! warning
+    `setCoeff!` does not reorder or merge the terms in `ham` after modifying the 
+    coefficient for its `i`-th term. Therefore, the mutated `ham` might no longer be in the 
+    canonical form even if it was before. To restore the canonical order in place, apply 
+    [`canonicalize!`](@ref) to `ham`; to obtain a `PauliSum` without mergeable or 
+    zero-coefficient terms, rebuild the mutated `ham` via `PauliSum(ham, true)`.
+"""
+function setCoeff!(ham::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
+    ham.coeff[begin+i-1] = coeff
+    indexTerm(ham, i, copyStr)
+end
+
+
+"""
+    collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:Real} -> 
+    Vector{Pair{PauliStr, Complex{T}}}
+
+Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
+`i`th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
+default), the returned strings hold no reference to the data in `ham`.
+
+!!! warning
+    When `copyStr=false`, mutating any returned string modifies `ham` in place and can 
+    disturb its canonical layout.
+"""
+function collectTerms(ham::PauliSum, copyStr::Bool=true)
+    map(ham.str, ham.coeff) do str, coeff
+        (copyStr ? PauliStr(str) : str) => coeff
+    end
 end
 
 

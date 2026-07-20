@@ -299,6 +299,12 @@ Construct a `PauliSum` with the coefficient of every Pauli string initialized to
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
 `T=Bool` is disallowed for the same reason as the first Initialization method.
 
+    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+
+Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
+and does not reference any data in `ham`. This constructor method can be used to obtain a 
+restored canonical form of a `ham`.
+
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `ham`'s terms picked out 
@@ -307,12 +313,16 @@ by a callable object `selector`. The predicate is applied (as the first argument
 and every term at a matching index is kept. Accordingly, `selector` must accept a 
 `Complex{T}` (when `byCoeff=true`) or a `PauliStr` (when `byCoeff=false`) in the sole input 
 and return a `Bool`. This constructor respects the term order of `ham` and performs no 
-phase absorption, merging, or re-sorting.
+phase absorption, merging, or re-sorting. Consequently, if `ham` is in the canonical form, 
+so is the result, since a subsequence of canonically ordered terms remains canonically 
+ordered.
 
 !!! warning
     Unlike other constructor methods, the retained strings are NOT reconstructed 
     (deep-copied). In other words, the entries in the field `.str` of the returned 
-    `PauliSum` by this constructor are the same (subset of) `PauliStr` held by `ham.str`.
+    `res::PauliSum` by this constructor are the same (subset of) `PauliStr` held by 
+    `ham.str`. To obtain a canonical `PauliSum` unlinked from `ham`, rebuild the filtered 
+    result via `PauliSum(res, simplification)` instead.
 """
 struct PauliSum{T<:Real} <: DiscreteOperator
     str::Memory{PauliStr}
@@ -400,6 +410,9 @@ function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[],
                                        "cannot be supported."))
     PauliSum(strs, one(Complex{T}), simplification)
 end
+
+PauliSum(ham::PauliSum, simplification::Bool=true) = 
+PauliSum(ham.str, ham.coeff, simplification)
 
 function Base.hash(pSum::PauliSum, hashCode::UInt)
     code = hash(pSum.str, hashCode)
@@ -533,7 +546,7 @@ deterministic total order based on [`sortStrings!`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
-`PauliSum(ham.str, ham.coeff, true)`.
+`PauliSum(ham, true)`.
 """
 function canonicalize!(ham::PauliSum)
     coeffs = ham.coeff

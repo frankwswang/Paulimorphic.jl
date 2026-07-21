@@ -198,6 +198,70 @@ using Paulimorphic: posRea, posImg, negRea, negImg
         bl7 &= (countSites(mul(hA, hB)) == n)
     end
     @test bl7
+    
+    #> mul(::PauliSum, ::Union{Real, Complex}) and the reversed order
+    hScl = PauliSum([pauli"X"], 2)
+    @test mul(hScl, 2.0) == PauliSum([pauli"X"], 4.0)
+    @test mul(2.0, hScl) == mul(hScl, 2.0)
+    @test (hScl * 2.0 == mul(hScl, 2.0)) && (2.0 * hScl == mul(hScl, 2.0)) #> `Base.:*`
+    
+    #> Coefficient-type promotion (inexpressible via the type-preserving `scale!`)
+    @test mul(hScl, 0.5) == PauliSum([pauli"X"], 1.0)
+    @test mul(hScl, 0.5)      isa PauliSum{Float64}
+    @test mul(hScl, 1 + 2im)  isa PauliSum{Int}     #> Complex{Int} does not widen T
+    @test mul(hScl, 0.5im)    isa PauliSum{Float64}
+    @test mul(hScl, 1 + 2im) == PauliSum([pauli"X"], 2 + 4im)
+    
+    #> Consistency with `scale!` where the latter is applicable (exactly convertible scalar)
+    @test mul(hScl, 3) == scale!(PauliSum(hScl, true), 3)
+    
+    #> Scaling by an exact zero: terms dropped when simplified, kept when not
+    @test mul(hScl, 0) == PauliSum(Int)
+    @test length(mul(hScl, 0, false).coeff) == 1
+    @test PauliSum(mul(hScl, 0, false), true) == PauliSum(Int)
+    
+    #> mul(::PauliSum, ::PhaseFactor) and the reversed order
+    bl8 = true
+    for p in phases
+        r = mul(hScl, p)
+        bl8 &= (r == mul(hScl, evalPhase(p)))     #> Definition via `evalPhase`
+        bl8 &= (r == mul(p, hScl))
+        bl8 &= (hScl * p == r) && (p * hScl == r) #> `Base.:*` overloads route to `mul`
+        bl8 &= (r isa PauliSum{Int})              #> No spurious type widening
+        bl8 &= (r !== hScl)                       #> New object even for the trivial phase
+        bl8 &= (r.coeff !== hScl.coeff) && (r.str !== hScl.str)
+    end
+    @test bl8
+    @test mul(hScl, posImg) == PauliSum([pauli"X"], 2im)
+    @test mul(hScl, negImg) == PauliSum([pauli"X"], -2im)
+    @test mul(hScl, negRea) == PauliSum([pauli"X"], -2)
+    
+    #> Non-mutation and deep buffer ownership: the input sum is untouched, and the result
+    #> shares neither its coefficient storage nor any string buffer with the input
+    hMul = PauliSum([PauliStr(rand(rng, syms, 5), rand(rng, phases)) for _ in 1:3],
+                    randn(rng, ComplexF64, 3))
+    hRef = PauliSum(hMul, true)
+    rMul = mul(hMul, 2.0)
+    @test hMul == hRef                            #> Input unchanged
+    @test (rMul.coeff !== hMul.coeff) && (rMul.str !== hMul.str)
+    @test (rMul.str[begin].x !== hMul.str[begin].x) &&
+        (rMul.str[begin].z !== hMul.str[begin].z)
+    
+    #> Random multi-term sums against the matrix reference
+    bl9 = true
+    for _ in 1:50
+        n = rand(rng, 1:3)
+        hR = PauliSum([PauliStr(rand(rng, syms, n), rand(rng, phases)) for _ in 1:4],
+                    randn(rng, ComplexF64, 4))
+        c = randn(rng, ComplexF64)
+        p = rand(rng, phases)
+        bl9 &= (sumToMat(mul(hR, c), n) ≈ c .* sumToMat(hR, n))
+        bl9 &= (sumToMat(mul(hR, p), n) ≈ evalPhase(p) .* sumToMat(hR, n))
+    end
+    @test bl9
+    
+    #> Family consistency: string-scalar and sum-scalar products agree
+    @test mul(pauli"X", 2.0) == mul(PauliSum([pauli"X"], 1), 2.0)
 end
 
 #> `checkCommute` and `checkAntiCom`

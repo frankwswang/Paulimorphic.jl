@@ -134,6 +134,37 @@ function mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
 end
 
 
+"""
+    mul(h::PauliSum, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
+
+    mul(coeff::Union{Real, Complex}, h::PauliSum, simplification::Bool=true) -> PauliSum
+
+Multiply `h` by a coefficient `coeff`, returning a new `PauliSum` whose coefficient type 
+is automatically promoted. When `simplification=true`, the result is fully canonicalized; 
+in particular, scaling by an exact zero returns an empty `PauliSum` as the zero operator. 
+For in-place scaling without type promotion, see [`scale!`](@ref).
+"""
+mul(h::PauliSum, coeff::RealOrComplex, simplification::Bool=true) = 
+PauliSum(h.str, h.coeff .* coeff, simplification)
+
+mul(coeff::RealOrComplex, h::PauliSum, simplification::Bool=true) = 
+mul(h, coeff, simplification)
+
+
+"""
+    mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) -> PauliSum
+
+    mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) -> PauliSum
+
+Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form.
+"""
+mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) = 
+mul(h, evalPhase(phase), simplification)
+
+mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) = 
+mul(h, evalPhase(phase), simplification)
+
+
 Base.:*(op::DiscreteOperator, num::PhaseOrCoeff) = mul(op, num)
 Base.:*(num::PhaseOrCoeff, op::DiscreteOperator) = mul(op, num)
 Base.:*(op1::DiscreteOperator, op2::DiscreteOperator) = mul(op1, op2)

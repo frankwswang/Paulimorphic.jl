@@ -8,7 +8,7 @@ Multiply a `PauliStr` by a `PhaseFactor`, returning a new `PauliStr` equal to `p
 and `str * phase`. The value of `phase` is folded into the result's field `.phase`. The 
 result does not reference any data in `str`.
 """
-mul(str::PauliStr, phase::PhaseFactor) = PauliStr(str, mul(str.phase, phase))
+mul(str::PauliStr, phase::PhaseFactor) = PauliStr(str, str.n, mul(str.phase, phase))
 
 mul(phase::PhaseFactor, str::PauliStr) = mul(str, phase)
 

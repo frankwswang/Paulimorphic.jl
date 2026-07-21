@@ -242,7 +242,7 @@ end
 
 
 """
-    toString(pStr::PauliStr; denseString::Bool=false, 
+    toString(pStr::PauliStr, denseString::Bool=false; 
              omitPlusSign::Bool=denseString) -> String
 
 Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
@@ -262,11 +262,11 @@ collapses to `"I"`.
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
 
-julia> toString(pauli"XXIX", denseString=true)
+julia> toString(pauli"XXIX", true)
 "XXIX"
 ```
 """
-function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)
+function toString(pStr::PauliStr, denseString::Bool=false; omitPlusSign::Bool=denseString)
     nSitePerWord = 8 * sizeof(UInt)
     body = ""
 

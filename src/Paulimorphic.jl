@@ -9,4 +9,6 @@ include("Analysis.jl")
 include("Graphs.jl")
 include("encodings.jl")
 
+include("Encodings/Fermionic.jl")
+
 end

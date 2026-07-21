@@ -15,9 +15,13 @@ mul(phase::PhaseFactor, str::PauliStr) = mul(str, phase)
 """
     mul(str1::PauliStr, str2::PauliStr) -> PauliStr
 
-Multiply two `PauliStr`, returning their product `s3 = str1 * str2` with the its associated 
-phase folded into `s3.phase`. Strings spanning different numbers of sites are handled by 
-padding the shorter with identities. The result does not reference any data in either input.
+Multiply two `PauliStr`, returning their product `s3 = str1 * str2` with its associated 
+phase folded into `s3.phase`. When `str1` and `str2` explicitly act on different numbers 
+of sites (i.e., `str1.n != str2.n`), the string with the smaller site count is temporarily 
+promoted per the implicit identity-padding convention (see [`PauliStr`](@ref)), and `s3` 
+explicitly acts on the larger site count; in particular, a zero-site operand contributes 
+only its phase. Neither input is mutated, and the result does not reference any data in 
+either input.
 """
 function mul(str1::PauliStr, str2::PauliStr)
     bl1 = iszero(str1.n)
@@ -169,10 +173,12 @@ scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
 """
     checkCommute(str1::PauliStr, str2::PauliStr) -> Bool
 
-Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they anticommute
-(any two Pauli strings do one or the other). When the two strings span different numbers of 
-sites, only the overlapping words are examined — the extra sites from the longer string act 
-against implicit identities and does not affect commutation.
+Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they 
+anticommute (any two Pauli strings do one or the other). When the two strings explicitly 
+act on different numbers of sites, commutation is evaluated under the implicit 
+identity-padding convention (see [`PauliStr`](@ref)): the sites of the longer string 
+beyond the shorter one's site count act against identities and never affect the result. 
+The phases of both strings are also irrelevant to the result.
 """
 function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
     z1, x1 = str1.z, str1.x
@@ -201,8 +207,11 @@ end
     evalCommute(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
 
 Return the commutator [`str1`, `str2`] = `str1`*`str2` - `str2`*`str1` as a `PauliSum`. 
-Specifically, when the commutator is zero (when `str1` and `str2` commute), this function 
-returns an empty `PauliSum` as the zero operator.
+The multiplications within the commutation follow the implicit identity-padding convention 
+of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings explicitly act on 
+different numbers of sites, the returned sum explicitly acts on the larger site count. When 
+the commutator is zero (i.e., when `str1` and `str2` commute), this function returns an 
+empty `PauliSum` as the zero operator.
 """
 function evalCommute(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
@@ -215,8 +224,11 @@ end
     evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
 
 Return the anticommutator {`str1`, `str2`} = `str1`*`str2` + `str2`*`str1` as a `PauliSum`. 
-Specifically, when the anticommutator is zero (when `str1` and `str2` anitcommute), this 
-function returns an empty `PauliSum` as the zero operator.
+The multiplications within the anticommutation follow the implicit identity-padding 
+convention of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings 
+explicitly act on different numbers of sites, the returned sum explicitly acts on the 
+larger site count. When the anticommutator is zero (i.e., when `str1` and `str2` 
+anticommute), this function returns an empty `PauliSum` as the zero operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)

@@ -24,9 +24,9 @@ multiplication. The phase generated when two `PauliStr`s are multiplied is absor
 the result's `.phase`.
 
 # Bit layout
-With `8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
-`k`-th (1-based) site of every `PauliStr` occupies the `(k - 1) % W`-th bit of word 
-`cld(k, W)` in each buffer, least-significant bit first (i.e., right-to-left in each word, 
+With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
+`k`-th (1-based) site of every `PauliStr` occupies the `(k - 1) % w`-th bit of word 
+`cld(k, w)` in each buffer, least-significant bit first (i.e., right-to-left in each word, 
 from `i`-th word to `i+1`-th word). Bits past site `n` in the final word are zero by 
 construction.
 
@@ -35,11 +35,29 @@ construction.
 - `.z::Memory{UInt}`: Z-component — bit `k` is set iff `P_k ∈ {Z, Y}`.
 - `.phase::PhaseFactor`: phase information such that `im^Int(.phase)` returns one of the 
   four overall phase coefficients.
-- `n::Int`: number of sites such that `length(x) == length(z) == cld(n, 8sizeof(UInt))`.
+- `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
 
-The fields `.x` and `.z` are owned by `PauliStr` instances and never reassigned, though 
-their entries along with `.phase` may be mutated in place. NOTE: Every bit above site `n` 
-in the final word should always be set to zero.
+!!! info
+    Any binary operation that combines two strings explicitly acting on different numbers 
+    of sites (e.g., [`mul`](@ref), [`checkCommute`](@ref)) follows the implicit 
+    identity-padding convention: the string with the smaller site count is treated as if 
+    temporarily promoted to the larger site count by tensoring single-site identities onto 
+    its unrepresented sites,
+
+        str_op -> str_op ⊗ I ⊗ ⋯ ⊗ I    (site number increases from left to right),
+
+    without mutating either input. Under this convention, a zero-site `PauliStr` (
+    `.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
+    operator that does not act on any specific site. It is the default representation for 
+    the multiplicative unit of the Pauli group up to its `.phase`, composable with a string 
+    of any site count. Consequently a zero-site `PauliStr` is only equal (as defined by 
+    `==`, and correspondingly `hash` and `isless`) to another zero-site `PauliStr` carrying 
+    the same phase, and NOT to an explicit all-identity string on `.n > 0` sites, even 
+    though the two act identically under the padding convention.
+
+!!! warning
+    Direct modifications of field .z or .x that cause bits above site n to become non-zero 
+    may lead to unexpected behaviors.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -61,14 +79,14 @@ returned `PauliStr` does not reference `xWords` or `zWords`.
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symX`, `symY`, `symZ`) per site, with `list[i]` acting on site `i`. The resulting string 
 spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
-phase attached to the Pauli string as `im^Int(phase)`, which in default is `+1`.
+phase attached to the Pauli string as `im^Int(.phase)`, which in default is `+1`.
 
     PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
 single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative. 
 `phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
-string as `im^Int(phase)`, which in default is `+1`.
+string as `im^Int(.phase)`, which in default is `+1`.
 
     PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
 
@@ -488,7 +506,10 @@ end
 """
     countSites(str::PauliStr) -> Int
 
-Return the number of sites `str` acts on, i.e., its site count (stored in its field `.n`).
+Return the number of sites `str` explicitly acts on (stored in its field `.n`). Per the 
+implicit identity-padding convention (see [`PauliStr`](@ref)), `str` acts as the identity 
+on every site beyond this count. Therefore, the returned value effectively describes the 
+lower bound of the number of single-site operators `str` can be composed with.
 """
 countSites(str::PauliStr) = str.n
 

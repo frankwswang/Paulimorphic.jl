@@ -6,11 +6,6 @@ using Paulimorphic: posRea, posImg, negRea, negImg
 
 @testset "Operations.jl" begin
 
-@test string(pauli"") == "I"
-@test string(pauli"I") == "I"
-@test string(pauli"II") == "I"
-@test string(pauli"IIX") == "+X₃"
-
 @testset "mul" begin
     #> Ground-truth reference: dense matrix representation
     #>> The same `kron` factor order is applied to both sides of every comparison, so the

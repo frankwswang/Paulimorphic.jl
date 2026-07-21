@@ -1,5 +1,5 @@
-export PauliStr, @pauli_str, PauliSum, countSites, canonicalize!, curtail, sanitize!, 
-       shift!, paste!, stamp!, reframe, indexTerm, collectTerms
+export PauliStr, @pauli_str, toString, PauliSum, countSites, canonicalize!, curtail, 
+       sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms
 
 using LinearAlgebra: dot
 
@@ -227,11 +227,12 @@ macro pauli_str(ex)
     :(getPauliSymVec($strOrVecExpr) |> PauliStr)
 end
 
-function phaseStr(p::PhaseFactor)
+function phaseStr(p::PhaseFactor, omitPlusSign::Bool=false)
+    ps = omitPlusSign ? "" : "+"
     if p === posRea
-        "+"
+        ps
     elseif p === posImg
-        "+im*"
+        ps * "im*"
     elseif p === negRea
         "-"
     else
@@ -240,7 +241,32 @@ function phaseStr(p::PhaseFactor)
 end
 
 
-function printOperator(pStr::PauliStr)
+"""
+    toString(pStr::PauliStr; denseString::Bool=false, 
+             omitPlusSign::Bool=denseString) -> String
+
+Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
+(the default string format), identity sites are omitted and each non-identity Pauli 
+character carries its (1-based) site index as a subscript (e.g., `"+X₁X₂X₄"`). When 
+`denseString=true`, every site in `1:pStr.n` emits one character (`'I'`, `'X'`, `'Y'`, or 
+`'Z'`). The returned `String` is prefixed by the marker of `pStr.phase`, represented by 
+`"+"`, `"+im*"`, `"-"`, or `"-im*"`. When `omitPlusSign=true`, the character `'+'` is 
+omitted. Since `omitPlusSign` defaults to the value of `denseString`, the dense format of a 
+`PauliStr` carrying the unit phase matches the [`@pauli_str`](@ref) input literal by 
+default (as shown in the example below). In both formats, if every site carries the 
+identity (or `pStr` is a zero-site identity), the body (excluding the phase prefix) 
+collapses to `"I"`.
+
+# Example
+```julia
+julia> toString(pauli"XXIX")
+"+X₁X₂X₄"
+
+julia> toString(pauli"XXIX", denseString=true)
+"XXIX"
+```
+"""
+function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)
     nSitePerWord = 8 * sizeof(UInt)
     body = ""
 
@@ -252,20 +278,21 @@ function printOperator(pStr::PauliStr)
         x = !iszero(pStr.x[w] & mask)
 
         body *= if z & x
-            'Y' * getSubscriptStr(i)
+            'Y' * (denseString ? "" : getSubscriptStr(i))
         elseif z
-            'Z' * getSubscriptStr(i)
+            'Z' * (denseString ? "" : getSubscriptStr(i))
         elseif x
-            'X' * getSubscriptStr(i)
+            'X' * (denseString ? "" : getSubscriptStr(i))
         else
-            ""
+            denseString ? "I" : ""
         end
     end
 
-     isempty(body) ? "I" : (phaseStr(pStr.phase) * body)
+    isempty(body) && (body = "I")
+    phaseStr(pStr.phase, omitPlusSign) * body
 end
 
-Base.show(io::IO, op::PauliStr) = print(io, printOperator(op))
+Base.show(io::IO, op::PauliStr) = print(io, toString(op))
 
 
 """

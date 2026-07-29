@@ -3,50 +3,95 @@ using Paulimorphic
 
 @testset "Fermionic.jl" begin
 
-@testset "checkMajEncoding" begin
+@testset "checkMajoranaEnc" begin
+    #> Regression guard: `nMode >= 3` exposes same-sector pair-enumeration errors 
+    #>> (self-pairs must never be tested for anticommutation)
+    for n in 1:4
+        @test checkMajoranaEnc(genJordanWignerEnc(n))
+    end
 
-#> Valid encodings
-@test checkMajEncoding([pauli"X", pauli"Y"])       #>> Smallest case: one fermionic mode
-@test checkMajEncoding([pauli"X", pauli"Y"], true) #>> `explicitError=true` must not throw
+    #> Hardcoded 3-mode Jordan-Wigner encoding (generator-independent), plus view input
+    oddJW3 = [pauli"XII", pauli"ZXI", pauli"ZZX"]
+    evnJW3 = [pauli"YII", pauli"ZYI", pauli"ZZY"]
+    @test checkMajoranaEnc(oddJW3 => evnJW3)
+    @test checkMajoranaEnc(view(oddJW3, :) => view(evnJW3, :))
 
-#>> Jordan–Wigner Majoranas for 3 modes: (Z^(i-1)) X|Y (I^(n-i))
-jwStrs = [pauli"XII", pauli"YII", pauli"ZXI", pauli"ZYI", pauli"ZZX", pauli"ZZY"]
-@test checkMajEncoding(jwStrs)
-@test checkMajEncoding(@view jwStrs[begin:end]) #>> Generic `AbstractVector` input
+    #> A valid non-Jordan-Wigner pairing, and acceptance of the (Hermitian) `negRea` phase
+    @test checkMajoranaEnc([pauli"XI", pauli"ZX"] => [pauli"YI", pauli"ZZ"])
+    @test checkMajoranaEnc([mul(pauli"X", Paulimorphic.negRea)] => [pauli"Y"])
 
-#>> A negative real phase is still Hermitian
-@test checkMajEncoding([PauliStr(pauli"X", 1, Paulimorphic.negRea), pauli"Y"])
+    #> Sector-count violations: empty sectors and unequal sector lengths
+    @test !checkMajoranaEnc(PauliStr[] => PauliStr[])
+    @test !checkMajoranaEnc(oddJW3 => evnJW3[1:2])
+    @test_throws ArgumentError checkMajoranaEnc(PauliStr[] => PauliStr[], true)
+    @test_throws ArgumentError checkMajoranaEnc(oddJW3 => evnJW3[1:2], true)
 
-#> Term-count condition
-@test !checkMajEncoding(PauliStr[])       #>> Empty input
-@test !checkMajEncoding([pauli"X"])       #>> Odd number of terms
-@test !checkMajEncoding(jwStrs[1:3])      #>> Odd subset of a valid encoding
-@test_throws ArgumentError checkMajEncoding(PauliStr[], true)
-@test_throws ArgumentError checkMajEncoding([pauli"X"], true)
+    #> Site-count uniformity violation (term 2 of the second sector)
+    badSite = [pauli"XI", pauli"ZX"] => [pauli"YI", pauli"ZYI"]
+    @test !checkMajoranaEnc(badSite)
+    @test_throws ArgumentError checkMajoranaEnc(badSite, true)
 
-#> Uniform-site-count condition
-#>> `pauli"X"` and `pauli"YI"` anticommute under implicit-identity semantics, but their
-#>>> explicit widths (`.n`) differ, so the encoding check must reject the pair
-@test !checkMajEncoding([pauli"X", pauli"YI"])
-@test_throws ArgumentError checkMajEncoding([pauli"X", pauli"YI"], true)
+    #> Hermiticity violation: imaginary phase in the second sector
+    badPhase = [pauli"X"] => [mul(pauli"Y", Paulimorphic.posImg)]
+    @test !checkMajoranaEnc(badPhase)
+    @test_throws ArgumentError checkMajoranaEnc(badPhase, true)
 
-#> Hermiticity condition
-@test !checkMajEncoding([pauli"X", PauliStr(pauli"Y", 1, Paulimorphic.posImg)])
-@test !checkMajEncoding([PauliStr(pauli"X", 1, Paulimorphic.negImg), pauli"Y"])
-@test_throws ArgumentError begin
-    checkMajEncoding([pauli"X", PauliStr(pauli"Y", 1, Paulimorphic.posImg)], true)
+    #> Same-sector commuting pair (`XI` and `XZ` commute within the first sector)
+    badSame = [pauli"XI", pauli"XZ"] => [pauli"YI", pauli"ZY"]
+    @test !checkMajoranaEnc(badSame)
+    @test_throws ArgumentError checkMajoranaEnc(badSame, true)
+
+    #> Cross-sector commuting pair at equal mode index (γ_1 duplicated as γ_2): the only 
+    #>> violated pair sits at `(i, j) == (1, 1)` across the two sectors
+    badCross = [pauli"XI", pauli"ZX"] => [pauli"XI", pauli"ZY"]
+    @test !checkMajoranaEnc(badCross)
+    @test_throws ArgumentError checkMajoranaEnc(badCross, true)
 end
 
-#> Pairwise-anticommutation condition
-@test !checkMajEncoding([pauli"XI", pauli"IX"]) #>> Disjoint supports commute
-@test !checkMajEncoding([pauli"X", pauli"X"])   #>> Duplicate terms commute
-@test !checkMajEncoding([pauli"I", pauli"X"])   #>> Identity commutes with everything
-@test_throws ArgumentError checkMajEncoding([pauli"XI", pauli"IX"], true)
+@testset "genJordanWignerEnc" begin
+    enc1 = genJordanWignerEnc(1)
+    @test enc1.first  == [pauli"X"]
+    @test enc1.second == [pauli"Y"]
 
-#>> Only a late pair fails: [XI, YI, ZX, IZ] is valid except that XI and IZ commute,
-#>>> so the pair loop must reach (1, 4) instead of stopping early
-@test !checkMajEncoding([pauli"XI", pauli"YI", pauli"ZX", pauli"IZ"])
+    enc3 = genJordanWignerEnc(3)
+    @test enc3.first  == [pauli"XII", pauli"ZXI", pauli"ZZX"]
+    @test enc3.second == [pauli"YII", pauli"ZYI", pauli"ZZY"]
 
+    #> Site padding only appends identities
+    encPad = genJordanWignerEnc(2, 4)
+    @test encPad.first  == [pauli"XIII", pauli"ZXII"]
+    @test encPad.second == [pauli"YIII", pauli"ZYII"]
+
+    @test_throws DomainError genJordanWignerEnc(0)
+    @test_throws DomainError genJordanWignerEnc(-2)
+    @test_throws DomainError genJordanWignerEnc(3, 2)
+end
+
+@testset "genBravyiKitaevEnc" begin
+    #> `nMode == 4`: the Seeley-Richard-Love table (mode `p` <-> their qubit `p - 1`)
+    enc4 = genBravyiKitaevEnc(4)
+    @test enc4.first  == [pauli"XXIX", pauli"ZXIX", pauli"IZXX", pauli"IZZX"]
+    @test enc4.second == [pauli"YXIX", pauli"IYIX", pauli"IZYX", pauli"IIIY"]
+
+    #> `nMode == 3`: the truncation (forest) convention, pinned to OpenFermion's 
+    #>> `bravyi_kitaev`; the Havlicek-style single-rooted tree variant would differ here
+    enc3 = genBravyiKitaevEnc(3)
+    @test enc3.first  == [pauli"XXI", pauli"ZXI", pauli"IZX"]
+    @test enc3.second == [pauli"YXI", pauli"IYI", pauli"IZY"]
+
+    #> Site padding only appends identities (the update sets stay bounded by `nMode`)
+    encPad = genBravyiKitaevEnc(3, 5)
+    @test encPad.first  == [pauli"XXIII", pauli"ZXIII", pauli"IZXII"]
+    @test encPad.second == [pauli"YXIII", pauli"IYIII", pauli"IZYII"]
+
+    #> Validity across sizes, including non-powers of 2 and padded widths
+    for n in 1:8
+        @test checkMajoranaEnc(genBravyiKitaevEnc(n))
+        @test checkMajoranaEnc(genBravyiKitaevEnc(n, n + 2))
+    end
+
+    @test_throws DomainError genBravyiKitaevEnc(0)
+    @test_throws DomainError genBravyiKitaevEnc(2, 1)
 end
 
 end

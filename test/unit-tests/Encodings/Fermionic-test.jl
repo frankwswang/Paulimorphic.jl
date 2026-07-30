@@ -67,6 +67,23 @@ end
     @test_throws DomainError genJordanWignerEnc(3, 2)
 end
 
+@testset "genParityEnc" begin
+    enc3 = genParityEnc(3)
+    @test enc3.first  == [pauli"XXX", pauli"ZXX", pauli"IZX"]
+    @test enc3.second == [pauli"YXX", pauli"IYX", pauli"IIY"]
+
+    encPad = genParityEnc(2, 4)
+    @test encPad.first  == [pauli"XXII", pauli"ZXII"]
+    @test encPad.second == [pauli"YXII", pauli"IYII"]
+
+    for n in 1:6
+        @test checkMajoranaEnc(genParityEnc(n))
+    end
+
+    @test_throws DomainError genParityEnc(0)
+    @test_throws DomainError genParityEnc(2, 1)
+end
+
 @testset "genBravyiKitaevEnc" begin
     #> `nMode == 4`: the Seeley-Richard-Love table (mode `p` <-> their qubit `p - 1`)
     enc4 = genBravyiKitaevEnc(4)

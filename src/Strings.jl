@@ -595,29 +595,29 @@ end
 
 
 """
-    sortStrings!(strs::AbstractVector{PauliStr}, weights::AbstractVector{C}, 
-                 considerWeight::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
+    sortStrings!(strs::AbstractVector{PauliStr}, coeffs::AbstractVector{C}, 
+                 considerCoeff::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
 
-Sort `strs` into ascending order and apply the same permutation to the parallel `weights`, 
-in place. When `considerWeight=true` (default), ties among equal strings are broken by 
+Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
+in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
 `(abs(w), real(w), imag(w))` of the corresponding weight, yielding a total order even when 
 duplicate strings are present; otherwise, the strings alone form the sort key ordered by 
 `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must share the same 
 length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
-                      weights::AbstractVector{<:RealOrComplex}, considerWeight::Bool=true)
+                      coeffs::AbstractVector{<:RealOrComplex}, considerCoeff::Bool=true)
     nTerm = length(strs)
-    if nTerm != length(weights)
-        throw(ArgumentError("`strs` and `weights` should have the same length."))
+    if nTerm != length(coeffs)
+        throw(ArgumentError("`strs` and `coeffs` should have the same length."))
     end
 
     if nTerm > 0
         #> Sort the indices of the Pauli strings
         scope = collect(1:nTerm)
-        sortFunc = if considerWeight
+        sortFunc = if considerCoeff
             function (i)
-                coeff = weights[begin+i-1]
+                coeff = coeffs[begin+i-1]
                 (strs[begin+i-1], abs(coeff), real(coeff), imag(coeff))
             end
         else
@@ -625,14 +625,14 @@ function sortStrings!(strs::AbstractVector{PauliStr},
         end
         sort!(scope, by=sortFunc)
 
-        #> Update elements in `weights` and `strs` using sorted `scope`
-        #> `scope` is shifted when `weights` & `strs` are not one-based indexed
+        #> Update elements in `coeffs` and `strs` using sorted `scope`
+        #> `scope` is shifted when `coeffs` & `strs` are not one-based indexed
         iFirst1 = firstindex(strs)
-        iFirst2 = firstindex(weights)
+        iFirst2 = firstindex(coeffs)
         iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
         strs .= strs[scope]
         iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
-        weights .= weights[scope]
+        coeffs .= coeffs[scope]
     end
 
     nothing

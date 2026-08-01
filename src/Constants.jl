@@ -5,12 +5,45 @@ const PauliYMatEntries = (0, 1im, -1im,  0)
 const PauliZMatEntries = (1,   0,    0, -1)
 
 
-@enum PauliSym::UInt8 begin
-    symI=0
-    symX=1
-    symY=2
-    symZ=3
+"""
+    PauliSym <: Enum{UInt8}
+
+A `UInt8`-based enumeration of the four single-site Pauli operators. Each instance's 
+integer value is the operator's two-bit binary code `xz` (i.e., `2x + z`), where the high 
+bit `x` marks the X-component and the low bit `z` marks the Z-component:
+
+    symI::PauliSym  =>  0 # binary 00: identity (no component)
+    symZ::PauliSym  =>  1 # binary 01: Z (Z-component only)
+    symX::PauliSym  =>  2 # binary 10: X (X-component only)
+    symY::PauliSym  =>  3 # binary 11: Y (both components)
+
+Hence, `PauliSym(num)` decodes `num` in `0:3` directly as the bit pair and imposes the 
+value order: `symI < symZ < symX < symY`.
+"""
+@enum PauliSym::UInt8 begin #> Assigned values align with X-Z layout
+    symI=0 #> 00
+    symZ=1 #> 01
+    symX=2 #> 10
+    symY=3 #> 11
 end
+
+function genPauliSym(ele::AbstractChar)
+    num = if ele == 'I'
+        0
+    elseif ele == 'Z'
+        1
+    elseif ele == 'X'
+        2
+    elseif ele == 'Y'
+        3
+    else
+        throw(ArgumentError("\'$ele\' is not a valid letter for a Pauli operator"))
+    end
+
+    genPauliSym(num)
+end
+
+genPauliSym(num::Integer) = PauliSym(num)
 
 
 """
@@ -44,25 +77,6 @@ function toMatrix(::Type{T}, sym::PauliSym) where {T<:Real}
 end
 
 toMatrix(sym::PauliSym) = toMatrix(Int, sym)
-
-
-function getPauliSym(ele::Char)
-    num = if ele == 'I'
-        0
-    elseif ele == 'X'
-        1
-    elseif ele == 'Y'
-        2
-    elseif ele == 'Z'
-        3
-    else
-        throw(ArgumentError("\'$ele\' is not a valid letter for a Pauli operator"))
-    end
-
-    getPauliSym(num)
-end
-
-getPauliSym(num::Integer) = PauliSym(num)
 
 
 """

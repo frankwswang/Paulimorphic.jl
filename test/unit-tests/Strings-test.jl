@@ -6,7 +6,7 @@ using Paulimorphic: posRea, posImg, negRea, negImg
 
 m = "X"
 @test (@pauli_str "$m") == pauli"X" == pauli"X"
-@test (@pauli_str [1,2,1,0,3]) == pauli"XYXIZ"
+@test (@pauli_str [2,3,2,0,1]) == pauli"XYXIZ" #> 0->I, 1->Z, 2->X, 3->Y
 
 @test string(pauli"")   == "+I"
 @test string(pauli"I")  == "+I"

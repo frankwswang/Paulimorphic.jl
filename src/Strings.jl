@@ -14,9 +14,9 @@ Specifically, each element is represented by
     phase * (P_1 ⊗ P_2 ⊗ … ⊗ P_n),
 
 where `P_k` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
-bits of the `z` and `x` (each as one contiguous bitstring), 
+bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
-    (z_k, x_k):  (0, 0) => I,  (1, 0) => Z,  (0, 1) => X,  (1, 1) => Y;
+    (x_k, z_k):  (0, 0) => I,  (0, 1) => Z,  (1, 0) => X,  (1, 1) => Y;
 
 and `phase::`[`PhaseFactor`](@ref) takes one of the values in `(+1, +im, -1, -im)`. 
 Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
@@ -77,7 +77,7 @@ returned `PauliStr` does not reference `xWords` or `zWords`.
     PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$posRea) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
-`symX`, `symY`, `symZ`) per site, with `list[i]` acting on site `i`. The resulting string 
+`symZ`, `symX`, `symY`) per site, with `list[i]` acting on site `i`. The resulting string 
 spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
 phase attached to the Pauli string as `im^Int(.phase)`, which in default is `+1`.
 

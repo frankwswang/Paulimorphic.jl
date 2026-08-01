@@ -205,26 +205,40 @@ function Base.isless(a::PauliStr, b::PauliStr)
 end
 
 
-function getPauliSymVec(str::Union{String, AbstractVector{<:Integer}})
-    [getPauliSym(c::Union{Char, Integer}) for c in str]
+function genPauliSymVec(str::Union{AbstractString, AbstractVector{<:Integer}})
+    [genPauliSym(c::Union{AbstractChar, Integer}) for c in str]
 end
 
 
 """
-    pauli"..."
+    pauli"..." -> PauliStr
 
-A custom string literal that builds a [`PauliStr`](@ref) from single-site Pauli symbols, 
-one character per site (e.g. `'I'`, `'X'`, `'Y'`, `'Z'`), with the `i`-th character acting 
-on site `i`. The resulting `PauliStr` is assigned the unit phase `posRea` (`+1`). 
+    @pauli_str expr -> PauliStr
+
+A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
+carrying the unit phase `posRea` (`+1`), where `input[begin+i-1]` specifies the single-site 
+Pauli operator acting on site `i`. The resulting string spans `length(input)` sites. When 
+`@pauli_str` is directly invoked, any expression `expr` that evaluates (at runtime in the 
+invoking scope) to either one of the following two types of `input` is accepted:
+
+- `input::AbstractString` (the form the `pauli"..."` literal supplies): one character per 
+  site, each being `'I'`, `'X'`, `'Y'`, or `'Z'`.
+- `input::AbstractVector{<:Integer}`: one integer per site, each representing the two-bit 
+  code of a [`PauliSym`](@ref) (`$(Int(symI)) => symI`, `$(Int(symZ)) => symZ`, 
+  `$(Int(symX)) => symX`, `$(Int(symY)) => symY`).
 
 # Example
 ```julia
-pauli"IXYZ"
+julia> pauli"IZXY" == (@pauli_str [0, 1, 2, 3]) == @pauli_str([0, 1, 2, 3])
+true
+
+julia> let str="IX", lst=[0, 2]; (@pauli_str str) == (@pauli_str lst) end
+true
 ```
 """
 macro pauli_str(ex)
     strOrVecExpr = esc(ex)
-    :(getPauliSymVec($strOrVecExpr) |> PauliStr)
+    :(genPauliSymVec($strOrVecExpr) |> PauliStr)
 end
 
 function phaseStr(p::PhaseFactor, omitPlusSign::Bool=false)

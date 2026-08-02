@@ -20,7 +20,7 @@ bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
 and `phase::`[`PhaseFactor`](@ref) takes one of the values in `(+1, +im, -1, -im)`. 
 Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
-multiplication. The phase generated when two `PauliStr`s are multiplied is absorbed into 
+multiplication. The phase generated when two `PauliStr` are multiplied is absorbed into 
 the result's `.phase`.
 
 # Bit layout

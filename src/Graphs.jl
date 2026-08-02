@@ -339,7 +339,7 @@ mutable struct NodeEdgeInfo{T<:Integer}
 end
 
 
-#>-- Reference --<#
+#>-- Reference(s) --<#
 #> [DOI] 10.1145/321850.321853
 """
     genRootGraph(g::SimpleGraph, checkConnectivity::Bool=true) -> Pair{Bool, SimpleGraph}
@@ -580,12 +580,9 @@ function fullyName!(info::NodeEdgeInfo{T}, adjList) where {T<:Integer}
 end
 
 
-const MissingOr{T} = Union{Missing, T}
-
-
 """
 
-    breadthFirstSearch(f, graph::SimpleGraph{T}, startingPoint::MissingOr{T}, 
+    breadthFirstSearch(f, graph::SimpleGraph{T}, startingPoint::Union{Missing, T}, 
                        cache!Self::AbstractVector{T}=zeros(T, graph.order)
                        ) where {T<:Integer} -> 
     Tuple{T, Int}
@@ -668,7 +665,7 @@ end
 
 """
 
-    breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=missing
+    breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::Union{Missing, T}=missing
                        ) where {T<:Integer} -> 
     Vector{T}
 
@@ -849,7 +846,7 @@ function connectivityOrder(g::SimpleGraph{T},
 end
 
 
-#>-- Reference --<#
+#>-- Reference(s) --<#
 #> [DOI] 10.1016/j.dam.2018.02.018
 """
     isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},

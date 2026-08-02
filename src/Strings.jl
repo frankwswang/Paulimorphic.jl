@@ -545,9 +545,17 @@ function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
 end
 
 
+"""
+    checkTermIndex(ham::PauliSum, i::Integer) -> Int
+
+Throw a `DomainError` unless `i` is in `1:length(ham.str)`; on success, return the term 
+count `length(ham.str)`.
+"""
 function checkTermIndex(ham::PauliSum, i::Integer)
     nTerm = length(ham.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
+
+    nTerm
 end
 
 
@@ -559,7 +567,7 @@ Return the `i`-th term of `ham` as `res::Pair`. Specifically, `res.first` corres
 `ham.str[begin+i-1]`. When `copyStr=true` (by default), `res.first` is a fresh copy holding 
 no reference to the data in `ham`; when `copyStr=false`, `res.first===ham.str[begin+i-1]`, 
 which can be used to avoid copying. Additionally, `res.second` corresponds to the 
-coefficient associated with the `i`-th term.
+coefficient associated with the `i`-th term. `i` must be in `1:length(ham.str)`.
 
 !!! warning
     When `copyStr=false`, mutating `res.first` modifies `ham` in place and can 
@@ -578,8 +586,8 @@ end
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
 `Complex{T}`, then return the updated term `res::Pair{PauliStr, Complex{T}}`. Same as for 
-[`indexTerm`](@ref), the optional argument `copyStr` controls whether `res.first` is a copy 
-of `ham.str[begin+i-1]`.
+[`indexTerm`](@ref), `i` must be in `1:length(ham.str)`, and the optional argument 
+`copyStr` controls whether `res.first` is a copy of `ham.str[begin+i-1]`.
 
 !!! warning
     `setCoeff!` does not reorder or merge the terms in `ham` after modifying the 

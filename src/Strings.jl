@@ -348,22 +348,18 @@ julia> toString(pauli"XXIX", true)
 ```
 """
 function toString(pStr::PauliStr, denseString::Bool=false; omitPlusSign::Bool=denseString)
-    nSitePerWord = 8 * sizeof(UInt)
     body = ""
 
     for i in 1:pStr.n
-        iWord, iBit = fldmod1(i, nSitePerWord)
-        mask = one(UInt) << (iBit - 1)
-        z = !iszero(pStr.z[begin+iWord-1] & mask)
-        x = !iszero(pStr.x[begin+iWord-1] & mask)
+        sym = indexSite(pStr, i)
 
-        body *= if z & x
+        body *= if sym == symY
             'Y' * (denseString ? "" : getSubscriptStr(i))
-        elseif z
+        elseif sym == symZ
             'Z' * (denseString ? "" : getSubscriptStr(i))
-        elseif x
+        elseif sym == symX
             'X' * (denseString ? "" : getSubscriptStr(i))
-        else
+        else #> symI
             denseString ? "I" : ""
         end
     end
@@ -549,6 +545,12 @@ function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
 end
 
 
+function checkTermIndex(ham::PauliSum, i::Integer)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
+end
+
+
 """
     indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
     Pair{PauliStr, Complex{T}}
@@ -564,8 +566,7 @@ coefficient associated with the `i`-th term.
     disturb its canonical layout.
 """
 function indexTerm(ham::PauliSum, i::Integer, copyStr::Bool=true)
-    nTerm = length(ham.str)
-    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
+    checkTermIndex(ham, i)
     str = ham.str[begin+i-1]
     (copyStr ? PauliStr(str) : str) => ham.coeff[begin+i-1]
 end
@@ -588,6 +589,7 @@ of `ham.str[begin+i-1]`.
     zero-coefficient terms, rebuild the mutated `ham` via `PauliSum(ham, true)`.
 """
 function setCoeff!(ham::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
+    checkTermIndex(ham, i)
     ham.coeff[begin+i-1] = coeff
     indexTerm(ham, i, copyStr)
 end

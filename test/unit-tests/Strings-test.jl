@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!
 
 @testset "Strings.jl" begin
 
@@ -97,25 +97,72 @@ end
     @test_throws DomainError indexSite(str, 0)
     @test_throws DomainError indexSite(str, 5)
 
-    #> Tolerant mode: in-range reads identical to strict mode
+    #> Implicit-site mode: in-range reads identical to strict mode
     @test all(indexSite(str, i, true) === indexSite(str, i) for i in 1:4)
 
-    #> Tolerant mode: beyond the explicit site count reads as implicit identity
+    #> Implicit-site mode: beyond the explicit site count reads as implicit identity
     @test indexSite(str, 5, true) === symI
     @test indexSite(str, 64, true) === symI #> Within word capacity (padding region)
     @test indexSite(str, 65, true) === symI #> Beyond word capacity (would be OOB word read)
     @test indexSite(str, typemax(Int), true) === symI
 
-    #> Tolerant mode still rejects non-positive input
+    #> Implicit-site mode still rejects non-positive input
     @test_throws DomainError indexSite(str, 0, true)
     @test_throws DomainError indexSite(str, -1, true)
 
-    #> Zero-site identity composes with overflow mode
+    #> Zero-site identity composes with implicit-site mode
     @test indexSite(PauliStr(0), 1, true) === symI
     @test_throws DomainError indexSite(PauliStr(0), 1)
 end
 
-#> countWeight
+#> `toString`
+strT = PauliStr([rand((symI, symZ, symX, symY)) for _ in 1:130]) #> Spans three words
+dense = toString(strT, true)
+@test all(only(string(dense[begin+i-1])) == 
+          "IZXY"[Int(indexSite(strT, i))+1] for i in 1:130)
+
+@testset "indexTerm" begin
+    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    #> Canonical order (weight, then highest differing site): ZI, IZ, XX
+    @test indexTerm(ham, 1) == (pauli"ZI" => 3.0)
+    @test indexTerm(ham, 2) == (pauli"IZ" => 2.0)
+    @test indexTerm(ham, 3) == (pauli"XX" => 1.0)
+
+    #> `copyStr=true` (default): equal content, but a fresh copy holding no reference
+    term = indexTerm(ham, 1)
+    @test term.first == ham.str[begin] && term.first !== ham.str[begin]
+
+    #> `copyStr=false`: aliases the stored string
+    @test indexTerm(ham, 1, false).first === ham.str[begin]
+
+    #> Out-of-range `i` throws `DomainError` (not `BoundsError`)
+    @test_throws DomainError indexTerm(ham, 0)
+    @test_throws DomainError indexTerm(ham, 4)
+    @test_throws DomainError indexTerm(PauliSum(Float64), 1) #> Empty sum: domain is `1:0`
+end
+
+@testset "setCoeff!" begin
+    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    #> Canonical order (weight, then highest differing site): ZI, IZ, XX
+
+    #> Returns the updated term with the coefficient converted to `Complex{T}`
+    @test setCoeff!(ham, -0.5im, 2) == (pauli"IZ" => -0.5im)
+    @test ham.coeff == ComplexF64[3.0, -0.5im, 1.0] #> Only the target term is modified
+
+    #> `copyStr` pass-through mirrors `indexTerm`
+    @test setCoeff!(ham, 2.0, 2, false).first === ham.str[begin+1]
+
+    #> Documented non-merging: a zeroed coefficient leaves the term in place
+    setCoeff!(ham, 0, 3) #> `Real` input: converted, not rejected
+    @test length(ham.str) == 3 && iszero(ham.coeff[end])
+
+    #> Out-of-range `i` throws `DomainError` before any mutation occurs
+    @test_throws DomainError setCoeff!(ham, 99.0, 0)
+    @test_throws DomainError setCoeff!(ham, 99.0, 4)
+    @test ham.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `ham` untouched
+end
+
+#> `countWeight`
 @test countWeight(PauliStr(0)) == countWeight(pauli"III") == 0
 @test countWeight(pauli"XIZ") == 2
 @test countWeight(PauliStr(pauli"XIZ", 100)) == 2  #> Padding does not change the weight

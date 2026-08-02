@@ -1,5 +1,6 @@
-export PauliStr, @pauli_str, toString, PauliSum, countSites, countWeight, canonicalize!, 
-       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms
+export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
+       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
+       collectTerms
 
 using LinearAlgebra: dot
 
@@ -292,6 +293,32 @@ function phaseStr(p::PhaseFactor, omitPlusSign::Bool=false)
     else
         "-im*"
     end
+end
+
+
+"""
+    indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false) -> PauliSym
+
+Return the single-site Pauli operator acting on site `i` of `str` as a 
+[`PauliSym`](@ref). When `indexImplicitSite=false` (default), `i` must be in 
+`1:`[`countSites`](@ref)`(str)`; when `indexImplicitSite=true`, any `i` beyond the 
+explicit site count returns the implicit identity `symI`, hence `i` need only be positive. 
+The phase of `str` (`str.phase`) does not affect the returned value.
+"""
+function indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false)
+    nSite = countSites(str)
+    if indexImplicitSite
+        i < 1 && throw(DomainError(i, "`i` must be a positive integer."))
+        i > nSite && (return symI)
+    else
+        1 <= i <= nSite || throw(DomainError(i, "`i` must be in 1:$nSite."))
+    end
+    nSitePerWord = 8 * sizeof(UInt)
+    iWord, iBit = fldmod1(i, nSitePerWord)
+    mask = one(UInt) << (iBit - 1)
+    hasX = !iszero(str.x[begin+iWord-1] & mask)
+    hasZ = !iszero(str.z[begin+iWord-1] & mask)
+    PauliSym(2hasX + hasZ)
 end
 
 

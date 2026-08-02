@@ -90,6 +90,31 @@ m = "X"
           !(PauliStr([symX, symY]) < phasedStrs[begin]) #> Equal content and phase: no order
 end
 
+@testset "indexSite" begin
+    str = pauli"XZIY"
+    #> Strict mode (default): unchanged behavior
+    @test indexSite(str, 2) === symZ
+    @test_throws DomainError indexSite(str, 0)
+    @test_throws DomainError indexSite(str, 5)
+
+    #> Tolerant mode: in-range reads identical to strict mode
+    @test all(indexSite(str, i, true) === indexSite(str, i) for i in 1:4)
+
+    #> Tolerant mode: beyond the explicit site count reads as implicit identity
+    @test indexSite(str, 5, true) === symI
+    @test indexSite(str, 64, true) === symI #> Within word capacity (padding region)
+    @test indexSite(str, 65, true) === symI #> Beyond word capacity (would be OOB word read)
+    @test indexSite(str, typemax(Int), true) === symI
+
+    #> Tolerant mode still rejects non-positive input
+    @test_throws DomainError indexSite(str, 0, true)
+    @test_throws DomainError indexSite(str, -1, true)
+
+    #> Zero-site identity composes with overflow mode
+    @test indexSite(PauliStr(0), 1, true) === symI
+    @test_throws DomainError indexSite(PauliStr(0), 1)
+end
+
 #> countWeight
 @test countWeight(PauliStr(0)) == countWeight(pauli"III") == 0
 @test countWeight(pauli"XIZ") == 2

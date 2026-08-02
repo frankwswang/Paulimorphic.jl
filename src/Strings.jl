@@ -144,8 +144,8 @@ mutable struct PauliStr <: DiscreteOperator
     function PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=posRea)
         nSite = length(list) #> `0` => empty string => identity
 
-        bitsPerWord = 8 * sizeof(UInt)
-        nWord = cld(nSite, bitsPerWord)
+        nSitePerWord = 8 * sizeof(UInt)
+        nWord = cld(nSite, nSitePerWord)
         xStr = Memory{UInt}(undef, nWord); fill!(xStr, zero(UInt))
         zStr = Memory{UInt}(undef, nWord); fill!(zStr, zero(UInt))
 
@@ -163,8 +163,8 @@ mutable struct PauliStr <: DiscreteOperator
             end
 
             bitPos  = i - 1
-            wordIdx = (bitPos ÷ bitsPerWord) + 1
-            bitMask = one(UInt) << (bitPos % bitsPerWord)
+            wordIdx = (bitPos ÷ nSitePerWord) + 1
+            bitMask = one(UInt) << (bitPos % nSitePerWord)
             isX && (xStr[wordIdx] |= bitMask)
             isZ && (zStr[wordIdx] |= bitMask)
         end
@@ -352,11 +352,10 @@ function toString(pStr::PauliStr, denseString::Bool=false; omitPlusSign::Bool=de
     body = ""
 
     for i in 1:pStr.n
-        bitPos = i - 1
-        w    = (bitPos ÷ nSitePerWord) + 1
-        mask = one(UInt) << (bitPos % nSitePerWord)
-        z = !iszero(pStr.z[w] & mask)
-        x = !iszero(pStr.x[w] & mask)
+        iWord, iBit = fldmod1(i, nSitePerWord)
+        mask = one(UInt) << (iBit - 1)
+        z = !iszero(pStr.z[begin+iWord-1] & mask)
+        x = !iszero(pStr.x[begin+iWord-1] & mask)
 
         body *= if z & x
             'Y' * (denseString ? "" : getSubscriptStr(i))
@@ -565,6 +564,8 @@ coefficient associated with the `i`-th term.
     disturb its canonical layout.
 """
 function indexTerm(ham::PauliSum, i::Integer, copyStr::Bool=true)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     str = ham.str[begin+i-1]
     (copyStr ? PauliStr(str) : str) => ham.coeff[begin+i-1]
 end
@@ -1018,7 +1019,7 @@ The phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (defau
 sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` of 
 `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
-are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be within 
+are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be in 
 `1:src.n`.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
@@ -1046,7 +1047,7 @@ function paste!(dst::PauliStr, dstStart::Integer,
     nSiteSrc = src.n
     srcSiteLo = (Int∘first)(srcRange)
     if !(1 <= srcSiteLo && last(srcRange) <= nSiteSrc)
-        throw(DomainError(srcRange, "A non-empty `srcRange` must be within 1:$nSiteSrc."))
+        throw(DomainError(srcRange, "A non-empty `srcRange` must be in 1:$nSiteSrc."))
     end
 
     dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant

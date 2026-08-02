@@ -613,8 +613,8 @@ function breadthFirstSearch(f::F, graph::SimpleGraph{T}, startingPoint::MissingO
     nodeRange = if ismissing(startingPoint)
         (1 : order)
     else
-        (startingPoint < 1 || startingPoint > order) && 
-        throw(DomainError(startingPoint, "`startingPoint` should be between 1 and $order."))
+        (1 <= startingPoint <= order) || 
+        throw(DomainError(startingPoint, "`startingPoint` must be in 1:$order."))
         (startingPoint,)
     end
 

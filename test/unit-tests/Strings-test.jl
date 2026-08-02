@@ -23,7 +23,7 @@ m = "X"
 @test toString(PauliStr(0, symI, negImg)) ==
       toString(PauliStr(0, symI, negImg), true) == "-im*I"
 
-@testset "`PauliStr` Ordering" begin
+@testset "`PauliStr` ordering" begin
     #> Build a symbol list of `nSite` sites carrying `sym` at each site index in `locs`
     function genSparseList(nSite::Int, locs::Pair{Int, PauliSym}...)
         list = fill(symI, nSite)

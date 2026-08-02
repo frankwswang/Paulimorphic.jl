@@ -1,5 +1,5 @@
-export PauliStr, @pauli_str, toString, PauliSum, countSites, canonicalize!, curtail, 
-       sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms
+export PauliStr, @pauli_str, toString, PauliSum, countSites, countWeight, canonicalize!, 
+       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms
 
 using LinearAlgebra: dot
 
@@ -190,15 +190,55 @@ function Base.:(==)(pStr1::PauliStr, pStr2::PauliStr)
     isequal(pStr1.z    , pStr2.z    )
 end
 
+
+"""
+    Base.isless(a::PauliStr, b::PauliStr) -> Bool
+
+Compare two [`PauliStr`](@ref) under a deterministic total order consistent with `==`, and 
+return whether `a` orders strictly **before** `b`. Four attributes are compared in the 
+following order based on their priorities (with the first mismatched attribute deciding 
+the result):
+
+1. Explicit site count: evaluated via [`countSites`](@ref), in ascending order.
+2. Pauli weight: evaluated via [`countWeight`](@ref), in ascending order.
+3. Operator content: comparison of the highest-indexed site where `a` and `b` carry 
+   different single-site operators, which follows the value order of [`PauliSym`](@ref): 
+   `symI`, `symZ`, `symX`, `symY`.
+4. Phase: comparison of the Z₄ exponent of `.phase::`[`PhaseFactor`](@ref) such that all 
+   possible phase values follow the order: `+1`, `+im`, `-1`, `-im`.
+
+Every attribute is defined purely in terms of the operator content of each compared string 
+regardless of the underlying storage buffers' word size (`8*sizeof(UInt)`). This order 
+underlies the canonical term order of [`PauliSum`](@ref).
+
+# Example
+```julia
+julia> pauli"II" < pauli"ZI" < pauli"XI" < pauli"IZ" < pauli"IX" < pauli"XX"
+true
+
+julia> pauli"X" < PhaseFactor(1) * pauli"X" < PhaseFactor(2) * pauli"X"
+true
+```
+"""
 function Base.isless(a::PauliStr, b::PauliStr)
-    a.n != b.n && return (a.n < b.n)
+    aSiteCount = countSites(a)
+    bSiteCount = countSites(b)
+    aSiteCount != bSiteCount && (return (aSiteCount < bSiteCount))
+
+    aStrWeight = countWeight(a)
+    bStrWeight = countWeight(b)
+    aStrWeight != bStrWeight && (return (aStrWeight < bStrWeight))
 
     @inbounds for i in 1:length(a.x)
-        a.x[begin+i-1] != b.x[begin+i-1] && return (a.x[begin+i-1] < b.x[begin+i-1])
-    end
-
-    @inbounds for i in 1:length(a.z)
-        a.z[begin+i-1] != b.z[begin+i-1] && return (a.z[begin+i-1] < b.z[begin+i-1])
+        ax, bx = a.x[end-i+1], b.x[end-i+1]
+        az, bz = a.z[end-i+1], b.z[end-i+1]
+        bitsDiff = (ax ⊻ bx) | (az ⊻ bz)
+        if !iszero(bitsDiff)
+            mask = one(UInt) << (8sizeof(UInt) - leading_zeros(bitsDiff) - 1) #> ...0100...
+            aCode = (!iszero(ax & mask), !iszero(az & mask)) #> nonzero -> non-identity op
+            bCode = (!iszero(bx & mask), !iszero(bz & mask))
+            return (aCode < bCode)
+        end
     end
 
     UInt8(a.phase) < UInt8(b.phase)
@@ -563,6 +603,24 @@ act on the same number of sites. When `ham` holds no terms, `0` is returned.
 """
 function countSites(ham::PauliSum)
     isempty(ham.str) ? 0 : maximum(countSites, ham.str)
+end
+
+
+"""
+    countWeight(str::PauliStr) -> Int
+
+Return the Pauli weight of `str`, i.e., the number of sites on which `str` acts as a 
+non-identity single-site Pauli operator. The returned value is unaffected by any site 
+beyond the explicit site count, so it is bounded from above by [`countSites`](@ref)`(str)`.
+"""
+function countWeight(str::PauliStr)
+    weight = zero(Int)
+
+    for (xw, zw) in zip(str.x, str.z)
+        weight += count_ones(xw | zw)
+    end
+
+    weight
 end
 
 

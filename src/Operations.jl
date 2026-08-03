@@ -1,31 +1,47 @@
-export checkCommute, checkAntiCom, evalCommute, evalAntiCom, getFrustrationInfo
-
-
+export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
 
 """
-    mul(s1::PauliStr, s2::PauliStr) -> PauliStr
+    mul(str::PauliStr, phase::PhaseFactor) -> PauliStr
+    mul(phase::PhaseFactor, str::PauliStr) -> PauliStr
 
-Multiply two `PauliStr`, returning the product `s3::PauliStr` with the its associated phase 
-folded into `.phase`.
+Multiply a `PauliStr` by a `PhaseFactor`, returning a new `PauliStr` equal to `phase * str` 
+and `str * phase`. The value of `phase` is folded into the result's field `.phase`. The 
+result does not reference any data in `str`.
 """
-function mul(s1::PauliStr, s2::PauliStr)
-    bl1 = iszero(s1.n)
-    if bl1 || iszero(s2.n) #> Trivial case: s * I == s, phases combined
-        controlStr = bl1 ? s2 : s1
+mul(str::PauliStr, phase::PhaseFactor) = PauliStr(str, str.n, mul(str.phase, phase))
+
+mul(phase::PhaseFactor, str::PauliStr) = mul(str, phase)
+
+"""
+    mul(str1::PauliStr, str2::PauliStr) -> PauliStr
+
+Multiply two `PauliStr`, returning their product `s3 = str1 * str2` with its associated 
+phase folded into `s3.phase`. When `str1` and `str2` explicitly act on different numbers 
+of sites (i.e., `str1.n != str2.n`), the string with the smaller site count is temporarily 
+promoted per the implicit identity-padding convention (see [`PauliStr`](@ref)), and `s3` 
+explicitly acts on the larger site count; in particular, a zero-site operand contributes 
+only its phase. Neither input is mutated, and the result does not reference any data in 
+either input.
+"""
+function mul(str1::PauliStr, str2::PauliStr)
+    bl1 = iszero(str1.n)
+    if bl1 || iszero(str2.n) #> Trivial case: s * I == s, phases combined
+        controlStr = bl1 ? str2 : str1
         x3 = controlStr.x
         z3 = controlStr.z
-        n3 = controlStr.n 
-        phase = PhaseFactor((UInt8(s1.phase) + UInt8(s2.phase)) & 0x3)
+        n3 = controlStr.n
+        phase = mul(str1.phase, str2.phase)
+        PauliStr(x3, z3, phase, n3)
     else
-        x1, x2 = s1.x, s2.x
-        z1, z2 = s1.z, s2.z
-        n1, n2 = s1.n, s2.n
+        x1, x2 = str1.x, str2.x
+        z1, z2 = str1.z, str2.z
+        n1, n2 = str1.n, str2.n
         len1, len2 = length(z1), length(z2)
-        nWord, n3 = n1 <= n2 ? (len2, n2) : (len1, n1)
-        z3 = Memory{UInt}(undef, nWord)
-        x3 = Memory{UInt}(undef, nWord)
+        nWord, n3 = n1 < n2 ? (len2, n2) : (len1, n1)
+        s3 = PauliStr(n3)
+        z3, x3 = s3.z, s3.x
         nY1 = nY2 = nY3 = 0
-        sgnParity = 0
+        nXZ = 0
 
         @inbounds for w in 1:nWord
             #> Pad shorter string with identities
@@ -41,31 +57,159 @@ function mul(s1::PauliStr, s2::PauliStr)
             nY1 += count_ones(z1w & x1w)
             nY2 += count_ones(z2w & x2w)
             nY3 += count_ones(z3w & x3w)
-            sgnParity += count_ones(x1w & z2w)
+            nXZ += count_ones(x1w & z2w)
         end
 
-        phase = (( Int(UInt8(s1.phase)) + Int(UInt8(s2.phase))
-                   + 3*(nY1 + nY2) + nY3 + 2*(sgnParity & 1) ) & 3) |> UInt |> PhaseFactor
+        imXpn = (Int(str1.phase) + Int(str2.phase) - 2nXZ - nY1 - nY2 + nY3)
+        s3.phase = PhaseFactor(imXpn & 3)
+        s3
+    end
+end
+
+"""
+    mul(str::PauliStr, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
+    mul(coeff::Union{Real, Complex}, str::PauliStr, simplification::Bool=true) -> PauliSum
+
+Multiply a `PauliStr` by a real or complex scalar `coeff`, returning the product 
+`str * coeff` (equal to `coeff * str`). Unlike multiplication by a [`PhaseFactor`](@ref), a 
+general scalar coefficient may not be stored within a `PauliStr`, so the result is always 
+promoted to a `PauliSum`. If `simplification=true`, the same simplification procedure used 
+by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
+the result. The result does not reference any data in `str`.
+"""
+mul(str::PauliStr, coeff::RealOrComplex, simplification::Bool=true) = 
+PauliSum([str], coeff, simplification)
+
+mul(coeff::RealOrComplex, str::PauliStr, simplification::Bool=true) = 
+mul(str, coeff, simplification)
+
+"""
+    mul(s::PauliStr, h::PauliSum, simplification::Bool=true) -> PauliSum
+    mul(h::PauliSum, s::PauliStr, simplification::Bool=true) -> PauliSum
+
+Multiply a `PauliStr` with a `PauliSum` and return their product (`s * h` or `h * s`) 
+respectively based on the order of these two operators. Each stored string of `h` is 
+multiplied by `s` on the matching side while the coefficients are carried over. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. The result does 
+not reference any data in either `s` or `h`.
+"""
+function mul(s::PauliStr, h::PauliSum, simplification::Bool=true)
+    newStrs = map(ele->mul(s, ele), h.str)
+    PauliSum(newStrs, h.coeff, simplification)
+end
+
+function mul(h::PauliSum, s::PauliStr, simplification::Bool=true)
+    newStrs = map(ele->mul(ele, s), h.str)
+    PauliSum(newStrs, h.coeff, simplification)
+end
+
+"""
+    mul(h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+Multiply `h1` by `h2`, returning the product equal to `h1 * h2`. If `simplification=true`, 
+the same simplification procedure used by the `PauliSum` constructor (when the same-named 
+argument is set to `true`) is applied to the result. The result does not reference any data 
+in either `h1` or `h2`.
+"""
+function mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+             ) where {T1<:Real, T2<:Real}
+    T = promote_type(T1, T2)
+    cL, sL = h1.coeff, h1.str
+    cR, sR = h2.coeff, h2.str
+    m, n = length(cL), length(cR)
+
+    cs = Memory{Complex{T}}(undef, m * n)
+    ss = Memory{PauliStr}(undef, m * n)
+    k = 0
+    @inbounds for j in 1:n, i in 1:m
+        k += 1
+        cs[begin+k-1] =     cL[begin+i-1] * cR[begin+j-1]
+        ss[begin+k-1] = mul(sL[begin+i-1],  sR[begin+j-1]) #> Phase folded into `.phase`
     end
 
-    PauliStr(x3, z3, phase, n3)
+    PauliSum(ss, cs, simplification)
 end
 
 
-function mul!(s::PauliStr, p::PhaseFactor)
+"""
+    mul(h::PauliSum, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
+
+    mul(coeff::Union{Real, Complex}, h::PauliSum, simplification::Bool=true) -> PauliSum
+
+Multiply `h` by a coefficient `coeff`, returning a new `PauliSum` whose coefficient type 
+is automatically promoted. When `simplification=true`, the result is fully canonicalized; 
+in particular, scaling by an exact zero returns an empty `PauliSum` as the zero operator. 
+For in-place scaling without type promotion, see [`scale!`](@ref).
+"""
+mul(h::PauliSum, coeff::RealOrComplex, simplification::Bool=true) = 
+PauliSum(h.str, h.coeff .* coeff, simplification)
+
+mul(coeff::RealOrComplex, h::PauliSum, simplification::Bool=true) = 
+mul(h, coeff, simplification)
+
+
+"""
+    mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) -> PauliSum
+
+    mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) -> PauliSum
+
+Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form.
+"""
+mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) = 
+mul(h, evalPhase(phase), simplification)
+
+mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) = 
+mul(h, evalPhase(phase), simplification)
+
+
+Base.:*(op::DiscreteOperator, num::PhaseOrCoeff) = mul(op, num)
+Base.:*(num::PhaseOrCoeff, op::DiscreteOperator) = mul(op, num)
+Base.:*(op1::DiscreteOperator, op2::DiscreteOperator) = mul(op1, op2)
+
+
+"""
+    scale!(s::PauliStr, p::PhaseFactor) -> PauliStr
+
+Multiply `s` in place by a phase `p` (absorbed into `s.phase`), returning the mutated `s`.
+"""
+function scale!(s::PauliStr, p::PhaseFactor)
     newPhase = PhaseFactor((UInt8(s.phase) + UInt8(p)) & 3)
     s.phase = newPhase
     s
 end
 
+"""
+    scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
+
+Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
+[`evalPhase`](@ref)`(p)`, then absorbed into `h.coeff`. This is to match the canonical form 
+of `PauliSum` in which its phases are carried by coefficients rather than the stored 
+`PauliStr`.
+"""
+scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
+
+"""
+    scale!(h::PauliSum, c::Union{Real, Complex}) -> PauliSum
+
+Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff` is scaled 
+in place, thus each product `h.coeff[i] * c` must be able to be converted to 
+`eltype(h.coeff)`. No re-canonicalization is performed.
+"""
+scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
+
 
 """
     checkCommute(str1::PauliStr, str2::PauliStr) -> Bool
 
-Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they anticommute
-(any two Pauli strings do one or the other). When the two strings span different numbers of 
-sites, only the overlapping words are examined — the extra sites from the longer string act 
-against implicit identities and does not affect commutation.
+Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they 
+anticommute (any two Pauli strings do one or the other). When the two strings explicitly 
+act on different numbers of sites, commutation is evaluated under the implicit 
+identity-padding convention (see [`PauliStr`](@ref)): the sites of the longer string 
+beyond the shorter one's site count act against identities and never affect the result. 
+The phases of both strings are also irrelevant to the result.
 """
 function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
     z1, x1 = str1.z, str1.x
@@ -94,13 +238,16 @@ end
     evalCommute(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
 
 Return the commutator [`str1`, `str2`] = `str1`*`str2` - `str2`*`str1` as a `PauliSum`. 
-Specifically, when the commutator is zero (when `str1` and `str2` commute), this function 
-returns an empty `PauliSum` as the zero operator.
+The multiplications within the commutation follow the implicit identity-padding convention 
+of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings explicitly act on 
+different numbers of sites, the returned sum explicitly acts on the larger site count. When 
+the commutator is zero (i.e., when `str1` and `str2` commute), this function returns an 
+empty `PauliSum` as the zero operator.
 """
 function evalCommute(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
     prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum() : PauliSum([prod1, mul!(prod2, PhaseFactor(2))])
+    prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
 end
 
 
@@ -108,112 +255,14 @@ end
     evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
 
 Return the anticommutator {`str1`, `str2`} = `str1`*`str2` + `str2`*`str1` as a `PauliSum`. 
-Specifically, when the anticommutator is zero (when `str1` and `str2` anitcommute), this 
-function returns an empty `PauliSum` as the zero operator.
+The multiplications within the anticommutation follow the implicit identity-padding 
+convention of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings 
+explicitly act on different numbers of sites, the returned sum explicitly acts on the 
+larger site count. When the anticommutator is zero (i.e., when `str1` and `str2` 
+anticommute), this function returns an empty `PauliSum` as the zero operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
     prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum([prod1, prod2]) : PauliSum()
-end
-
-
-"""
-    getFrustrationInfo(ham::PauliSum; 
-                       edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold) -> Pair
-
-Compute the (anticommutation) frustration graph of the Pauli strings in `ham`: each 
-retained term forms a node, and two nodes are joined by an edge whenever their 
-corresponding Pauli strings anticommute (as determined by [`checkAntiCom`](@ref)). Such a 
-graph records which terms of a Hamiltonian fail to commute — e.g. as a basis for 
-partitioning `ham` into mutually commuting groups.
-
-The retained nodes are the terms in `ham` whose coefficient magnitude exceeds 
-`nodeThreshold`, taken in by the order in which `ham` stores its terms 
-(see [`PauliSum`](@ref)). A pair of retained nodes `(i, j)` with `i < j` is joined by an 
-edge only when the two strings anticommute *and* the magnitude of the product of their 
-coefficients exceeds `edgeThreshold`; the coefficient weighting lets negligible terms and 
-negligible couplings be pruned in a single pass. Both thresholds are compared strictly 
-(`>`), and `nodeThreshold` defaults to `edgeThreshold`, so passing only `edgeThreshold` 
-applies the same cutoff to both nodes and edges.
-
-The graph is returned not as a [`SimpleGraph`](@ref) but as its structural information: 
-
-    (nodes => edges)::Pair
-
-where `nodes::Vector{PauliStr}` are the retained node strings and 
-`edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
-`(i, j)`, `i < j`, indexing into `nodes` (instead of the original terms of `ham`). If no 
-node survives `nodeThreshold`, both `nodes` and `edges` are empty.
-
-# Keyword Arguments
-- `edgeThreshold::Real=0`: an edge `(i, j)` is kept only if
-  `abs(coeff_i * coeff_j) > edgeThreshold`.
-- `nodeThreshold::Real=edgeThreshold`: a term is kept as a node only if
-  `abs(coeff) > nodeThreshold`.
-"""
-function getFrustrationInfo(ham::PauliSum; 
-                            edgeThreshold::Real=0, nodeThreshold::Real=edgeThreshold)
-    strs = ham.str
-    coeffs = ham.coeff
-
-    validNodes = PauliStr[]
-    nodeCoeffs = eltype(coeffs)[]
-    for (coeff, str) in zip(coeffs, strs)
-        if abs(coeff) > nodeThreshold
-            push!(validNodes, str)
-            push!(nodeCoeffs, coeff)
-        end
-    end
-
-    nodeNum = length(validNodes)
-    validEdges = NTuple{2, Int}[]
-
-    for i in 1:(nodeNum-1), j in (i+1):nodeNum
-        weight = abs(nodeCoeffs[begin+i-1] * nodeCoeffs[begin+j-1])
-        weight > edgeThreshold && getFrustrationInfoCore!(validEdges, validNodes, (i, j))
-    end
-
-    validNodes => validEdges
-end
-
-"""
-    getFrustrationInfo(strings::AbstractVector{PauliStr}) -> Pair
-
-Compute the (anticommutation) frustration graph of `strings`, treating every element as a
-node with no coefficient weighting or thresholding. Two nodes are joined by an edge 
-whenever their Pauli strings anticommute (via [`checkAntiCom`](@ref)).
-
-Same as `getFrustrationInfo(::PauliSum)`, this method returns as the underlying information 
-of the frustration graph as a `Pair` 
-    
-    `strings => edges`
-
-where `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index 
-pairs `(i, j)`, `i < j`, indexing into `strings` in the given order.
-"""
-function getFrustrationInfo(strings::AbstractVector{PauliStr})
-    nodeNum = length(strings)
-
-    validEdges = NTuple{2, Int}[]
-    for i in 1:(nodeNum-1), j in i+1:nodeNum
-        getFrustrationInfoCore!(validEdges, strings, (i, j))
-    end
-
-    strings => validEdges
-end
-
-"""
-    getFrustrationInfoCore!(validEdges, strings, edge::NTuple{2, Int}) -> Pair
-
-Core function for [`getFrustrationInfo`](@ref). It tests the single candidate 
-`edge = (i, j)` (one-based indices into `strings`) and pushes `(i, j)` onto `validEdges` if 
-`strings[i]` and `strings[j]` anticommute. It returns `strings => validEdges`.
-"""
-function getFrustrationInfoCore!(validEdges::AbstractVector{NTuple{2, Int}}, 
-                                 strings::AbstractVector{PauliStr}, 
-                                 edge::NTuple{2, Int}) #> One-based index
-    i, j = edge
-    checkAntiCom(strings[begin+i-1], strings[begin+j-1]) && push!(validEdges, (i, j))
-    strings => validEdges
+    prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end

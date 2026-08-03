@@ -1,0 +1,288 @@
+export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc
+
+const PairwiseEncoding{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
+      Pair{T1, T2}
+
+"""
+    checkMajoranaEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}, 
+                     explicitError::Bool=false) -> 
+    Bool
+
+Return `true` if `enc` forms a valid Majorana-operator encoding. It must contain a `Pair` 
+of `AbstractVector` holding in total (positive) `2p` (Hermitian) Majorana operators 
+`γ_1, ..., γ_{2p}` that satisfy the following anticommutation relation: 
+
+    γ_i γ_j + γ_j γ_i == 2δ_{ij} I
+
+In other words, they all carry real phases and mutually anticommute (verifiable by 
+[`checkAntiCom`](@ref)).
+
+Additionally, `enc` must be formatted such that
+- All contained `PauliStr` explicitly act on the same number of sites 
+  (i.e., [`countSites`](@ref) returns the same value)
+- `enc.first`  contains `p` elements that represent ( odd-indexed) γ_1, ..., γ_{2p-1}
+- `enc.second` contains `p` elements that represent (even-indexed) γ_2, ..., γ_{2p}
+
+When `enc` fails to meet any necessary condition to form such an encoding, the failure is 
+reported by returning `false` unless `explicitError=true`, in which case an `ArgumentError` 
+identifying the violated condition (and the immediate offending terms) is thrown instead.
+"""
+function checkMajoranaEnc(enc::PairwiseEncoding, explicitError::Bool=false)::Bool
+    nMode = length(enc.first)
+
+    if iszero(nMode)
+        if explicitError
+            throw(ArgumentError("`length(enc.first)` must be a positive integer."))
+        else
+            return false
+        end
+    end
+
+    if nMode != length(enc.second)
+        if explicitError
+            throw(ArgumentError("`length(enc.first)` must equal length(enc.second)."))
+        else
+            return false
+        end
+    end
+
+    nSite = (countSites∘first∘first)(enc)
+
+    for (sec, strs) in enumerate(enc), (i, str) in enumerate(strs)
+
+        if str.n != nSite
+            if explicitError
+                throw(ArgumentError("All terms held by `enc` should explicitly act on the "*
+                                    "same number of sites. Compared to the site count of "*
+                                    "the first term (`first(enc)[begin]`), term $i in "*
+                                    "`enc[$sec]` disagrees."))
+            else
+                return false
+            end
+        end
+
+        if str.phase == posImg || str.phase == negImg
+            if explicitError
+                throw(ArgumentError("Every term held by `enc` should be Hermitian (and an "*
+                                    "involution, i.e., squared to the identity). Term $i "*
+                                    "in `enc[$sec]` violates this condition due to having "*
+                                    "an imaginary phase."))
+            else
+                return false
+            end
+        end
+    end
+
+    @inbounds for secPair in ((1, 1), (2, 2), (1, 2))
+        sec1, sec2 = secPair
+        sameSec = (sec1 == sec2)
+        strs1 = enc[begin+sec1-1]
+        strs2 = enc[begin+sec2-1]
+
+        for i in 1:(nMode - sameSec), j in (sameSec ? i + 1 : 1):nMode
+            if !checkAntiCom(strs1[begin+i-1], strs2[begin+j-1])
+                if explicitError
+                    throw(ArgumentError("Every pair of distinct terms in `enc` should "*
+                                        "anticommute. Term $i in `enc[$sec1]` and "*
+                                        "term $j in `enc[$sec2]` do not."))
+                else
+                    return false
+                end
+            end
+        end
+    end
+
+    true
+end
+
+
+function checkEncodingCounts(nMode::Integer, nSite::Integer)
+    nModeInt = Int(nMode)
+    nSiteInt = Int(nSite)
+
+    if nModeInt < 1
+        throw(DomainError(nModeInt, "`Int(nMode)` must be positive."))
+    end
+
+    if nSiteInt < nModeInt
+        throw(DomainError(nSiteInt, "`Int(nSite)` must be no less than `Int(nMode)`."))
+    end
+
+    (nModeInt, nSiteInt)
+end
+
+
+#>-- Reference(s) --<#
+#> [DOI] 10.1007/BF01331938
+"""
+    genJordanWignerEnc(nMode::Integer, nSite::Integer=nMode) -> 
+    Pair{Vector{PauliStr}, Vector{PauliStr}}
+
+Generate the [Jordan–Wigner encoding](https://doi.org/10.1007/BF01331938) of `nMode` 
+fermionic modes as a Majorana encoding (see [`checkMajoranaEnc`](@ref)): a collection of 
+`2nMode` Hermitian, mutually anticommuting Pauli strings, each explicitly acting on `nSite` 
+sites. Mode `p` is associated with the Majorana-operator pair, 
+
+    γ_{2p-1} = Z_1 ⋯ Z_{p-1} X_p,    γ_{2p} = Z_1 ⋯ Z_{p-1} Y_p
+
+As a result, the expression of each occupation-number vector state remains unchanged in the 
+Pauli-Z basis: 
+
+    |n_1, n_2, ..., n_p, ...>  ->  |n_1, n_2, ..., n_p, ...>
+
+The maximum Pauli weight (i.e., the number of non-identity single-qubit Pauli operators) of 
+`PauliStr` generated by this encoding grows linearly with `nMode`. `nMode` must be positive 
+and `nSite` must be no less than `nMode`. When `nSite > nMode`, every site above `nMode` 
+carries the identity.
+
+# Returned format
+The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
+(`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
+are stored in `res.second`.
+"""
+function genJordanWignerEnc(nMode::Integer, nSite::Integer=nMode)
+    nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
+    oddMajs = Vector{PauliStr}(undef, nModeInt)
+    evnMajs = Vector{PauliStr}(undef, nModeInt)
+    symBuffer = Memory{PauliSym}(undef, nSiteInt)
+    symBuffer .= symI #> Reused across modes; each `PauliStr` copies its content
+
+    for p in 1:nModeInt
+        symBuffer[begin+p-1] = symX
+          oddMajs[begin+p-1] = PauliStr(symBuffer)
+        symBuffer[begin+p-1] = symY
+          evnMajs[begin+p-1] = PauliStr(symBuffer)
+        symBuffer[begin+p-1] = symZ #> Reset to `symZ` for registering the next mode
+    end
+
+    oddMajs => evnMajs
+end
+
+
+#>-- Reference(s) --<#
+#> [DOI] 10.1063/1.4768229
+"""
+    genParityEnc(nMode::Integer, nSite::Integer=nMode) -> 
+    Pair{Vector{PauliStr}, Vector{PauliStr}}
+
+Generate the [parity encoding](https://doi.org/10.1063/1.4768229) of `nMode` fermionic 
+modes as a Majorana encoding (see [`checkMajoranaEnc`](@ref)): a collection of `2nMode` 
+Hermitian, mutually anticommuting Pauli strings, each explicitly acting on `nSite` sites. 
+Mode `p` is associated with the Majorana-operator pair, 
+
+    γ_{2p-1} = Z_{p-1} X_p X_{p+1} ⋯ X_{nMode},    γ_{2p} = Y_p X_{p+1} ⋯ X_{nMode}
+
+where `Z_{p-1}` is absent for `p == 1`.
+
+As a result, site `j` stores the parity of the first `j` mode occupancies, making the 
+encoding the prefix-sum dual of the Jordan–Wigner encoding. each occupation-number vector 
+state is represented by its prefix-parity counterpart in the Pauli-Z basis:
+
+    |n_1, n_2, ..., n_p, ...>  ->  |n_1, (n_1 ⊻ n_2), ..., (⊻_{1<=q<=p} n_q), ...>
+
+The maximum Pauli weight (i.e., the number of non-identity single-qubit Pauli operators) of 
+`PauliStr` generated by this encoding grows linearly with `nMode`. `nMode` must be positive 
+and `nSite` must be no less than `nMode`. When `nSite > nMode`, every site above `nMode` 
+carries the identity.
+
+# Returned format
+The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
+(`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
+are stored in `res.second`.
+"""
+function genParityEnc(nMode::Integer, nSite::Integer=nMode)
+    nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
+    oddMajs = Vector{PauliStr}(undef, nModeInt)
+    evnMajs = Vector{PauliStr}(undef, nModeInt)
+    symBuffer = Memory{PauliSym}(undef, nSiteInt)
+    symBuffer .= symI #> Reused across modes; each `PauliStr` copies its content
+    symBuffer[begin:begin+nModeInt-1] .= symX #> Flipping mode 1 updates all bits in 1:nMode
+
+    for p in 1:nModeInt
+        #> Bit `p - 1` stores the parity of modes `1:(p-1)` (no such bit when `p == 1`)
+        p > 1 && (symBuffer[begin+p-2] = symZ)
+          oddMajs[begin+p-1] = PauliStr(symBuffer)
+        p > 1 && (symBuffer[begin+p-2] = symI)
+        symBuffer[begin+p-1] = symY                #> Only reset to `symZ` in next iteration
+          evnMajs[begin+p-1] = PauliStr(symBuffer)
+    end
+
+    oddMajs => evnMajs
+end
+
+
+#>-- Reference(s) --<#
+#> [DOI] 10.1006/aphy.2002.6254
+#> [DOI] 10.1002/qua.24969
+"""
+    genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode) -> 
+    Pair{Vector{PauliStr}, Vector{PauliStr}}
+
+Generate the [Bravyi–Kitaev encoding](https://doi.org/10.1006/aphy.2002.6254) of `nMode` 
+fermionic modes as a Majorana encoding (see [`checkMajoranaEnc`](@ref)): a collection of 
+`2nMode` Hermitian, mutually anticommuting Pauli strings, each explicitly acting on `nSite` 
+sites. Mode `p` is associated with the Majorana-operator pair, 
+
+    γ_{2p-1} = X_{U(p)} X_p Z_{P(p)},    γ_{2p} = X_{U(p)} Y_p Z_{P(p)\\F(p)},
+
+where the update set `U(p)`, parity set `P(p)`, and flip set `F(p)` are the index sets (of 
+mode `p`) determined by the Fenwick-tree (i.e., binary-indexed-tree) structure over an 
+arbitrary (positive) number `nMode` of modes, following the formulation of the encoding for 
+electronic-structure problems in this [review](https://doi.org/10.1002/qua.24969). The 
+maximum Pauli weight (i.e., the number of non-identity single-qubit Pauli operators) of 
+`PauliStr` generated by this encoding grows as `O(log(nMode))`. `nMode` must be positive 
+and `nSite` must be no less than `nMode`. When `nSite > nMode`, every site above `nMode` 
+carries the identity.
+
+# Returned format
+The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
+(`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
+are stored in `res.second`.
+"""
+function genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode)
+    nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
+    oddMajs = Vector{PauliStr}(undef, nModeInt)
+    evnMajs = Vector{PauliStr}(undef, nModeInt)
+    symBuffer = Memory{PauliSym}(undef, nSiteInt)
+
+    #> Mode occupancies (items) are stored as Fenwick-tree partial sums mod 2 (bits)
+    #>> orbital-mode index (p) -> spin-site index (i, j, k)
+    for p in 1:nModeInt
+        fill!(symBuffer, symI)
+
+        #> Parity set P(p): bits needed to compute the parity prefix below the p-th mode
+        #>> Correspondence: obtain the sum of (Boolean) items whose labels are in 1:(p-1)
+        i = p - 1
+        while i > 0
+            symBuffer[begin+i-1] = symZ #> Write the operators mirroring the bits in P(p)
+            i -= (i & (-i)) #> index bits change: 01010001 -> 01010000 -> 01000000 -> ...
+        end
+
+        #> Update set U(p): bits to be updated to reflect the update of the p-th mode
+        #>> Correspondence: update of the Fenwick-tree buffer to modify the p-th item
+        j = p + (p & (-p))
+        while j <= nModeInt
+            symBuffer[begin+j-1] = symX
+            j += (j & (-j)) #> index bits change: 00000101 -> 00000110 -> 00001000 -> ...
+        end
+
+        #> Finish up the string representation of the odd-indexed Majorana operator
+        symBuffer[begin+p-1] = symX
+        oddMajs[begin+p-1] = PauliStr(symBuffer)
+
+        #>   Flip set F(p): bits needed to compute the (occupancy) difference between the 
+        #>                  p-th mode and the p-th bit (in the Fenwick-tree buffer)
+        #>> Correspondence: obtain the sum (mod 2) of items in indices ((p & (p-1))+1):(p-1)
+        k = p - 1
+        while k > (p & (p - 1)) #> `(p & (p - 1)) == p - (p & (-p))`
+            symBuffer[begin+k-1] = symI
+            k -= (k & (-k))
+        end #>> Remainder set: R(p) = P(p) ∖ F(p); F(p) == ∅ when `isodd(p)`
+
+        #> Finish up the string representation of the even-indexed Majorana operator
+        symBuffer[begin+p-1] = symY
+        evnMajs[begin+p-1] = PauliStr(symBuffer)
+    end
+
+    oddMajs => evnMajs
+end

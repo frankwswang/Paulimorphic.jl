@@ -391,7 +391,7 @@ const CONSTVAR!!minimalKeptShowSize = CONSTVAR!!maximalFullShowSize - 2
 @assert iseven(CONSTVAR!!minimalKeptShowSize)
 
 """
-    show(io::IO, op::PauliStr) -> Nothing
+    Base.show(io::IO, op::PauliStr) -> Nothing
 
 Print the output `String` from [`toString`](@ref)`(op::`[`PauliStr`](@ref)`)` to `io`. When 
 `io` carries the `IOContext` property `:limit=>true` (i.e., `true === get(io, :limit, 
@@ -435,7 +435,7 @@ function Base.show(io::IO, op::PauliStr)
 end
 
 """
-    show(io::IO, ::MIME"text/plain", op::PauliStr) -> Nothing
+    Base.show(io::IO, ::MIME"text/plain", op::PauliStr) -> Nothing
 
 Print the rich display of `op::`[`PauliStr`](@ref) to `io`: the printed output of 
 `show(io, op)`, followed by the annotation `"  (\$n sites)"` with 

@@ -393,18 +393,15 @@ const CONSTVAR!!minimalKeptShowSize = CONSTVAR!!maximalFullShowSize - 2
 """
     show(io::IO, op::PauliStr) -> Nothing
 
-Print the default-format (`denseString=false`) output of [`toString`](@ref) for 
-`op::`[`PauliStr`](@ref) to `io`. When `io` carries the `IOContext` property `:limit=>true` 
-(i.e., `true == get(io, :limit, false)`), such as the REPL's default display buffer, and 
-[`countWeight`](@ref)`(op) > $CONSTVAR!!maximalFullShowSize`, only the first and last 
-$(CONSTVAR!!minimalKeptShowSize÷2) non-identity single-site operators are printed, with the 
-omitted operators replaced by `'…'`. Otherwise, complete string is always printed (in the 
-default-format).
+Print the output `String` from [`toString`](@ref)`(op::`[`PauliStr`](@ref)`)` to `io`. When 
+`io` carries the `IOContext` property `:limit=>true` (i.e., `true === get(io, :limit, 
+false)`), e.g., the REPL's default display buffer, and [`countWeight`](@ref)`(op) > 
+$CONSTVAR!!maximalFullShowSize`, only the first and last $(CONSTVAR!!minimalKeptShowSize÷2) 
+non-identity single-site operators are printed, with the omitted operators replaced by 
+`" … "`. Otherwise, the complete string is always printed (in the default-format).
 """
 function Base.show(io::IO, op::PauliStr)
-    denseString = false
-
-    if get(io, :limit, false)::Bool && countWeight(op) > CONSTVAR!!maximalFullShowSize
+    if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
         print(io, phaseStr(op.phase))
 
         edgeOpNum = CONSTVAR!!minimalKeptShowSize ÷ 2
@@ -414,7 +411,7 @@ function Base.show(io::IO, op::PauliStr)
         #> Leading block: the first `edgeOpNum` non-identity single-site operators
         i = 0
         while printCounter < edgeOpNum
-            str = toString(op, (i += 1); denseString)
+            str = toString(op, (i += 1))
             isempty(str) ? continue : print(io, str)
             printCounter += 1
         end
@@ -427,12 +424,32 @@ function Base.show(io::IO, op::PauliStr)
             indexSite(op, (j -= 1)) == symI || (printCounter -= 1)
         end
         for idx in j:nSite
-            str = toString(op, idx; denseString)
+            str = toString(op, idx)
             isempty(str) || print(io, str)
         end
     else
-        print(io, toString(op; denseString))
+        print(io, toString(op))
     end
+
+    nothing
+end
+
+"""
+    show(io::IO, ::MIME"text/plain", op::PauliStr) -> Nothing
+
+Print the rich display of `op::`[`PauliStr`](@ref) to `io`: the printed output of 
+`show(io, op)`, followed by the annotation `"  (\$n sites)"` with 
+`n=`[`countSites`](@ref)`(op)`, whenever `n > 1`. When `io` carries the `IOContext` 
+property `:compact=>true`, the annotation is omitted and the display output falls back to 
+`show(io, op)`.
+"""
+function Base.show(io::IO, ::MIME"text/plain", op::PauliStr)
+    show(io, op)
+    if get(io, :compact, false) !== true
+        nSite = countSites(op)
+        nSite > 1 && print(io, "  ($nSite sites)")
+    end
+    nothing
 end
 
 

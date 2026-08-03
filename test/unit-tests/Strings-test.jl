@@ -51,7 +51,7 @@ m = "X"
         @test toString(p; denseString=true) == 
             join(toString(p, i; denseString=true) for i in 1:countSites(p))
 
-        #> Any non-`Bool` integer type is accepted as the site index
+        #> Other ´Integer´ subtypes are accepted as the site index
         @test toString(p, UInt8(2)) == "Z₂"
     end
 end
@@ -69,8 +69,38 @@ end
     limQ = "+X₁X₂X₃X₄X₅X₆X₇X₈X₉ … X₂₂X₂₃X₂₄X₂₅X₂₆X₂₇X₂₈X₂₉X₃₀"
     @test repr(q; context=ctx) == limQ
 
-    #> The REPL's rich display (3-arg fallback) inherits the truncation from the context
-    @test sprint(show, MIME"text/plain"(), q; context=ctx) == limQ
+    @testset "site-count annotation (rich display)" begin
+        #> The REPL's rich display (3-arg fallback) inherits the truncation from the context
+        @test sprint(show, MIME"text/plain"(), q; context=ctx) == limQ * "  (30 sites)"
+
+        str1 = @pauli_str vcat(fill(0, 32), 1, 0) #> 34 sites, weight 1
+
+        #> Rich scalar display appends the site count; faithful outputs never do
+        @test sprint(show, MIME"text/plain"(), str1) == "+Z₃₃  (34 sites)"
+        @test repr(str1) == string(str1) == toString(str1) == "+Z₃₃"
+
+        #> Rich `Vector` display annotates each single-line element (as it does `Function`s)
+        @test sprint(show, MIME"text/plain"(), [str1]; context=(:limit=>true)) == 
+            "1-element Vector{PauliStr}:\n +Z₃₃  (34 sites)"
+
+        #> Containers rendered through the `MIME`-less `show` stay bare
+        @test sprint(show, (str1,); context=(:limit=>true)) == "(+Z₃₃,)"
+        @test sprint(show, MIME"text/plain"(), (str1,); context=(:limit=>true)) == "(+Z₃₃,)"
+        @test sprint(print, [str1]) == "PauliStr[+Z₃₃]"
+        @test sprint(print, (str1,)) == "(+Z₃₃,)"
+
+        #> `:compact` rich display falls back to the plain form (as `Function`'s does)
+        @test sprint(show, MIME"text/plain"(), str1; context=(:compact=>true)) == "+Z₃₃"
+
+        #> No annotation for site counts below 2
+        @test sprint(show, MIME"text/plain"(), pauli"X") == "+X₁"
+        @test sprint(show, MIME"text/plain"(), PauliStr(0)) == "+I"
+
+        #> Truncation and annotation compose in rich display
+        q = PauliStr(30, symX)
+        @test sprint(show, MIME"text/plain"(), q; context=(:limit=>true)) == 
+              "+X₁X₂X₃X₄X₅X₆X₇X₈X₉ … X₂₂X₂₃X₂₄X₂₅X₂₆X₂₇X₂₈X₂₉X₃₀  (30 sites)"
+    end
 
     #> Boundary: exactly 20 factors is never elided
     r = PauliStr(20, symZ)

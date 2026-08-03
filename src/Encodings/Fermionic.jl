@@ -1,5 +1,8 @@
 export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc
 
+const PairwiseEncoding{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
+      Pair{T1, T2}
+
 """
     checkMajoranaEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}, 
                      explicitError::Bool=false) -> 
@@ -24,13 +27,12 @@ When `enc` fails to meet any necessary condition to form such an encoding, the f
 reported by returning `false` unless `explicitError=true`, in which case an `ArgumentError` 
 identifying the violated condition (and the immediate offending terms) is thrown instead.
 """
-function checkMajoranaEnc(enc::Pair{V1, V2}, explicitError::Bool=false)::Bool where 
-                         {V1<:AbstractVector{PauliStr}, V2<:AbstractVector{PauliStr}}
+function checkMajoranaEnc(enc::PairwiseEncoding, explicitError::Bool=false)::Bool
     nMode = length(enc.first)
 
     if iszero(nMode)
         if explicitError
-            throw(ArgumentError("`length(enc.first)` should be a positive integer."))
+            throw(ArgumentError("`length(enc.first)` must be a positive integer."))
         else
             return false
         end

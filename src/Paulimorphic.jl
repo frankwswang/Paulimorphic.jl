@@ -7,7 +7,6 @@ include("Strings.jl")
 include("Operations.jl")
 include("Analysis.jl")
 include("Graphs.jl")
-include("encodings.jl")
 
 include("Encodings/Fermionic.jl")
 

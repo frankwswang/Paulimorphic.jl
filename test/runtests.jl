@@ -31,7 +31,6 @@ using Test
     unit4 = "Encodings"
     println("Testing $(unit4)...")
     t4 = @elapsed @testset "$(unit4)" begin
-        include("unit-tests/encodings-test.jl")
         include("unit-tests/Encodings/Fermionic-test.jl")
     end
     println("$(unit4) test finished in $t4 seconds.\n")

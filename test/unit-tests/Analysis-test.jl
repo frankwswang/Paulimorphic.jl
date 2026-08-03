@@ -8,7 +8,7 @@ using Paulimorphic
     wellFormed(nodes, edges) =
     all(e -> 1 <= e[1] < e[2] <= length(nodes), edges) && allunique(collect(edges))
 
-    # Single-site canonical (isless) order is  I < Z < X < Y.
+    #> Single-site canonical (isless) order is  I < Z < X < Y.
     X, Y, Z, Id = PauliStr([symX]), PauliStr([symY]), PauliStr([symZ]), PauliStr([symI])
 
     @testset "vector overload — no merge, input order preserved" begin
@@ -57,24 +57,24 @@ using Paulimorphic
         nodes, edges = getFrustrationInfo(curtail(h, 0.1))
         @test nodes == [ZI, XX, YY]
         @test edges == [(1, 2), (1, 3)]
-        # the buggy version returns {(1,3),(2,3)} here — pin the exact correct set
+        #> the buggy version returns {(1,3),(2,3)} here — pin the exact correct set
         @test (2, 3) ∉ edges && (1, 2) ∈ edges
     end
 
     @testset "edge thresholds are strict (>) by default" begin
-        # canonical [Z(0.5), X(1.0)]; |c_i·c_j| = 0.5 exactly at edgeThreshold -> excluded
+        #> canonical [Z(0.5), X(1.0)]; |c_i·c_j| = 0.5 exactly at edgeThreshold -> excluded
         _, atBound = getFrustrationInfo(PauliSum([X, Z], [1.0, 0.5]), 0.5)
         @test isempty(atBound)
         _, below = getFrustrationInfo(PauliSum([X, Z], [1.0, 0.5]), 0.4)
         @test below == [(1, 2)]
 
-        # every coeff below threshold -> empty graph (zero survives no strict `> 0`)
+        #> every coeff below threshold -> empty graph (zero survives no strict `> 0`)
         nodes, edges = getFrustrationInfo(PauliSum([X, Z], [0.0, 0.0]))
         @test isempty(nodes) && isempty(edges)
     end
 
     @testset "complex coefficients (abs path)" begin
-        # canonical [Z(1+0im), X(0+1im)]; both |·| = 1 > 0.5 kept; |1·i| = 1 > 0 -> edge
+        #> canonical [Z(1+0im), X(0+1im)]; both |·| = 1 > 0.5 kept; |1·i| = 1 > 0 -> edge
         h = PauliSum([X, Z], [1im, 1.0 + 0im])
         nodes, edges = getFrustrationInfo(curtail(h, 0.5))
         @test nodes == [Z, X]
@@ -82,11 +82,11 @@ using Paulimorphic
     end
 
     @testset "multi-site commutation feeds the graph (vector path)" begin
-        XX = PauliStr([symX, symX])   # X₁X₂
-        ZZ = PauliStr([symZ, symZ])   # Z₁Z₂ — commutes with XX (two anticommutes cancel)
-        YI = PauliStr([symY, symI])   # Y₁
+        XX = PauliStr([symX, symX])   #> X₁X₂
+        ZZ = PauliStr([symZ, symZ])   #> Z₁Z₂ — commutes with XX (two anticommutes cancel)
+        YI = PauliStr([symY, symI])   #> Y₁
         _, edges = getFrustrationInfo([XX, ZZ, YI])
-        @test edges == [(1, 3), (2, 3)]   # XX–ZZ commute; both anticommute with Y₁
+        @test edges == [(1, 3), (2, 3)]   #> XX–ZZ commute; both anticommute with Y₁
     end
 
     @testset "structural invariants" begin

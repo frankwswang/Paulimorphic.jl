@@ -8,20 +8,87 @@ m = "X"
 @test (@pauli_str "$m") == pauli"X" == pauli"X"
 @test (@pauli_str [2,3,2,0,1]) == pauli"XYXIZ" #> 0->I, 1->Z, 2->X, 3->Y
 
-@test string(pauli"")   == "+I"
-@test string(pauli"I")  == "+I"
-@test string(pauli"II") == "+I"
-@test toString(pauli"IIX") == "+X₃"
-@test toString(pauli"IIX", true) == "IIX"
-@test toString(pauli"XXIX", true) == "XXIX" #> Exact macro round-trip
-@test toString(pauli"XXIX", true, omitPlusSign=false) == "+XXIX"
-@test toString(pauli"X", omitPlusSign=true) == "X₁"
-@test toString(PauliStr(2, symX, posImg)) == "+im*X₁X₂"
-@test toString(PauliStr(2, symX, posImg), true) == "im*XX"
-@test toString(PauliStr(3, symI, negRea)) == "-I"
-@test toString(PauliStr(3, symI, negRea), true) == "-III"
-@test toString(PauliStr(0, symI, negImg)) ==
-      toString(PauliStr(0, symI, negImg), true) == "-im*I"
+@testset "toString" begin
+    @testset "full-string method" begin
+        #> Sparse (default) format: identity sites omitted, subscripted site indices
+        @test toString(pauli"IIX") == "+X₃"
+        @test toString(pauli"XXIX") == "+X₁X₂X₄"
+        @test toString(pauli"X", omitPlusSign=true) == "X₁"
+
+        #> Dense format: one character per site; `omitPlusSign` defaults to `denseString`
+        @test toString(pauli"IIX", denseString=true) == "IIX"
+        @test toString(pauli"XXIX", denseString=true) == "XXIX" #> Exact macro round-trip
+        @test toString(pauli"XXIX", denseString=true, omitPlusSign=false) == "+XXIX"
+
+        #> Phase prefixes in both formats
+        @test toString(PauliStr(2, symX, posImg)) == "+im*X₁X₂"
+        @test toString(PauliStr(2, symX, posImg), denseString=true) == "im*XX"
+
+        #> All-identity strings: sparse body collapses to "I"; dense body emits every site
+        @test toString(PauliStr(3, symI, negRea)) == "-I"
+        @test toString(PauliStr(3, symI, negRea), denseString=true) == "-III"
+        @test toString(PauliStr(0, symI, negImg)) == 
+            toString(PauliStr(0, symI, negImg), denseString=true) == "-im*I"
+    end
+
+    @testset "per-site method" begin
+        p = pauli"XZIY"
+
+        @test toString(p, 1) == "X₁" && toString(p, 2) == "Z₂" && toString(p, 4) == "Y₄"
+        @test toString(p, 3) == "" && toString(p, 3, denseString=true) == "I"
+        @test toString(p, 4, denseString=true) == "Y" #> Dense factors carry no subscript
+
+        #> The phase of the parent string does not leak into per-site output
+        @test toString(PauliStr(2, symX, negRea), 1) == "X₁"
+
+        #> Range violations are delegated to `indexSite`
+        @test_throws DomainError toString(p, 0)
+        @test_throws DomainError toString(p, 5)
+
+        #> Site-wise concatenation reproduces the corresponding full-string body
+        @test toString(p; omitPlusSign=true) == 
+            join(toString(p, i) for i in 1:countSites(p))
+        @test toString(p; denseString=true) == 
+            join(toString(p, i; denseString=true) for i in 1:countSites(p))
+
+        #> Any non-`Bool` integer type is accepted as the site index
+        @test toString(p, UInt8(2)) == "Z₂"
+    end
+end
+
+@testset "PauliStr printing" begin
+    ctx = (:limit=>true)
+
+    #> Non-limited IO stays faithful regardless of length (`repr`/`string`/`print` path)
+    q = PauliStr(30, symX)
+    fullQ = "+X₁X₂X₃X₄X₅X₆X₇X₈X₉X₁₀X₁₁X₁₂X₁₃X₁₄X₁₅X₁₆X₁₇X₁₈X₁₉X₂₀" * 
+            "X₂₁X₂₂X₂₃X₂₄X₂₅X₂₆X₂₇X₂₈X₂₉X₃₀"
+    @test repr(q) == string(q) == toString(q) == fullQ
+
+    #> Limited IO elides when `countWeight(q) > 20`: first 9 factors, `" … "`, last 9
+    limQ = "+X₁X₂X₃X₄X₅X₆X₇X₈X₉ … X₂₂X₂₃X₂₄X₂₅X₂₆X₂₇X₂₈X₂₉X₃₀"
+    @test repr(q; context=ctx) == limQ
+
+    #> The REPL's rich display (3-arg fallback) inherits the truncation from the context
+    @test sprint(show, MIME"text/plain"(), q; context=ctx) == limQ
+
+    #> Boundary: exactly 20 factors is never elided
+    r = PauliStr(20, symZ)
+    @test repr(r; context=ctx) == repr(r)
+
+    #> 21 factors: sites 10–12 are hidden; phase prefix is preserved
+    s = PauliStr(21, symY, negRea)
+    @test repr(s; context=ctx) == "-Y₁Y₂Y₃Y₄Y₅Y₆Y₇Y₈Y₉ … Y₁₃Y₁₄Y₁₅Y₁₆Y₁₇Y₁₈Y₁₉Y₂₀Y₂₁"
+
+    #> Identity sites do not count toward the cutoff, and short strings are unaffected
+    p = pauli"XZIY"
+    @test repr(p; context=ctx) == repr(p) == "+X₁Z₂Y₄"
+
+    #> Sparse factors (not raw sites) are the elided units: 50 sites but weight 25
+    t = @pauli_str "IX"^25
+    @test repr(t; context=ctx) == 
+          "+X₂X₄X₆X₈X₁₀X₁₂X₁₄X₁₆X₁₈ … X₃₄X₃₆X₃₈X₄₀X₄₂X₄₄X₄₆X₄₈X₅₀"
+end
 
 @testset "`PauliStr` ordering" begin
     #> Build a symbol list of `nSite` sites carrying `sym` at each site index in `locs`
@@ -114,12 +181,6 @@ end
     @test indexSite(PauliStr(0), 1, true) === symI
     @test_throws DomainError indexSite(PauliStr(0), 1)
 end
-
-#> `toString`
-strT = PauliStr([rand((symI, symZ, symX, symY)) for _ in 1:130]) #> Spans three words
-dense = toString(strT, true)
-@test all(only(string(dense[begin+i-1])) == 
-          "IZXY"[Int(indexSite(strT, i))+1] for i in 1:130)
 
 @testset "indexTerm" begin
     ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])

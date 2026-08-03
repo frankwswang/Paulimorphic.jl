@@ -323,7 +323,7 @@ end
 
 
 """
-    toString(pStr::PauliStr, denseString::Bool=false; 
+    toString(pStr::PauliStr; denseString::Bool=false, 
              omitPlusSign::Bool=denseString) -> String
 
 Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
@@ -343,32 +343,97 @@ collapses to `"I"`.
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
 
-julia> toString(pauli"XXIX", true)
+julia> toString(pauli"XXIX", denseString=true)
 "XXIX"
 ```
 """
-function toString(pStr::PauliStr, denseString::Bool=false; omitPlusSign::Bool=denseString)
-    body = ""
+function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)
+    buffer = IOBuffer()
 
     for i in 1:pStr.n
-        sym = indexSite(pStr, i)
-
-        body *= if sym == symY
-            'Y' * (denseString ? "" : getSubscriptStr(i))
-        elseif sym == symZ
-            'Z' * (denseString ? "" : getSubscriptStr(i))
-        elseif sym == symX
-            'X' * (denseString ? "" : getSubscriptStr(i))
-        else #> symI
-            denseString ? "I" : ""
-        end
+        print(buffer, toString(pStr, i; denseString))
     end
 
+    body = String(take!(buffer))
     isempty(body) && (body = "I")
     phaseStr(pStr.phase, omitPlusSign) * body
 end
 
-Base.show(io::IO, op::PauliStr) = print(io, toString(op))
+"""
+    toString(pStr::PauliStr, i::Integer; denseString::Bool=false) -> String
+
+Return the `String` representation of the single-site Pauli operator acting on site `i` of 
+`pStr::`[`PauliStr`](@ref), i.e., the portion of `toString(pStr; denseString)` that site 
+`i` contributes to the string body (except for an all-identity string which collapses to 
+`"I"`). The phase of `pStr` (`pStr.phase`) does not affect the returned value. `i` must be 
+in `1:`[`countSites`](@ref)`(pStr)`.
+"""
+function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
+    sym = indexSite(pStr, i)
+
+    if sym == symI
+        denseString ? "I" : ""
+    else
+        char = if sym == symY
+            'Y'
+        elseif sym == symZ
+            'Z'
+        else #> symX
+            'X'
+        end
+        char * (denseString ? "" : getSubscriptStr(i|>Int))
+    end
+end
+
+const CONSTVAR!!maximalFullShowSize = 20
+const CONSTVAR!!minimalKeptShowSize = CONSTVAR!!maximalFullShowSize - 2
+@assert CONSTVAR!!maximalFullShowSize > CONSTVAR!!minimalKeptShowSize > 1
+@assert iseven(CONSTVAR!!minimalKeptShowSize)
+
+"""
+    show(io::IO, op::PauliStr) -> Nothing
+
+Print the default-format (`denseString=false`) output of [`toString`](@ref) for 
+`op::`[`PauliStr`](@ref) to `io`. When `io` carries the `IOContext` property `:limit=>true` 
+(i.e., `true == get(io, :limit, false)`), such as the REPL's default display buffer, and 
+[`countWeight`](@ref)`(op) > $CONSTVAR!!maximalFullShowSize`, only the first and last 
+$(CONSTVAR!!minimalKeptShowSize÷2) non-identity single-site operators are printed, with the 
+omitted operators replaced by `'…'`. Otherwise, complete string is always printed (in the 
+default-format).
+"""
+function Base.show(io::IO, op::PauliStr)
+    denseString = false
+
+    if get(io, :limit, false)::Bool && countWeight(op) > CONSTVAR!!maximalFullShowSize
+        print(io, phaseStr(op.phase))
+
+        edgeOpNum = CONSTVAR!!minimalKeptShowSize ÷ 2
+        nSite = countSites(op)
+        printCounter = 0
+
+        #> Leading block: the first `edgeOpNum` non-identity single-site operators
+        i = 0
+        while printCounter < edgeOpNum
+            str = toString(op, (i += 1); denseString)
+            isempty(str) ? continue : print(io, str)
+            printCounter += 1
+        end
+
+        print(io, " … ")
+
+        #> Trailing block: locate its first site by a backward scan, then print forward
+        j = nSite + 1
+        while printCounter > 0
+            indexSite(op, (j -= 1)) == symI || (printCounter -= 1)
+        end
+        for idx in j:nSite
+            str = toString(op, idx; denseString)
+            isempty(str) || print(io, str)
+        end
+    else
+        print(io, toString(op; denseString))
+    end
+end
 
 
 """

@@ -8,3 +8,5 @@ const SameTypePair{T} = Pair{T, T}
 const BitUInteger = Union{UInt8, UInt16, UInt32, UInt64, UInt128}
 
 const MissingOr{T} = Union{Missing, T}
+
+const Interface = Union{Function, Type, Module}

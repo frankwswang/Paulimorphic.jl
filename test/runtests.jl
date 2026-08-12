@@ -12,7 +12,7 @@ using Test
     end
     println("$(unit1) test finished in $t1 seconds.\n")
 
-    unit2 = "String constructions and manipulations"
+    unit2 = "String Constructions and Manipulations"
     println("Testing $(unit2)...")
     t2 = @elapsed @testset "$(unit2)" begin
         include("unit-tests/Strings-test.jl")
@@ -20,7 +20,7 @@ using Test
     end
     println("$(unit2) test finished in $t2 seconds.\n")
 
-    unit3 = "Graph-theory functions"
+    unit3 = "Graph-Theory Functions"
     println("Testing $(unit3)...")
     t3 = @elapsed @testset "$(unit3)" begin
         include("unit-tests/Graphs-test.jl")
@@ -34,4 +34,12 @@ using Test
         include("unit-tests/Encodings/Fermionic-test.jl")
     end
     println("$(unit4) test finished in $t4 seconds.\n")
+
+    unit5 = "Code Quality"
+    println("Testing $(unit5)...")
+    t5 = @elapsed @testset "$(unit5)" begin
+        include("quality-tests/Aqua-test.jl")
+        include("quality-tests/Documentation-test.jl")
+    end
+    println("$(unit5) test finished in $t5 seconds.\n")
 end

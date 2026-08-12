@@ -2,6 +2,8 @@ export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWei
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
        collectTerms
 
+public sortStrings!, setCoeff!
+
 using LinearAlgebra: dot
 
 """
@@ -57,8 +59,8 @@ construction.
     though the two act identically under the padding convention.
 
 !!! warning
-    Direct modifications of field .z or .x that cause bits above site n to become non-zero 
-    may lead to unexpected behaviors.
+    Direct modifications of field `.z` or `.x` that cause bits above site n to become 
+    non-zero may lead to unexpected behaviors.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -213,7 +215,7 @@ regardless of the underlying storage buffers' word size (`8*sizeof(UInt)`). This
 underlies the canonical term order of [`PauliSum`](@ref).
 
 # Example
-```julia
+```jldoctest
 julia> pauli"II" < pauli"ZI" < pauli"XI" < pauli"IZ" < pauli"IX" < pauli"XX"
 true
 
@@ -269,7 +271,7 @@ invoking scope) to either one of the following two types of `input` is accepted:
   `$(Int(symX)) => symX`, `$(Int(symY)) => symY`).
 
 # Example
-```julia
+```jldoctest
 julia> pauli"IZXY" == (@pauli_str [0, 1, 2, 3]) == @pauli_str([0, 1, 2, 3])
 true
 
@@ -323,8 +325,8 @@ end
 
 
 """
-    toString(pStr::PauliStr; denseString::Bool=false, 
-             omitPlusSign::Bool=denseString) -> String
+    toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString) -> 
+    String
 
 Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
 (the default string format), identity sites are omitted and each non-identity Pauli 
@@ -339,7 +341,7 @@ identity (or `pStr` is a zero-site identity), the body (excluding the phase pref
 collapses to `"I"`.
 
 # Example
-```julia
+```jldoctest
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
 
@@ -628,20 +630,6 @@ end
 
 
 """
-    checkTermIndex(ham::PauliSum, i::Integer) -> Int
-
-Throw a `DomainError` unless `i` is in `1:length(ham.str)`; on success, return the term 
-count `length(ham.str)`.
-"""
-function checkTermIndex(ham::PauliSum, i::Integer)
-    nTerm = length(ham.str)
-    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
-
-    nTerm
-end
-
-
-"""
     indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
     Pair{PauliStr, Complex{T}}
 
@@ -656,7 +644,8 @@ coefficient associated with the `i`-th term. `i` must be in `1:length(ham.str)`.
     disturb its canonical layout.
 """
 function indexTerm(ham::PauliSum, i::Integer, copyStr::Bool=true)
-    checkTermIndex(ham, i)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     str = ham.str[begin+i-1]
     (copyStr ? PauliStr(str) : str) => ham.coeff[begin+i-1]
 end
@@ -679,7 +668,8 @@ Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to
     zero-coefficient terms, rebuild the mutated `ham` via `PauliSum(ham, true)`.
 """
 function setCoeff!(ham::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
-    checkTermIndex(ham, i)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     ham.coeff[begin+i-1] = coeff
     indexTerm(ham, i, copyStr)
 end
@@ -842,8 +832,8 @@ end
     canonicalize!(ham::PauliSum) -> PauliSum
 
 Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
-its coefficient based on [`absorbPhases!`](@ref), then sort the Pauli terms into a 
-deterministic total order based on [`sortStrings!`](@ref).
+its coefficient (stored in ham.coeff), then sort the Pauli terms into a deterministic total 
+order based on [`sortStrings!`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
@@ -985,12 +975,12 @@ sites are refilled with the identity, the site count `str.n` is preserved, and t
 `.phase` is left unchanged.
 
 # Example
-```julia
+```jldoctest
 julia> shift!(pauli"IIXXII", 3, false)   #> left  shift: site 4 → site 1, site 3 dropped
-+X₁
++X₁  (6 sites)
 
 julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site 4 dropped
-+X₆
++X₆  (6 sites)
 ```
 """
 function shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true)
@@ -1240,7 +1230,7 @@ must be in `1:dst.n`, and `nSite` must be non-negative.
 
     lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
      dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
-     op:      [op, op, op]                      op:  [op, op, op]
+      op:     [op, op, op]                       op: [op, op, op]
      dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
@@ -1319,7 +1309,7 @@ The returned sum does not reference any data in `ham`: its coefficients are held
 independent buffer, and its `PauliStr`s are freshly constructed.
 
 # Example
-```julia
+```jldoctest
 julia> ham = PauliSum([pauli"XZ", pauli"YIX"], [1, 2]);
 
 julia> countSites(ham) #> The constructor has rebuilt `pauli"XZ"` onto 3 sites as `XZI`

@@ -2,6 +2,8 @@ export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWei
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
        collectTerms
 
+public sortStrings!, setCoeff!
+
 using LinearAlgebra: dot
 
 """
@@ -628,20 +630,6 @@ end
 
 
 """
-    checkTermIndex(ham::PauliSum, i::Integer) -> Int
-
-Throw a `DomainError` unless `i` is in `1:length(ham.str)`; on success, return the term 
-count `length(ham.str)`.
-"""
-function checkTermIndex(ham::PauliSum, i::Integer)
-    nTerm = length(ham.str)
-    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
-
-    nTerm
-end
-
-
-"""
     indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
     Pair{PauliStr, Complex{T}}
 
@@ -656,7 +644,8 @@ coefficient associated with the `i`-th term. `i` must be in `1:length(ham.str)`.
     disturb its canonical layout.
 """
 function indexTerm(ham::PauliSum, i::Integer, copyStr::Bool=true)
-    checkTermIndex(ham, i)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     str = ham.str[begin+i-1]
     (copyStr ? PauliStr(str) : str) => ham.coeff[begin+i-1]
 end
@@ -679,7 +668,8 @@ Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to
     zero-coefficient terms, rebuild the mutated `ham` via `PauliSum(ham, true)`.
 """
 function setCoeff!(ham::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
-    checkTermIndex(ham, i)
+    nTerm = length(ham.str)
+    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     ham.coeff[begin+i-1] = coeff
     indexTerm(ham, i, copyStr)
 end
@@ -842,8 +832,8 @@ end
     canonicalize!(ham::PauliSum) -> PauliSum
 
 Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
-its coefficient based on [`absorbPhases!`](@ref), then sort the Pauli terms into a 
-deterministic total order based on [`sortStrings!`](@ref).
+its coefficient (stored in ham.coeff), then sort the Pauli terms into a deterministic total 
+order based on [`sortStrings!`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 

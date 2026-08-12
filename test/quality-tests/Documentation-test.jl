@@ -1,4 +1,5 @@
 using Test
+using Documenter: DocMeta, doctest
 using LinearAlgebra
 using Paulimorphic
 using Paulimorphic: Interface
@@ -95,6 +96,11 @@ end
     exempt = [Paulimorphic.absorbPhases!, Paulimorphic.getFrustrationInfoCore!, 
               Paulimorphic.pasteBits!, Paulimorphic.shiftBits!, Paulimorphic.stampBits!]
     @test checkHiddenAPI(Paulimorphic, exempt)
+end
+
+@testset "Docstring-based est" begin
+    DocMeta.setdocmeta!(Paulimorphic, :DocTestSetup, :(using Paulimorphic); recursive=true)
+    doctest(Paulimorphic)
 end
 
 end

@@ -215,7 +215,7 @@ regardless of the underlying storage buffers' word size (`8*sizeof(UInt)`). This
 underlies the canonical term order of [`PauliSum`](@ref).
 
 # Example
-```julia
+```jldoctest
 julia> pauli"II" < pauli"ZI" < pauli"XI" < pauli"IZ" < pauli"IX" < pauli"XX"
 true
 
@@ -271,7 +271,7 @@ invoking scope) to either one of the following two types of `input` is accepted:
   `$(Int(symX)) => symX`, `$(Int(symY)) => symY`).
 
 # Example
-```julia
+```jldoctest
 julia> pauli"IZXY" == (@pauli_str [0, 1, 2, 3]) == @pauli_str([0, 1, 2, 3])
 true
 
@@ -341,7 +341,7 @@ identity (or `pStr` is a zero-site identity), the body (excluding the phase pref
 collapses to `"I"`.
 
 # Example
-```julia
+```jldoctest
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
 
@@ -975,12 +975,12 @@ sites are refilled with the identity, the site count `str.n` is preserved, and t
 `.phase` is left unchanged.
 
 # Example
-```julia
+```jldoctest
 julia> shift!(pauli"IIXXII", 3, false)   #> left  shift: site 4 → site 1, site 3 dropped
-+X₁
++X₁  (6 sites)
 
 julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site 4 dropped
-+X₆
++X₆  (6 sites)
 ```
 """
 function shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true)
@@ -1309,7 +1309,7 @@ The returned sum does not reference any data in `ham`: its coefficients are held
 independent buffer, and its `PauliStr`s are freshly constructed.
 
 # Example
-```julia
+```jldoctest
 julia> ham = PauliSum([pauli"XZ", pauli"YIX"], [1, 2]);
 
 julia> countSites(ham) #> The constructor has rebuilt `pauli"XZ"` onto 3 sites as `XZI`

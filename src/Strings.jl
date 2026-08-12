@@ -59,8 +59,8 @@ construction.
     though the two act identically under the padding convention.
 
 !!! warning
-    Direct modifications of field .z or .x that cause bits above site n to become non-zero 
-    may lead to unexpected behaviors.
+    Direct modifications of field `.z` or `.x` that cause bits above site n to become 
+    non-zero may lead to unexpected behaviors.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -325,8 +325,8 @@ end
 
 
 """
-    toString(pStr::PauliStr; denseString::Bool=false, 
-             omitPlusSign::Bool=denseString) -> String
+    toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString) -> 
+    String
 
 Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
 (the default string format), identity sites are omitted and each non-identity Pauli 
@@ -1230,7 +1230,7 @@ must be in `1:dst.n`, and `nSite` must be non-negative.
 
     lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
      dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
-     op:      [op, op, op]                      op:  [op, op, op]
+      op:     [op, op, op]                       op: [op, op, op]
      dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 

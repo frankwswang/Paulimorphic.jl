@@ -1,4 +1,4 @@
-export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
+export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
 
 """
     mul(str::PauliStr, phase::PhaseFactor) -> PauliStr
@@ -250,6 +250,21 @@ function evalCommute(str1::PauliStr, str2::PauliStr)
     prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
 end
 
+"""
+    evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+Return the commutator [`h1`, `h2`] = `h1`*`h2` - `h2`*`h1` as a `PauliSum`. The 
+multiplications within the commutation follow [`mul(h1::PauliSum, h2::PauliSum)`](@ref). 
+When the commutator is zero, this function returns an empty `PauliSum` as the zero 
+operator.
+"""
+function evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real}
+    prod1 = mul(h1, h2)
+    prod2 = mul(h2, h1)
+    PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, -prod2.coeff))
+end
+
 
 """
     evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
@@ -266,3 +281,50 @@ function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod2 = mul(str2, str1)
     prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end
+
+"""
+    evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+Return the anticommutator {`h1`, `h2`} = `h1`*`h2` + `h2`*`h1` as a `PauliSum`. The 
+multiplications within the anticommutation follow 
+[`mul(h1::PauliSum, h2::PauliSum)`](@ref). When the anticommutator is zero, this function 
+returns an empty `PauliSum` as the zero operator.
+"""
+function evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real}
+    prod1 = mul(h1, h2)
+    prod2 = mul(h2, h1)
+    PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, prod2.coeff))
+end
+
+
+"""
+    toAdjoint(str::PauliStr) -> PauliStr
+
+Return the Hermitian adjoint (namely the Hermitian conjugate) of `str`, accessible as 
+`str'`. The returned string carries the same single-site Pauli operators as `str` with the 
+phase conjugated and does not reference any data in `str`.
+"""
+function toAdjoint(str::PauliStr)
+    phaseConj = PhaseFactor((0x4 - UInt8(str.phase)) & 0x3) #> conj(im^k) == im^(4-k mod 4)
+    PauliStr(str, str.n, phaseConj)
+end
+
+"""
+    toAdjoint(h::PauliSum{T}) where {T<:Real} -> PauliSum{T}
+
+Return the Hermitian adjoint (namely the Hermitian conjugate) of `h`, accessible as `h'`. 
+The result is in the canonical form and does not reference any data in `h`. for an input 
+`h` already in its canonical form (e.g., as produced by the constructor of 
+[`PauliSum`](@ref)), the adjoint is an involution: 
+
+```jldoctest
+julia> h = PauliSum([pauli"XXIXX", pauli"XXIYX"], [1, im]);
+
+julia> (h')' == h
+true
+```
+"""
+toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(conj, h.coeff))
+
+Base.adjoint(op::DiscreteOperator) = toAdjoint(op)

@@ -6,16 +6,25 @@ using Paulimorphic: posRea, posImg, negRea, negImg
 
 @testset "Operations.jl" begin
 
-@testset "mul" begin
-    #> Ground-truth reference: dense matrix representation
-    #>> The same `kron` factor order is applied to both sides of every comparison, so the
-    #>> checks below are independent of the package's site-ordering convention.
-    matI = toMatrix(symI)
-    matX = toMatrix(symX) 
-    matY = toMatrix(symY) 
-    matZ = toMatrix(symZ)
+syms = [symI, symX, symY, symZ]
+phases = [posRea, posImg, negRea, negImg]
+#> Ground-truth reference: dense matrix representation
+matI = toMatrix(symI)
+matX = toMatrix(symX)
+matY = toMatrix(symY)
+matZ = toMatrix(symZ)
 
-    function strToMat(pStr::PauliStr, nSite::Int=pStr.n)
+function randStr(rng, nSite::Int)
+    PauliStr([rand(rng, syms) for _ in 1:nSite], rand(rng, phases))
+end
+
+function randSum(rng, nSite::Int, nTerm::Int)
+    strs = [randStr(rng, nSite) for _ in 1:nTerm]
+    coeffs = [Complex{Int}(rand(rng, -3:3), rand(rng, -3:3)) for _ in 1:nTerm]
+    PauliSum(strs, coeffs) #> Zero coefficients and duplicate strings exercise merging
+end
+
+function strToMat(pStr::PauliStr, nSite::Int=pStr.n)
         nSitePerWord = 8 * sizeof(UInt)
         res = ones(ComplexF64, 1, 1)
         for i in 1:nSite
@@ -30,16 +39,15 @@ using Paulimorphic: posRea, posImg, negRea, negImg
         evalPhase(pStr.phase) .* res
     end
 
-    function sumToMat(ham::PauliSum, nSite::Int=countSites(ham))
-        res = zeros(ComplexF64, 2^nSite, 2^nSite)
-        for i in eachindex(ham.str)
-            res .+= ham.coeff[begin+i-1] .* strToMat(ham.str[begin+i-1], nSite)
-        end
-        res
+function sumToMat(ham::PauliSum, nSite::Int=countSites(ham))
+    res = zeros(ComplexF64, 2^nSite, 2^nSite)
+    for i in eachindex(ham.str)
+        res .+= ham.coeff[begin+i-1] .* strToMat(ham.str[begin+i-1], nSite)
     end
+    res
+end
 
-    syms   = [symI, symX, symY, symZ]
-    phases = [posRea, posImg, negRea, negImg]
+@testset "mul" begin
     rng = Xoshiro(20260720)
 
     #> mul(::PhaseFactor, ::PhaseFactor)
@@ -296,11 +304,158 @@ for a in twoSite, b in twoSite
 end
 @test bl2
 
-#> `evalCommute` and `evalAntiCom`
-@test evalCommute(pauli"X", pauli"Z") == PauliSum([pauli"Y"], -2im)  #> [X,Z] = −2iY
-@test evalCommute(pauli"X", pauli"Z") isa PauliSum{Int}
-@test evalCommute(pauli"X", pauli"X") == PauliSum(Int)               #> zero commutator
-@test evalAntiCom(pauli"X", pauli"X") == PauliSum([pauli"I"], 2)     #> {X,X} = 2I, merged
-@test evalAntiCom(pauli"X", pauli"Z") == PauliSum(Int)               #> zero anticommutator
+@testset "evalCommute/evalAntiCom" begin
+    @test evalCommute(pauli"X", pauli"Z") == PauliSum([pauli"Y"], -2im)
+    @test evalCommute(pauli"X", pauli"Z") isa PauliSum{Int}
+    @test evalCommute(pauli"X", pauli"X") == PauliSum(Int)           #> zero commutator
+    @test evalAntiCom(pauli"X", pauli"X") == PauliSum([pauli"I"], 2) #> {X,X} = 2I, merged
+    @test evalAntiCom(pauli"X", pauli"Z") == PauliSum(Int)           #> zero anticommutator
+
+    #> Fixed exact values (matrix-validated): implicit identity-padding across site counts
+    hX  = PauliSum(Int, [pauli"X"])  #> 1 explicit site, padded against 2-site operand
+    hZZ = PauliSum(Int, [pauli"ZZ"])
+    @test evalAntiCom(hX, hZZ) == PauliSum(Int) #> Anticommuting strings: {XI, ZZ} == 0
+    @test evalCommute(hX, hZZ) == PauliSum([pauli"YZ"], Complex{Int}(0, -2))
+
+    #> Multi-term exact values (matrix-validated): 
+    #>> h1 = XI + 2 ZZ, h2 = YI - XZ 
+    #>> {h1, h2} == -2 IZ,    [h1, h2] == 2im ZI - 4im YI - 4im XZ
+    h1 = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[1, 2])
+    h2 = PauliSum([pauli"YI", pauli"XZ"], Complex{Int}[1, -1])
+    @test evalAntiCom(h1, h2) == PauliSum([pauli"IZ"], Complex{Int}(-2))
+    @test evalCommute(h1, h2) == 
+          PauliSum([pauli"ZI", pauli"YI", pauli"XZ"], Complex{Int}[2im, -4im, -4im])
+
+    #> Zero-site phased unit is central: commutes with everything, {u, h} == 2h
+    u = PauliSum(Int, [PauliStr()])
+    @test isempty(evalCommute(u, h1).str)
+    @test evalAntiCom(u, h1) == mul(h1, 2)
+
+    #> Zero-operand behavior and coefficient-type promotion
+    @test evalAntiCom(h1, PauliSum(Int)) == PauliSum(Int)
+    @test evalCommute(h1, PauliSum(Int)) == PauliSum(Int)
+    hRat = PauliSum([pauli"XI"], Complex{Rational{Int}}(1//2, 0))
+    @test evalAntiCom(hRat, mul(h2, 1.0)) isa PauliSum{Float64}
+
+    #> Property fuzz: string-level consistency, (anti)symmetry, adjoint interplay, 
+    #> the decomposition {h1,h2} + [h1,h2] == 2 h1 h2, the Jacobi identity, and 
+    #> matrix ground truth; all comparisons exact except the matrix references
+    rng = Xoshiro(44)
+    bl = true
+    for _ in 1:64
+        n = rand(rng, 1:3)
+        s1, s2 = randStr(rng, n), randStr(rng, n)
+        bl &= (evalCommute(PauliSum(Int, [s1]), PauliSum(Int, [s2])) == evalCommute(s1, s2))
+        bl &= (evalAntiCom(PauliSum(Int, [s1]), PauliSum(Int, [s2])) == evalAntiCom(s1, s2))
+
+        hA = randSum(rng, n, rand(rng, 0:4))
+        hB = randSum(rng, n, rand(rng, 0:4))
+        hC = randSum(rng, n, rand(rng, 0:4))
+        cmAB = evalCommute(hA, hB)
+        acAB = evalAntiCom(hA, hB)
+        bl &= (acAB == evalAntiCom(hB, hA))
+        bl &= (cmAB == mul(evalCommute(hB, hA), -1))
+        bl &= (isempty(evalCommute(hA, hA).str))
+        bl &= (evalAntiCom(hA, hA) == mul(mul(hA, hA), 2))
+        bl &= (adjoint(acAB) == evalAntiCom(hA', hB'))
+        bl &= (adjoint(cmAB) == mul(evalCommute(hA', hB'), -1))
+        bl &= (PauliSum(vcat(acAB.str, cmAB.str), vcat(acAB.coeff, cmAB.coeff)) == 
+               mul(mul(hA, hB), 2))
+        bl &= (sumToMat(cmAB, n) ≈ 
+               sumToMat(hA, n) * sumToMat(hB, n) - sumToMat(hB, n) * sumToMat(hA, n))
+        bl &= (sumToMat(acAB, n) ≈ 
+               sumToMat(hA, n) * sumToMat(hB, n) + sumToMat(hB, n) * sumToMat(hA, n))
+
+        #> Jacobi identity: [[A,B],C] + [[B,C],A] + [[C,A],B] == 0
+        j1 = evalCommute(evalCommute(hA, hB), hC)
+        j2 = evalCommute(evalCommute(hB, hC), hA)
+        j3 = evalCommute(evalCommute(hC, hA), hB)
+        bl &= isempty(PauliSum(vcat(j1.str, j2.str, j3.str), 
+                               vcat(j1.coeff, j2.coeff, j3.coeff)).str)
+    end
+    @test bl
+end
+
+
+@testset "Base.adjoint(::PauliStr)" begin
+    #> Phase conjugation table: conj(im^k) == im^((4-k) mod 4)
+    for (phase, phaseConj) in ((posRea, posRea), (posImg, negImg), 
+                               (negRea, negRea), (negImg, posImg))
+        s = PauliStr(2, symX, phase)
+        @test (s').phase == phaseConj
+        @test s' == PauliStr(2, symX, phaseConj)
+        @test evalPhase((s').phase) == conj(evalPhase(s.phase))
+    end
+
+    #> Real-phase strings are Hermitian (self-adjoint)
+    @test (pauli"YZ")' == pauli"YZ"
+    @test mul(pauli"XY", negRea)' == mul(pauli"XY", negRea)
+
+    #> Zero-site phased multiplicative unit
+    @test PauliStr(0, symI, posImg)' == PauliStr(0, symI, negImg)
+
+    #> Mechanism pin: zero-length `Memory` is a runtime-interned per-type singleton, so 
+    #> buffer-identity (`===`/`!==`) assertions are only meaningful for nonempty buffers
+    @test Memory{UInt}(undef, 0) === Memory{UInt}(undef, 0)
+    @test PauliStr(0, symI, posImg)'.x === PauliStr(0).x
+
+    #> Content preservation, involution, anti-distribution over `mul`, and no aliasing
+    rng = Xoshiro(42)
+    bl = true
+    for _ in 1:128
+        n1, n2 = rand(rng, 0:3), rand(rng, 0:3) #> Mixed site counts exercise padding
+        s1, s2 = randStr(rng, n1), randStr(rng, n2)
+        bl &= (countSites(s1') == countSites(s1))
+        bl &= (countWeight(s1') == countWeight(s1))
+        bl &= (s1'.x == s1.x && s1'.z == s1.z)
+        #> Fresh buffers, no aliasing — except zero-length buffers, which are exempt: 
+        #>> Julia's runtime interns a per-type empty `Memory` singleton (the zero-sized 
+        #>> allocation optimization in `src/genericmemory.c`), so `===` is forced there
+        bl &= (isempty(s1.x) || (s1'.x !== s1.x && s1'.z !== s1.z))
+        bl &= ((s1')' == s1)
+        bl &= (mul(s1, s2)' == mul(s2', s1'))
+        bl &= (strToMat(s1', max(n1, n2)) ≈ adjoint(strToMat(s1, max(n1, n2))))
+    end
+    @test bl
+end
+
+@testset "Base.adjoint(::PauliSum)" begin
+    #> Empty (zero-operator) sums and coefficient-type preservation
+    @test adjoint(PauliSum(Int)) == PauliSum(Int)
+    @test adjoint(PauliSum(Float64)) isa PauliSum{Float64}
+    @test adjoint(PauliSum([pauli"X"], Complex{Rational{Int}}(1//2, 1//3))) isa 
+          PauliSum{Rational{Int}}
+
+    #> Exact coefficient conjugation with unchanged (canonical, phase-free) strings
+    h = PauliSum([pauli"XI", pauli"ZZ"], [Complex{Rational{Int}}(1//2, 1//3), 
+                                          Complex{Rational{Int}}(-2//1, 5//7)])
+    @test (h').str == h.str
+    @test (h').coeff == conj.(h.coeff)
+    @test (h').str !== h.str && (h').coeff !== h.coeff #> Fresh Memory, no aliasing
+    @test (h').str[begin] !== h.str[begin]             #> Strings rebuilt, not shared
+
+    #> Nontrivial input phases: absorption and conjugation must compose consistently
+    @test adjoint(PauliSum([PauliStr(1, symY, posImg)], 1)) == 
+          PauliSum([PauliStr(1, symY, negImg)], 1)
+
+    #> Hermitian (real-coefficient) and anti-Hermitian (imaginary-coefficient) sums
+    hReal = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[2, -3])
+    hImag = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[2im, -3im])
+    @test hReal' == hReal
+    @test hImag' == mul(hImag, -1)
+
+    #> Involution, matrix ground truth, and anti-distribution over `mul`
+    rng = Xoshiro(43)
+    bl = true
+    for _ in 1:64
+        n = rand(rng, 1:3)
+        hA = randSum(rng, n, rand(rng, 0:4))
+        hB = randSum(rng, n, rand(rng, 0:4))
+        bl &= (adjoint(adjoint(hA)) == hA)
+        bl &= (sumToMat(adjoint(hA), n) ≈ adjoint(sumToMat(hA, n)))
+        bl &= (mul(hA, hB)' == mul(hB', hA'))
+    end
+    @test bl
+end
 
 end

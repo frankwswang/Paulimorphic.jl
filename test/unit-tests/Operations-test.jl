@@ -47,6 +47,85 @@ function sumToMat(ham::PauliSum, nSite::Int=countSites(ham))
     res
 end
 
+@testset "add" begin
+    #> `add`: named-function layer
+    #>> 1. Str + Str merges under simplification; default coefficient type is Int
+    @test add(pauli"X", pauli"X") == PauliSum([pauli"X"], [2])
+    @test add(pauli"X", pauli"X") isa PauliSum{Int}
+
+    #>> 2. Explicit coefficient type (value and type)
+    @test add(Float64, pauli"X", pauli"Z") == PauliSum([pauli"X", pauli"Z"], [1.0, 1.0])
+    @test add(Float64, pauli"X", pauli"Z") isa PauliSum{Float64}
+
+    #>> 3. Identity-padding rebuild: `X` and `XI` become equal after site-count promotion
+    @test add(pauli"X", pauli"XI") == PauliSum([pauli"XI"], [2])
+
+    #>> 4. Sum + Sum with cross-type promotion (Int ∪ Float64 -> Float64)
+    h1 = PauliSum([pauli"XZ"], [2])
+    h2 = PauliSum([pauli"XZ", pauli"YI"], [1.0, 0.5])
+    @test add(h1, h2) == PauliSum([pauli"XZ", pauli"YI"], [3.0, 0.5])
+    @test add(h1, h2) isa PauliSum{Float64}
+
+    #>> 5. Sum + Sum with the empty sum: additive identity (and empty-buffer `vcat` edge)
+    @test add(PauliSum(Int), h2) == h2
+
+    #>> 6. Phase absorption through the Pair method: (-im * X) => 2.0 contributes -2.0im
+    @test add(PauliSum(Float64), mul(pauli"X", negImg)=>2.0) == 
+          PauliSum([pauli"X"], [-2.0im])
+
+    #>> 7. Pair method with cross-type promotion, incl. site-count rebuild of the added `X`
+    @test add(h1, pauli"X"=>0.5) == PauliSum([pauli"XZ", pauli"XI"], [2.0, 0.5])
+    @test add(h1, pauli"X"=>0.5) isa PauliSum{Float64}
+
+    #>> 8. Sum + Str: nominal coefficient `one(T)` merged into the matching term
+    @test add(h2, pauli"YI") == PauliSum([pauli"XZ", pauli"YI"], [1.0, 1.5])
+
+    #>> 9. Exact cancellation yields the empty (zero) operator
+    resCancel = add(pauli"X", mul(pauli"X", negRea))
+    @test resCancel == PauliSum(Int)
+    @test isempty(resCancel.str)
+
+    #>> 10. simplification=false retains duplicates (still canonically sorted), per method
+    resDup = add(pauli"X", pauli"X", false)
+    @test resDup.coeff == Complex{Int}[1, 1]
+    @test PauliSum(resDup, true) == PauliSum([pauli"X"], [2])
+    @test length(add(h1, h1, false).str) == 2
+    @test length(add(h1, pauli"XZ", false).str) == 2
+    @test length(add(h1, pauli"XZ"=>1, false).str) == 2
+
+    #>> 11. Round trip with indexTerm
+    h3 = PauliSum([pauli"XZ"], [0.5])
+    @test add(h3, indexTerm(h3, 1)) == PauliSum([pauli"XZ"], [1.0])
+
+    #>> 12. Ownership: result must not reference either input's data (buffer level)
+    resOwn = add(h1, h2)
+    @test all(s -> all(t -> s.x !== t.x && s.z !== t.z, vcat(h1.str, h2.str)), resOwn.str)
+
+    #> `Base.:+`: operator layer
+    #>> Binary `+` on strings is equivalent to the default-`T` `add` method
+    @test pauli"X" + pauli"Z" == add(pauli"X", pauli"Z")
+    @test pauli"X" + pauli"Z" == PauliSum([pauli"X", pauli"Z"], [1, 1])
+    @test pauli"X" + pauli"X" == PauliSum([pauli"X"], [2])
+
+    #>> Chained all-string addition (single-pass n-ary method, arity 4)
+    @test pauli"X" + pauli"Y" + pauli"Z" + pauli"X" == 
+          PauliSum([pauli"X", pauli"Y", pauli"Z"], [2, 1, 1])
+
+    #>> Sum ↔ Str and Sum ↔ Pair in both orders; Sum + Sum routes through `add`
+    h = PauliSum([pauli"Z"], [1.0])
+    @test pauli"X" + h == PauliSum([pauli"X", pauli"Z"], [1.0, 1.0])
+    @test h + pauli"X" == pauli"X" + h
+    @test h + (pauli"X"=>2.0im) == (pauli"X"=>2.0im) + h
+    @test h1 + h2 == add(h1, h2)
+
+    #>> Mixed chain falls back to Base's pairwise fold with correct promotion
+    @test (PauliSum(Float64) + pauli"X" + pauli"Y") isa PauliSum{Float64}
+
+    #>> Intentionally unsupported combinations stay unsupported
+    @test_throws MethodError +(pauli"X")            #>> No unary `+`
+    @test_throws MethodError pauli"X" + (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+end
+
 @testset "mul" begin
     rng = Xoshiro(20260720)
 
@@ -128,7 +207,7 @@ end
         s = PauliStr([symX, symI, symY], p)
         r = mul(s, q)
         bl5 &= (r == PauliStr(s, s.n, mul(p, q)))
-        bl5 &= (mul(q, s) == r) && (s * q == r) && (q * s == r)
+        bl5 &= (mul(s, q) == r) && (s * q == r) && (q * s == r)
         bl5 &= (r.x !== s.x) && (r.z !== s.z) #> Result owns its buffers
         bl5 &= (s.phase === p)                #> Input is not mutated
     end
@@ -140,7 +219,6 @@ end
     h = mul(s, 2.0)
     @test h isa PauliSum{Float64}
     @test h == PauliSum([PauliStr([symX, symZ])], -2.0) #> Phase absorbed into coefficient
-    @test mul(2.0, s) == h
     @test (s * 2.0 == h) && (2.0 * s == h) #> `Base.:*` overloads route to `mul`
     @test mul(s, 1 + 2im) == PauliSum([PauliStr([symX, symZ])], -1 - 2im)
     @test mul(s, 0.0) == PauliSum(Float64)           #> Zero coefficient dropped when merged
@@ -201,34 +279,32 @@ end
         bl7 &= (countSites(mul(hA, hB)) == n)
     end
     @test bl7
-    
+
     #> mul(::PauliSum, ::Union{Real, Complex}) and the reversed order
     hScl = PauliSum([pauli"X"], 2)
     @test mul(hScl, 2.0) == PauliSum([pauli"X"], 4.0)
-    @test mul(2.0, hScl) == mul(hScl, 2.0)
     @test (hScl * 2.0 == mul(hScl, 2.0)) && (2.0 * hScl == mul(hScl, 2.0)) #> `Base.:*`
-    
+
     #> Coefficient-type promotion (inexpressible via the type-preserving `scale!`)
     @test mul(hScl, 0.5) == PauliSum([pauli"X"], 1.0)
     @test mul(hScl, 0.5)      isa PauliSum{Float64}
     @test mul(hScl, 1 + 2im)  isa PauliSum{Int}     #> Complex{Int} does not widen T
     @test mul(hScl, 0.5im)    isa PauliSum{Float64}
     @test mul(hScl, 1 + 2im) == PauliSum([pauli"X"], 2 + 4im)
-    
+
     #> Consistency with `scale!` where the latter is applicable (exactly convertible scalar)
     @test mul(hScl, 3) == scale!(PauliSum(hScl, true), 3)
-    
+
     #> Scaling by an exact zero: terms dropped when simplified, kept when not
     @test mul(hScl, 0) == PauliSum(Int)
     @test length(mul(hScl, 0, false).coeff) == 1
     @test PauliSum(mul(hScl, 0, false), true) == PauliSum(Int)
-    
+
     #> mul(::PauliSum, ::PhaseFactor) and the reversed order
     bl8 = true
     for p in phases
         r = mul(hScl, p)
         bl8 &= (r == mul(hScl, evalPhase(p)))     #> Definition via `evalPhase`
-        bl8 &= (r == mul(p, hScl))
         bl8 &= (hScl * p == r) && (p * hScl == r) #> `Base.:*` overloads route to `mul`
         bl8 &= (r isa PauliSum{Int})              #> No spurious type widening
         bl8 &= (r !== hScl)                       #> New object even for the trivial phase
@@ -238,7 +314,7 @@ end
     @test mul(hScl, posImg) == PauliSum([pauli"X"], 2im)
     @test mul(hScl, negImg) == PauliSum([pauli"X"], -2im)
     @test mul(hScl, negRea) == PauliSum([pauli"X"], -2)
-    
+
     #> Non-mutation and deep buffer ownership: the input sum is untouched, and the result
     #> shares neither its coefficient storage nor any string buffer with the input
     hMul = PauliSum([PauliStr(rand(rng, syms, 5), rand(rng, phases)) for _ in 1:3],
@@ -249,7 +325,7 @@ end
     @test (rMul.coeff !== hMul.coeff) && (rMul.str !== hMul.str)
     @test (rMul.str[begin].x !== hMul.str[begin].x) &&
         (rMul.str[begin].z !== hMul.str[begin].z)
-    
+
     #> Random multi-term sums against the matrix reference
     bl9 = true
     for _ in 1:50
@@ -262,13 +338,13 @@ end
         bl9 &= (sumToMat(mul(hR, p), n) ≈ evalPhase(p) .* sumToMat(hR, n))
     end
     @test bl9
-    
+
     #> Family consistency: string-scalar and sum-scalar products agree
     @test mul(pauli"X", 2.0) == mul(PauliSum([pauli"X"], 1), 2.0)
 end
 
 #> `checkCommute` and `checkAntiCom`
-@test checkCommute(pauli"Y", pauli"Y") 
+@test checkCommute(pauli"Y", pauli"Y")
 @test checkCommute(pauli"IY", pauli"IY")
 bl1 = true
 for P in (pauli"X", pauli"Y", pauli"Z", pauli"XY", pauli"YZ", pauli"XYZ")
@@ -318,7 +394,7 @@ end
     @test evalCommute(hX, hZZ) == PauliSum([pauli"YZ"], Complex{Int}(0, -2))
 
     #> Multi-term exact values (matrix-validated): 
-    #>> h1 = XI + 2 ZZ, h2 = YI - XZ 
+    #>> h1 = XI + 2 ZZ, h2 = YI - XZ
     #>> {h1, h2} == -2 IZ,    [h1, h2] == 2im ZI - 4im YI - 4im XZ
     h1 = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[1, 2])
     h2 = PauliSum([pauli"YI", pauli"XZ"], Complex{Int}[1, -1])

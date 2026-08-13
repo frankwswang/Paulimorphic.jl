@@ -1,21 +1,106 @@
-export mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+export add, mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+
+const PauliStrOrSum = Union{PauliStr, PauliSum}
+
+const PauliStrToVal{T<:Real} = Pair{PauliStr, <:RealOrComplex{T}}
+
+"""
+    add(::Type{T}, str1::PauliStr, str2::PauliStr, 
+        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+
+    add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) -> PauliSum{Int}
+
+    str1 + str2 -> PauliSum{Int}
+
+Add two `PauliStr`, returning their sum in which each string initially carries the nominal 
+coefficient `one(Complex{T})` before its phase is absorbed (see the [`PauliSum`](@ref) 
+constructors). When `T` is unspecified (in the case of the second signature), it defaults 
+to `Int`; `T=Bool` is disallowed for the same reason as in the `PauliSum` constructor. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. Neither input is 
+mutated, and the result does not reference any data in either input. Using the binary 
+operator `+` is equivalent to invoking the second method signature (with the default 
+value of `simplification`).
+"""
+add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true) where {T<:Real} = 
+PauliSum(T, [str1, str2], simplification)
+
+add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) = 
+add(Int, str1, str2, simplification)
+
+"""
+    add(h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+    h1 + h2 -> PauliSum{promote_type(T1, T2)}
+
+Add two `PauliSum`, returning their sum with the coefficient type automatically promoted. 
+If `simplification=true`, the same simplification procedure used by the [`PauliSum`](@ref) 
+constructor (when the same-named argument is set to `true`) is applied to the result. The 
+result does not reference any data in either `h1` or `h2`.
+"""
+add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
+   {T1<:Real, T2<:Real} = 
+PauliSum(vcat(h1.str, h2.str), vcat(h1.coeff, h2.coeff), simplification)
+
+"""
+    add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+    h + term -> PauliSum{promote_type(T1, T2)}
+    term + h -> PauliSum{promote_type(T1, T2)}
+
+Add a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) to `h`, 
+returning the sum with the coefficient type automatically promoted. The added string is 
+`term.first`, whose phase is absorbed into its associated coefficient `term.second` by the 
+`PauliSum` constructor. If `simplification=true`, the same simplification procedure used by 
+the [`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is 
+applied to the result. The result does not reference any data in either `h` or `term`.
+"""
+add(h::PauliSum{T1}, term::PauliStrToVal{T2}, simplification::Bool=true) where 
+   {T1<:Real, T2<:Real} = 
+PauliSum(vcat(h.str, term.first), vcat(h.coeff, term.second), simplification)
+
+"""
+    add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} -> 
+    PauliSum{T}
+
+    h + s -> PauliSum{T}
+    s + h -> PauliSum{T}
+
+Add a single `PauliStr` to `h`, i.e., shorthand for `add(h, s=>one(T), simplification)`: 
+`s` is appended as a new term with its phase folded into the associated coefficient. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` 
+constructor (when the same-named argument is set to `true`) is applied to the result. The 
+result does not reference any data in either `h` or `s`.
+"""
+add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} = 
+add(h, s=>one(T), simplification)
+
+Base.:+(h::PauliSum, obj::Union{PauliStrToVal, PauliStrOrSum}) = add(h, obj)
+Base.:+(obj::Union{PauliStrToVal, PauliStr}, h::PauliSum) = add(h, obj)
+Base.:+(s1::PauliStr, s2::PauliStr, s3::PauliStr...) = PauliSum(Int, [s1, s2, s3...])
+
 
 """
     mul(str::PauliStr, phase::PhaseFactor) -> PauliStr
-    mul(phase::PhaseFactor, str::PauliStr) -> PauliStr
 
-Multiply a `PauliStr` by a `PhaseFactor`, returning a new `PauliStr` equal to `phase * str` 
-and `str * phase`. The value of `phase` is folded into the result's field `.phase`. The 
-result does not reference any data in `str`.
+    str * phase -> PauliStr
+    phase * str -> PauliStr
+
+Multiply a `PauliStr` by a `PhaseFactor`, returning a new `PauliStr`. The value of `phase` 
+is folded into the result's field `.phase`. The result does not reference any data in `str`.
 """
 mul(str::PauliStr, phase::PhaseFactor) = PauliStr(str, str.n, mul(str.phase, phase))
-
-mul(phase::PhaseFactor, str::PauliStr) = mul(str, phase)
 
 """
     mul(str1::PauliStr, str2::PauliStr) -> PauliStr
 
-Multiply two `PauliStr`, returning their product `s3 = str1 * str2` with its associated 
+    str1 * str2 -> PauliStr
+
+Multiply two `PauliStr`, returning their product `s3 == str1 * str2` with its associated 
 phase folded into `s3.phase`. When `str1` and `str2` explicitly act on different numbers 
 of sites (i.e., `str1.n != str2.n`), the string with the smaller site count is temporarily 
 promoted per the implicit identity-padding convention (see [`PauliStr`](@ref)), and `s3` 
@@ -68,7 +153,9 @@ end
 
 """
     mul(str::PauliStr, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
-    mul(coeff::Union{Real, Complex}, str::PauliStr, simplification::Bool=true) -> PauliSum
+
+    str * coeff -> PauliSum
+    coeff * str -> PauliSum
 
 Multiply a `PauliStr` by a real or complex scalar `coeff`, returning the product 
 `str * coeff` (equal to `coeff * str`). Unlike multiplication by a [`PhaseFactor`](@ref), a 
@@ -80,16 +167,15 @@ the result. The result does not reference any data in `str`.
 mul(str::PauliStr, coeff::RealOrComplex, simplification::Bool=true) = 
 PauliSum([str], coeff, simplification)
 
-mul(coeff::RealOrComplex, str::PauliStr, simplification::Bool=true) = 
-mul(str, coeff, simplification)
-
 """
     mul(s::PauliStr, h::PauliSum, simplification::Bool=true) -> PauliSum
     mul(h::PauliSum, s::PauliStr, simplification::Bool=true) -> PauliSum
 
-Multiply a `PauliStr` with a `PauliSum` and return their product (`s * h` or `h * s`) 
-respectively based on the order of these two operators. Each stored string of `h` is 
-multiplied by `s` on the matching side while the coefficients are carried over. If 
+    s * h -> PauliSum
+    h * s -> PauliSum
+
+Multiply a `PauliStr` with a `PauliSum`, returning their product. Each stored string of `h` 
+is multiplied by `s` on the matching side while the coefficients are carried over. If 
 `simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
 (when the same-named argument is set to `true`) is applied to the result. The result does 
 not reference any data in either `s` or `h`.
@@ -109,10 +195,12 @@ end
         simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Multiply `h1` by `h2`, returning the product equal to `h1 * h2`. If `simplification=true`, 
-the same simplification procedure used by the `PauliSum` constructor (when the same-named 
-argument is set to `true`) is applied to the result. The result does not reference any data 
-in either `h1` or `h2`.
+    h1 * h2 -> PauliSum{promote_type(T1, T2)}
+
+Multiply `h1` by `h2`, returning their product. If `simplification=true`, the same 
+simplification procedure used by the `PauliSum` constructor (when the same-named argument 
+is set to `true`) is applied to the result. The result does not reference any data in 
+either `h1` or `h2`.
 """
 function mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
              ) where {T1<:Real, T2<:Real}
@@ -137,7 +225,8 @@ end
 """
     mul(h::PauliSum, coeff::Union{Real, Complex}, simplification::Bool=true) -> PauliSum
 
-    mul(coeff::Union{Real, Complex}, h::PauliSum, simplification::Bool=true) -> PauliSum
+    h * coeff -> PauliSum
+    coeff * h -> PauliSum
 
 Multiply `h` by a coefficient `coeff`, returning a new `PauliSum` whose coefficient type 
 is automatically promoted. When `simplification=true`, the result is fully canonicalized; 
@@ -147,27 +236,22 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 mul(h::PauliSum, coeff::RealOrComplex, simplification::Bool=true) = 
 PauliSum(h.str, h.coeff .* coeff, simplification)
 
-mul(coeff::RealOrComplex, h::PauliSum, simplification::Bool=true) = 
-mul(h, coeff, simplification)
-
 
 """
     mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) -> PauliSum
 
-    mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) -> PauliSum
+    h * phase -> PauliSum
+    phase * h -> PauliSum
 
 Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form.
 """
 mul(h::PauliSum, phase::PhaseFactor, simplification::Bool=true) = 
 mul(h, evalPhase(phase), simplification)
 
-mul(phase::PhaseFactor, h::PauliSum, simplification::Bool=true) = 
-mul(h, evalPhase(phase), simplification)
 
-
-Base.:*(op::DiscreteOperator, num::PhaseOrCoeff) = mul(op, num)
-Base.:*(num::PhaseOrCoeff, op::DiscreteOperator) = mul(op, num)
-Base.:*(op1::DiscreteOperator, op2::DiscreteOperator) = mul(op1, op2)
+Base.:*(op::PauliStrOrSum, num::PhaseOrCoeff) = mul(op, num)
+Base.:*(num::PhaseOrCoeff, op::PauliStrOrSum) = mul(op, num)
+Base.:*(op1::PauliStrOrSum, op2::PauliStrOrSum) = mul(op1, op2)
 
 
 """
@@ -301,9 +385,11 @@ end
 """
     toAdjoint(str::PauliStr) -> PauliStr
 
-Return the Hermitian adjoint (namely the Hermitian conjugate) of `str`, accessible as 
-`str'`. The returned string carries the same single-site Pauli operators as `str` with the 
-phase conjugated and does not reference any data in `str`.
+    str' -> PauliStr
+
+Return the Hermitian adjoint (namely the Hermitian conjugate) of `str`. The returned string 
+carries the same single-site Pauli operators as `str` with the phase conjugated and does 
+not reference any data in `str`.
 """
 function toAdjoint(str::PauliStr)
     phaseConj = PhaseFactor((0x4 - UInt8(str.phase)) & 0x3) #> conj(im^k) == im^(4-k mod 4)
@@ -313,10 +399,12 @@ end
 """
     toAdjoint(h::PauliSum{T}) where {T<:Real} -> PauliSum{T}
 
-Return the Hermitian adjoint (namely the Hermitian conjugate) of `h`, accessible as `h'`. 
-The result is in the canonical form and does not reference any data in `h`. for an input 
-`h` already in its canonical form (e.g., as produced by the constructor of 
-[`PauliSum`](@ref)), the adjoint is an involution: 
+    h' -> PauliSum
+
+Return the Hermitian adjoint (namely the Hermitian conjugate) of `h`. The result is in the 
+canonical form and does not reference any data in `h`. for an input `h` already in its 
+canonical form (e.g., as produced by the constructor of [`PauliSum`](@ref)), the adjoint is 
+an involution: 
 
 ```jldoctest
 julia> h = PauliSum([pauli"XXIXX", pauli"XXIYX"], [1, im]);
@@ -327,4 +415,4 @@ true
 """
 toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(conj, h.coeff))
 
-Base.adjoint(op::DiscreteOperator) = toAdjoint(op)
+Base.adjoint(op::PauliStrOrSum) = toAdjoint(op)

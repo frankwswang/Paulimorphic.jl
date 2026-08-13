@@ -1,4 +1,4 @@
-export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc
+export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, toDiracEnc
 
 const PairwiseEncoding{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
       Pair{T1, T2}
@@ -286,3 +286,59 @@ function genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode)
 
     oddMajs => evnMajs
 end
+
+
+"""
+    toDiracEnc(::Type{T}, enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}} 
+               ) where {T<:Real} -> 
+    Pair{Vector{ PauliSum{T} }, Vector{ PauliSum{T} }}
+
+    toDiracEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}) -> 
+    Pair{Vector{ PauliSum{Rational{Int}} }, Vector{ PauliSum{Rational{Int}} }}
+
+Convert a valid Majorana encoding `enc` (verified via [`checkMajoranaEnc`](@ref) with 
+argument `explicitError=true`) of `length(enc.first)` fermionic modes to a Dirac-operator 
+encoding returned as `res`, whose stored operators obey the following anticommutation 
+relations: 
+
+    a_p (a_q)' + (a_q)' a_p == δ_{pq} I,    a_p a_q + a_q a_p == 0, 
+
+where `a_p` is the annihilation operator stored at `res.first[p]` and `(a_p)'` is the 
+creation operator stored at `res.second[p]`. Furthermore, the relations between the Dirac 
+operators and the Majorana operators are as follows: 
+
+    a_p = (γ_{2p-1} + im * γ_{2p}) / 2,    (a_p)' = (γ_{2p-1} - im * γ_{2p}) / 2, 
+
+where `γ_{2p-1} = enc.first[begin+p-1]` and `γ_{2p} = enc.second[begin+p-1]`. Each Dirac 
+operator is a two-term canonical-form [`PauliSum`](@ref). In the first method, `T` must be 
+able to exactly represent `1//2` (e.g., a concrete `AbstractFloat` or `Rational` subtype); 
+the second method falls back to the first method with `T=Rational{Int}`. The result in both 
+methods does not reference any data in `enc`.
+"""
+function toDiracEnc(::Type{T}, enc::PairwiseEncoding) where {T<:Real}
+    oneHalf = one(T) / 2
+    if !(oneHalf isa T) || oneHalf + oneHalf != one(T)
+        throw(ArgumentError("`T` must be able to exactly represent one half (`1//2`)."))
+    end
+    halfRe = Complex{T}(oneHalf, 0)
+    halfIm = Complex{T}(0, oneHalf)
+    checkMajoranaEnc(enc, true)
+    nMode = length(enc.first)
+
+    annOps = Vector{PauliSum{T}}(undef, nMode)
+    creOps = Vector{PauliSum{T}}(undef, nMode)
+    aCoeff = [halfRe,  halfIm]
+    cCoeff = [halfRe, -halfIm]
+
+    for p in 1:nMode
+        majOdd  = enc.first[ begin+p-1]
+        majEven = enc.second[begin+p-1]
+        opPair  = [majOdd, majEven]
+        annOps[p] = PauliSum(opPair, aCoeff)
+        creOps[p] = PauliSum(opPair, cCoeff)
+    end
+
+    annOps => creOps
+end
+
+toDiracEnc(enc::PairwiseEncoding) = toDiracEnc(Rational{Int}, enc)

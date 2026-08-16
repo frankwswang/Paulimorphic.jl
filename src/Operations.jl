@@ -402,7 +402,7 @@ end
     h' -> PauliSum
 
 Return the Hermitian adjoint (namely the Hermitian conjugate) of `h`. The result is in the 
-canonical form and does not reference any data in `h`. for an input `h` already in its 
+canonical form and does not reference any data in `h`. For an input `h` already in its 
 canonical form (e.g., as produced by the constructor of [`PauliSum`](@ref)), the adjoint is 
 an involution: 
 

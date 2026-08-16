@@ -71,7 +71,7 @@ function checkMajoranaEnc(enc::PairwiseStrEnc, explicitError::Bool=false)::Bool
             if explicitError
                 throw(ArgumentError("Every operator held by `enc` should be Hermitian ("*
                                     "and an involution, i.e., squared to the identity). "*
-                                    "operator $i in `enc[$sec]` violates this condition "*
+                                    "Operator $i in `enc[$sec]` violates this condition "*
                                     "due to having an imaginary phase."))
             else
                 return false
@@ -358,7 +358,7 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
 Return `true` if `enc` forms a valid Dirac-operator encoding. It must contain a `Pair` of 
 `AbstractVector`, holding in total (positive) `2p` operators represented by `PauliSum`. 
 Specifically, `enc.first` and `enc.second` must respectively store `p` annihilation 
-operators (`a_i = enc.first[i]`) and creation operators (`c_j = enc.second[i]`), which 
+operators (`a_i = enc.first[i]`) and creation operators (`c_j = enc.second[j]`), which 
 satisfy the following adjoint condition and anticommutation relations: 
 
     c_i == (a_i)',    a_i c_j + c_j a_i == δ_{ij} I,    a_i a_j + a_j a_i == 0
@@ -369,7 +369,7 @@ for every mode pair `(i, j)`. The adjoint condition is checked structurally (via
 positional convention carried by the `Pair` structure rather than a checkable property.
 
 Additionally, `enc` must be formatted such that
-- All contained `PauliSum` are in the canonical form (see [`PauliSum!`](@ref) and 
+- All contained `PauliSum` are in the canonical form (see [`PauliSum`](@ref) and 
   [`canonicalize!`](@ref) for more details)
 - All contained `PauliSum` explicitly act on the same number of sites (i.e., 
   [`countSites`](@ref) returns the same value)

@@ -433,8 +433,8 @@ end
         bl &= (cmAB == mul(evalCommute(hB, hA), -1))
         bl &= (isempty(evalCommute(hA, hA).str))
         bl &= (evalAntiCom(hA, hA) == mul(mul(hA, hA), 2))
-        bl &= (adjoint(acAB) == evalAntiCom(hA', hB'))
-        bl &= (adjoint(cmAB) == mul(evalCommute(hA', hB'), -1))
+        bl &= (toAdjoint(acAB) == evalAntiCom(hA', hB'))
+        bl &= (toAdjoint(cmAB) == mul(evalCommute(hA', hB'), -1))
         bl &= (PauliSum(vcat(acAB.str, cmAB.str), vcat(acAB.coeff, cmAB.coeff)) == 
                mul(mul(hA, hB), 2))
         bl &= (sumToMat(cmAB, n) ≈ 
@@ -453,7 +453,7 @@ end
 end
 
 
-@testset "Base.adjoint(::PauliStr)" begin
+@testset "toAdjoint(::PauliStr)" begin
     #> Phase conjugation table: conj(im^k) == im^((4-k) mod 4)
     for (phase, phaseConj) in ((posRea, posRea), (posImg, negImg), 
                                (negRea, negRea), (negImg, posImg))
@@ -484,9 +484,7 @@ end
         bl &= (countSites(s1') == countSites(s1))
         bl &= (countWeight(s1') == countWeight(s1))
         bl &= (s1'.x == s1.x && s1'.z == s1.z)
-        #> Fresh buffers, no aliasing — except zero-length buffers, which are exempt: 
-        #>> Julia's runtime interns a per-type empty `Memory` singleton (the zero-sized 
-        #>> allocation optimization in `src/genericmemory.c`), so `===` is forced there
+        #> Fresh buffers, no aliasing — except zero-length buffers, which are exempt
         bl &= (isempty(s1.x) || (s1'.x !== s1.x && s1'.z !== s1.z))
         bl &= ((s1')' == s1)
         bl &= (mul(s1, s2)' == mul(s2', s1'))
@@ -495,11 +493,11 @@ end
     @test bl
 end
 
-@testset "Base.adjoint(::PauliSum)" begin
+@testset "toAdjoint(::PauliSum)" begin
     #> Empty (zero-operator) sums and coefficient-type preservation
-    @test adjoint(PauliSum(Int)) == PauliSum(Int)
-    @test adjoint(PauliSum(Float64)) isa PauliSum{Float64}
-    @test adjoint(PauliSum([pauli"X"], Complex{Rational{Int}}(1//2, 1//3))) isa 
+    @test toAdjoint(PauliSum(Int)) == PauliSum(Int)
+    @test toAdjoint(PauliSum(Float64)) isa PauliSum{Float64}
+    @test toAdjoint(PauliSum([pauli"X"], Complex{Rational{Int}}(1//2, 1//3))) isa 
           PauliSum{Rational{Int}}
 
     #> Exact coefficient conjugation with unchanged (canonical, phase-free) strings
@@ -511,7 +509,7 @@ end
     @test (h').str[begin] !== h.str[begin]             #> Strings rebuilt, not shared
 
     #> Nontrivial input phases: absorption and conjugation must compose consistently
-    @test adjoint(PauliSum([PauliStr(1, symY, posImg)], 1)) == 
+    @test toAdjoint(PauliSum([PauliStr(1, symY, posImg)], 1)) == 
           PauliSum([PauliStr(1, symY, negImg)], 1)
 
     #> Hermitian (real-coefficient) and anti-Hermitian (imaginary-coefficient) sums
@@ -527,8 +525,8 @@ end
         n = rand(rng, 1:3)
         hA = randSum(rng, n, rand(rng, 0:4))
         hB = randSum(rng, n, rand(rng, 0:4))
-        bl &= (adjoint(adjoint(hA)) == hA)
-        bl &= (sumToMat(adjoint(hA), n) ≈ adjoint(sumToMat(hA, n)))
+        bl &= (toAdjoint(toAdjoint(hA)) == hA)
+        bl &= (sumToMat(toAdjoint(hA), n) ≈ adjoint(sumToMat(hA, n)))
         bl &= (mul(hA, hB)' == mul(hB', hA'))
     end
     @test bl

@@ -1,7 +1,12 @@
-export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, toDiracEnc
+export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, toDiracEnc, 
+       checkDiracEnc
 
-const PairwiseEncoding{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
+const PairwiseStrEnc{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
       Pair{T1, T2}
+
+const PairwiseSumEnc{T1<:AbstractVector{<:PauliSum}, T2<:AbstractVector{<:PauliSum}} = 
+      Pair{T1, T2}
+
 
 """
     checkMajoranaEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}, 
@@ -25,9 +30,10 @@ Additionally, `enc` must be formatted such that
 
 When `enc` fails to meet any necessary condition to form such an encoding, the failure is 
 reported by returning `false` unless `explicitError=true`, in which case an `ArgumentError` 
-identifying the violated condition (and the immediate offending terms) is thrown instead.
+identifying the violated condition (and the immediate offending operators) is thrown 
+instead.
 """
-function checkMajoranaEnc(enc::PairwiseEncoding, explicitError::Bool=false)::Bool
+function checkMajoranaEnc(enc::PairwiseStrEnc, explicitError::Bool=false)::Bool
     nMode = length(enc.first)
 
     if iszero(nMode)
@@ -48,25 +54,25 @@ function checkMajoranaEnc(enc::PairwiseEncoding, explicitError::Bool=false)::Boo
 
     nSite = (countSites∘first∘first)(enc)
 
-    for (sec, strs) in enumerate(enc), (i, str) in enumerate(strs)
+    for (sec, ops) in enumerate(enc), (i, op) in enumerate(ops)
 
-        if str.n != nSite
+        if op.n != nSite
             if explicitError
-                throw(ArgumentError("All terms held by `enc` should explicitly act on the "*
-                                    "same number of sites. Compared to the site count of "*
-                                    "the first term (`first(enc)[begin]`), term $i in "*
-                                    "`enc[$sec]` disagrees."))
+                throw(ArgumentError("All operators held by `enc` should explicitly act on "*
+                                    "the same number of sites. Compared to the site count "*
+                                    "of the first operator (`first(enc)[begin]`), "*
+                                    "operator $i in `enc[$sec]` disagrees."))
             else
                 return false
             end
         end
 
-        if str.phase == posImg || str.phase == negImg
+        if op.phase == posImg || op.phase == negImg
             if explicitError
-                throw(ArgumentError("Every term held by `enc` should be Hermitian (and an "*
-                                    "involution, i.e., squared to the identity). Term $i "*
-                                    "in `enc[$sec]` violates this condition due to having "*
-                                    "an imaginary phase."))
+                throw(ArgumentError("Every operator held by `enc` should be Hermitian ("*
+                                    "and an involution, i.e., squared to the identity). "*
+                                    "operator $i in `enc[$sec]` violates this condition "*
+                                    "due to having an imaginary phase."))
             else
                 return false
             end
@@ -76,15 +82,15 @@ function checkMajoranaEnc(enc::PairwiseEncoding, explicitError::Bool=false)::Boo
     @inbounds for secPair in ((1, 1), (2, 2), (1, 2))
         sec1, sec2 = secPair
         sameSec = (sec1 == sec2)
-        strs1 = enc[begin+sec1-1]
-        strs2 = enc[begin+sec2-1]
+        ops1 = enc[begin+sec1-1]
+        ops2 = enc[begin+sec2-1]
 
         for i in 1:(nMode - sameSec), j in (sameSec ? i + 1 : 1):nMode
-            if !checkAntiCom(strs1[begin+i-1], strs2[begin+j-1])
+            if !checkAntiCom(ops1[begin+i-1], ops2[begin+j-1])
                 if explicitError
-                    throw(ArgumentError("Every pair of distinct terms in `enc` should "*
-                                        "anticommute. Term $i in `enc[$sec1]` and "*
-                                        "term $j in `enc[$sec2]` do not."))
+                    throw(ArgumentError("Every pair of distinct operators in `enc` should "*
+                                        "anticommute. Operator $i in `enc[$sec1]` and "*
+                                        "operator $j in `enc[$sec2]` do not."))
                 else
                     return false
                 end
@@ -140,7 +146,7 @@ The encoding is returned as a `res::Pair` such that the Majorana operators with 
 (`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
 are stored in `res.second`.
 """
-function genJordanWignerEnc(nMode::Integer, nSite::Integer=nMode)
+function genJordanWignerEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
     oddMajs = Vector{PauliStr}(undef, nModeInt)
     evnMajs = Vector{PauliStr}(undef, nModeInt)
@@ -190,7 +196,7 @@ The encoding is returned as a `res::Pair` such that the Majorana operators with 
 (`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
 are stored in `res.second`.
 """
-function genParityEnc(nMode::Integer, nSite::Integer=nMode)
+function genParityEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
     oddMajs = Vector{PauliStr}(undef, nModeInt)
     evnMajs = Vector{PauliStr}(undef, nModeInt)
@@ -239,7 +245,7 @@ The encoding is returned as a `res::Pair` such that the Majorana operators with 
 (`γ_{2p-1}`) are stored in `res.first` and Majorana operators with even indices (`γ_{2p}`) 
 are stored in `res.second`.
 """
-function genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode)
+function genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
     oddMajs = Vector{PauliStr}(undef, nModeInt)
     evnMajs = Vector{PauliStr}(undef, nModeInt)
@@ -315,7 +321,7 @@ able to exactly represent `1//2` (e.g., a concrete `AbstractFloat` or `Rational`
 the second method falls back to the first method with `T=Rational{Int}`. The result in both 
 methods does not reference any data in `enc`.
 """
-function toDiracEnc(::Type{T}, enc::PairwiseEncoding) where {T<:Real}
+function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:Real}
     oneHalf = one(T) / 2
     if !(oneHalf isa T) || oneHalf + oneHalf != one(T)
         throw(ArgumentError("`T` must be able to exactly represent one half (`1//2`)."))
@@ -341,4 +347,120 @@ function toDiracEnc(::Type{T}, enc::PairwiseEncoding) where {T<:Real}
     annOps => creOps
 end
 
-toDiracEnc(enc::PairwiseEncoding) = toDiracEnc(Rational{Int}, enc)
+toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
+
+
+"""
+    checkDiracEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}, 
+                  explicitError::Bool=false) -> 
+    Bool
+
+Return `true` if `enc` forms a valid Dirac-operator encoding. It must contain a `Pair` of 
+`AbstractVector`, holding in total (positive) `2p` operators represented by `PauliSum`. 
+Specifically, `enc.first` and `enc.second` must respectively store `p` annihilation 
+operators (`a_i = enc.first[i]`) and creation operators (`c_j = enc.second[i]`), which 
+satisfy the following adjoint condition and anticommutation relations: 
+
+    c_i == (a_i)',    a_i c_j + c_j a_i == δ_{ij} I,    a_i a_j + a_j a_i == 0
+
+for every mode pair `(i, j)`. The adjoint condition is checked structurally (via 
+[`toAdjoint`](@ref)). The verified anticommutation relations are invariant under swapping 
+`enc.first` and `enc.second`, so the annihilation-versus-creation role assignment is a 
+positional convention carried by the `Pair` structure rather than a checkable property.
+
+Additionally, `enc` must be formatted such that
+- All contained `PauliSum` are in the canonical form (see [`PauliSum!`](@ref) and 
+  [`canonicalize!`](@ref) for more details)
+- All contained `PauliSum` explicitly act on the same number of sites (i.e., 
+  [`countSites`](@ref) returns the same value)
+
+All operator comparisons are exact, so an encoding whose coefficients are subject to 
+floating-point errors (e.g., mode-mixing amplitudes that are not exactly representable) 
+can fail the verification despite being valid in exact arithmetic; exact coefficient types 
+(e.g., `Rational` subtypes) do not have this limitation.
+
+When `enc` fails to meet any necessary condition to form such an encoding, the failure is 
+reported by returning `false` unless `explicitError=true`, in which case an `ArgumentError` 
+identifying the violated condition (and the immediate offending operators) is thrown 
+instead.
+"""
+function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false)::Bool
+    nMode = length(enc.first)
+
+    if iszero(nMode)
+        if explicitError
+            throw(ArgumentError("`length(enc.first)` must be a positive integer."))
+        else
+            return false
+        end
+    end
+
+    if nMode != length(enc.second)
+        if explicitError
+            throw(ArgumentError("`length(enc.first)` must equal length(enc.second)."))
+        else
+            return false
+        end
+    end
+
+    annOps = enc.first
+    creOps = enc.second
+    nSite = (countSites∘first)(annOps)
+
+    for (sec, ops) in enumerate(enc), (i, op) in enumerate(ops)
+        if countSites(op) != nSite
+            if explicitError
+                throw(ArgumentError("All operators held by `enc` should explicitly act on "*
+                                    "the same number of sites. Compared to the site count "*
+                                    "of the first operator (`first(enc)[begin]`), "*
+                                    "operator $i in `enc[$sec]` disagrees."))
+            else
+                return false
+            end
+        end
+    end
+
+    for p in 1:nMode
+        if creOps[begin+p-1] != adjoint(annOps[begin+p-1])
+            if explicitError
+                throw(ArgumentError("Each creation operator should be the adjoint of the "*
+                                    "annihilation operator of the same mode (i.e., "*
+                                    "located at the same index). Operator $p in "*
+                                    "`enc.second` violates this condition."))
+            else
+                return false
+            end
+        end
+    end
+
+    for p in 1:nMode, q in p:nMode
+        if !isempty(evalAntiCom(annOps[begin+p-1], annOps[begin+q-1]).str)
+            if explicitError
+                throw(ArgumentError("Every pair of annihilation operators (including an "*
+                                    "operator paired with itself) should anticommute to "*
+                                    "zero. Operators $p and $q in `enc.first` do not."))
+            else
+                return false
+            end
+        end
+    end
+
+    idSum = PauliSum(Int, [PauliStr(nSite)])
+
+    for p in 1:nMode, q in p:nMode
+        antiCom = evalAntiCom(annOps[begin+p-1], creOps[begin+q-1])
+        valid = (p == q) ? (antiCom == idSum) : isempty(antiCom.str)
+        if !valid
+            if explicitError
+                target = (p == q) ? "the identity operator" : "zero"
+                throw(ArgumentError("Operator $p in `enc.first` and operator $q in "*
+                                    "`enc.second` should anticommute to $target. They "*
+                                    "do not."))
+            else
+                return false
+            end
+        end
+    end
+
+    true
+end

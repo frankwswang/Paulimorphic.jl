@@ -152,95 +152,89 @@ end
     @test resAbs.first isa Vector{PauliSum{Rational}}
 end
 
+@testset "checkDiracEnc" begin
+    #> Check (Majorana) fermionic-encoding generators
+    for gen in (genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc), n in 1:3
+        mEnc = gen(n)
+        @test checkDiracEnc(toDiracEnc(mEnc))
+        @test checkDiracEnc(toDiracEnc(Float64, mEnc))
+    end
+
+    ann3, cre3 = toDiracEnc(genBravyiKitaevEnc(3))
+
+    #> Role swap passes: the relations are invariant under `a <-> a'`, so the 
+    #> annihilation-versus-creation assignment is a positional convention
+    @test checkDiracEnc(cre3 => ann3)
+
+    #> View (SubArray) input; a mode subset of a valid encoding remains valid
+    @test checkDiracEnc(view(ann3, 1:2) => view(cre3, 1:2))
+
+    #> Sector-count violations
+    enc11 = PauliSum{Rational{Int}}[] => PauliSum{Rational{Int}}[]
+    enc12 = ann3 => cre3[1:2]
+    @test !checkDiracEnc(enc11)
+    @test !checkDiracEnc(enc12)
+    @test_throws "positive integer" checkDiracEnc(enc11, true)
+    @test_throws "must equal" checkDiracEnc(enc12, true)
+
+    #> Site-count uniformity violation
+    ann2, cre2 = toDiracEnc(genJordanWignerEnc(2))
+    enc21 = [ann3[1], ann2[1]] => [cre3[1], cre2[1]]
+    @test !checkDiracEnc(enc21)
+    @test_throws "same number of sites" checkDiracEnc(enc21, true)
+
+    a1 = toDiracEnc(genJordanWignerEnc(1)).first[1] #> a == (X + im Y) / 2
+
+    #> Adjoint-condition violation that every anticommutator condition misses: 
+    #>> `cre` = Z - im*Y, which satisfies {a_1, cre} == I and cre^2 == 0 yet `cre != (a_1)'`
+    creFake = PauliSum([pauli"Z", pauli"Y"], 
+                       [Complex{Rational{Int}}(1, 0), Complex{Rational{Int}}(0, -1)])
+    enc31 = [a1] => [creFake]
+    @test isempty(evalAntiCom(a1, a1).str)
+    @test evalAntiCom(a1, creFake) == PauliSum(Int, [PauliStr(1)])
+    @test !checkDiracEnc(enc31)
+    @test_throws "adjoint" checkDiracEnc(enc31, true)
+
+    #> Self-anticommutation violation with the adjoint condition intact: Hermitian operator
+    hermOp = PauliSum([pauli"X"], Complex{Rational{Int}}(1//2, 0))
+    enc41 = [hermOp] => [hermOp]
+    @test hermOp' == hermOp
+    @test !checkDiracEnc(enc41)
+    @test_throws "annihilation operators" checkDiracEnc(enc41, true)
+
+    #> Cross-mode anticommutation violation: modes that are mutual adjoints
+    enc51 = [a1, adjoint(a1)] => [adjoint(a1), a1]
+    @test !checkDiracEnc(enc51)
+    @test_throws "annihilation operators" checkDiracEnc(enc51, true)
+
+    #> Mode-independence violation: a duplicated mode passes the adjoint and 
+    #> annihilation-sector conditions and is caught only by the cross-mode {a_p, (a_q)'}
+    enc61 = [a1, a1] => [adjoint(a1), adjoint(a1)]
+    @test isempty(evalAntiCom(a1, a1).str)
+    @test !checkDiracEnc(enc61)
+    @test_throws "anticommute to zero" checkDiracEnc(enc61, true)
+
+    #> Normalization violation: adjoint pairing intact, {2a, (2a)'} == 4I != I
+    badAnn = mul(a1, 2)
+    enc71 = [badAnn] => [adjoint(badAnn)]
+    @test !checkDiracEnc(enc71)
+    @test_throws "identity operator" checkDiracEnc(enc71, true)
+
+    #> Zero-operator encoding: rejected by the normalization condition, not structurally
+    enc81 = [PauliSum(Rational{Int})] => [PauliSum(Rational{Int})]
+    @test !checkDiracEnc(enc81)
+    @test_throws "identity operator" checkDiracEnc(enc81, true)
+
+    #> Mixed coefficient types across modes: comparisons and products promote exactly
+    annMix = PauliSum[ann2[1], mul(ann2[2], 1.0)]
+    creMix = PauliSum[cre2[1], adjoint(mul(ann2[2], 1.0))]
+    @test checkDiracEnc(annMix => creMix)
+
+    #> Conservative rejection of a broken canonical-form invariant: an in-place phase 
+    #> mutation (only reachable through non-exported access) must not silently validate
+    cpy = PauliSum(collect(a1.str), collect(a1.coeff))
+    cpy.str[begin].phase = Paulimorphic.negImg
+    @test !checkDiracEnc([cpy] => [adjoint(a1)])
 end
 
-
-# #> ===== Section 2: additions to test/unit-tests/Encodings/Fermionic-test.jl ===== <#
-
-# @testset "checkDiracEnc" begin
-#     #> Happy path: every fermionic-encoding generator, both default (exact `Rational`) 
-#     #> and `Float64` coefficient types (all stored amplitudes are dyadic, hence exact)
-#     for gen in (genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc), n in 1:3
-#         mEnc = gen(n)
-#         @test checkDiracEnc(toDiracEnc(mEnc))
-#         @test checkDiracEnc(toDiracEnc(Float64, mEnc))
-#     end
-
-#     ann3, cre3 = toDiracEnc(genBravyiKitaevEnc(3))
-
-#     #> `adjoint` ties the two sectors of a valid encoding together
-#     @test all(adjoint(ann3[begin+p-1]) == cre3[begin+p-1] for p in 1:3)
-
-#     #> Role swap passes: the relations are invariant under `a <-> a'`, so the 
-#     #> annihilation-versus-creation assignment is a positional convention
-#     @test checkDiracEnc(cre3 => ann3)
-
-#     #> View (SubArray) input; a mode subset of a valid encoding remains valid
-#     @test checkDiracEnc(view(ann3, 1:2) => view(cre3, 1:2))
-
-#     #> Sector-count violations
-#     @test !checkDiracEnc(PauliSum{Rational{Int}}[] => PauliSum{Rational{Int}}[])
-#     @test !checkDiracEnc(ann3 => cre3[1:2])
-#     @test_throws "positive integer" checkDiracEnc(
-#         PauliSum{Rational{Int}}[] => PauliSum{Rational{Int}}[], true)
-#     @test_throws "must equal" checkDiracEnc(ann3 => cre3[1:2], true)
-
-#     #> Site-count uniformity violation
-#     ann2, cre2 = toDiracEnc(genJordanWignerEnc(2))
-#     @test !checkDiracEnc([ann3[1], ann2[1]] => [cre3[1], cre2[1]])
-#     @test_throws "same number of sites" checkDiracEnc(
-#         [ann3[1], ann2[1]] => [cre3[1], cre2[1]], true)
-
-#     a1 = toDiracEnc(genJordanWignerEnc(1)).first[1] #> a == (X + im Y) / 2
-
-#     #> Adjoint-condition violation that every anticommutator condition misses: 
-#     #>> `a == 1` member of the family cre == [[a, -a^2], [1, -a]] == Z - im Y, which 
-#     #>> satisfies {a_1, cre} == I and cre^2 == 0 yet is not the adjoint of `a_1`
-#     creFake = PauliSum([pauli"Z", pauli"Y"], 
-#                        [Complex{Rational{Int}}(1, 0), Complex{Rational{Int}}(0, -1)])
-#     @test isempty(evalAntiCom(a1, a1).str)                        #> C4 holds
-#     @test evalAntiCom(a1, creFake) == PauliSum(Int, [PauliStr(1)]) #> C5 holds
-#     @test !checkDiracEnc([a1] => [creFake])                       #> Only C3 catches it
-#     @test_throws "adjoint" checkDiracEnc([a1] => [creFake], true)
-
-#     #> Nilpotency (self-anticommutation) violation with the adjoint condition intact: 
-#     #> a Hermitian operator as `ann`
-#     hermOp = PauliSum([pauli"X"], Complex{Rational{Int}}(1//2, 0))
-#     @test hermOp' == hermOp
-#     @test !checkDiracEnc([hermOp] => [hermOp])
-#     @test_throws "annihilation operators" checkDiracEnc([hermOp] => [hermOp], true)
-
-#     #> Cross-mode anticommutation violation: modes that are mutual adjoints
-#     @test !checkDiracEnc([a1, adjoint(a1)] => [adjoint(a1), a1])
-#     @test_throws "annihilation operators" checkDiracEnc(
-#         [a1, adjoint(a1)] => [adjoint(a1), a1], true)
-
-#     #> Mode-independence violation: a duplicated mode passes the adjoint and 
-#     #> annihilation-sector conditions and is caught only by the cross-mode {a_p, (a_q)'}
-#     dupAnn = [a1, a1]
-#     dupCre = [adjoint(a1), adjoint(a1)]
-#     @test isempty(evalAntiCom(a1, a1).str)
-#     @test !checkDiracEnc(dupAnn => dupCre)
-#     @test_throws "anticommute to zero" checkDiracEnc(dupAnn => dupCre, true)
-
-#     #> Normalization violation: adjoint pairing intact, {2a, (2a)'} == 4I != I
-#     badAnn = mul(a1, 2)
-#     @test !checkDiracEnc([badAnn] => [adjoint(badAnn)])
-#     @test_throws "identity operator" checkDiracEnc([badAnn] => [adjoint(badAnn)], true)
-
-#     #> Zero-operator encoding: rejected by the normalization condition, not structurally
-#     @test !checkDiracEnc([PauliSum(Rational{Int})] => [PauliSum(Rational{Int})])
-#     @test_throws "identity operator" checkDiracEnc(
-#         [PauliSum(Rational{Int})] => [PauliSum(Rational{Int})], true)
-
-#     #> Mixed coefficient types across modes: comparisons and products promote exactly
-#     annMix = PauliSum[ann2[1], mul(ann2[2], 1.0)]
-#     creMix = PauliSum[cre2[1], adjoint(mul(ann2[2], 1.0))]
-#     @test checkDiracEnc(annMix => creMix)
-
-#     #> Conservative rejection of a broken canonical-form invariant: an in-place phase 
-#     #> mutation (only reachable through non-exported access) must not silently validate
-#     cpy = PauliSum(collect(a1.str), collect(a1.coeff))
-#     cpy.str[begin].phase = Paulimorphic.negImg
-#     @test !checkDiracEnc([cpy] => [adjoint(a1)])
-# end
+end

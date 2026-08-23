@@ -13,27 +13,33 @@ const PairwiseSumEnc{T1<:AbstractVector{<:PauliSum}, T2<:AbstractVector{<:PauliS
                      explicitError::Bool=false) -> 
     Bool
 
-Return `true` if `enc` forms a valid Majorana-operator encoding. It must contain a `Pair` 
-of `AbstractVector` holding in total (positive) `2p` (Hermitian) Majorana operators 
-`γ_1, ..., γ_{2p}` that satisfy the following anticommutation relation: 
+    checkMajoranaEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}, 
+                     explicitError::Bool=false) -> 
+    Bool
 
-    γ_i γ_j + γ_j γ_i == 2δ_{ij} I
+Return `true` if `enc` forms a valid `PauliStr`-based or `PauliSum`-based Majorana encoding 
+of `length(enc.first)` fermionic modes, where `enc.first` and `enc.second` respectively 
+store the odd-indexed (`γ_{2p-1}`) and even-indexed (`γ_{2p}`) Majorana operators. Every 
+stored operator `γ_i` must be Hermitian and they must also satisfy the following 
+anticommutation relation: 
 
-In other words, they all carry real phases and mutually anticommute (verifiable by 
-[`checkAntiCom`](@ref)).
+    γ_i γ_j + γ_j γ_i == 2δ_{ij} I. 
 
-Additionally, `enc` must be formatted such that
-- All contained `PauliStr` explicitly act on the same number of sites 
-  (i.e., [`countSites`](@ref) returns the same value)
-- `enc.first`  contains `p` elements that represent ( odd-indexed) γ_1, ..., γ_{2p-1}
-- `enc.second` contains `p` elements that represent (even-indexed) γ_2, ..., γ_{2p}
+Additionally, `enc` must be formatted such that all contained Majorana operators explicitly 
+act on the same number of sites (i.e., [`countSites`](@ref) returns the same value). All 
+operator comparisons are exact, so an encoding whose coefficients are subject to 
+floating-point rounding can fail the verification despite being valid in 
+exact arithmetic; exact coefficient types (e.g., `Rational` subtypes) do not have this 
+limitation. Note that this validity class is disjoint from the one verified by 
+[`checkDiracEnc`](@ref).
 
 When `enc` fails to meet any necessary condition to form such an encoding, the failure is 
-reported by returning `false` unless `explicitError=true`, in which case an `ArgumentError` 
+reported by returning `false` unless `explicitError=true`, in which case an error 
 identifying the violated condition (and the immediate offending operators) is thrown 
 instead.
 """
-function checkMajoranaEnc(enc::PairwiseStrEnc, explicitError::Bool=false)::Bool
+function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc}, 
+                          explicitError::Bool=false)::Bool
     nMode = length(enc.first)
 
     if iszero(nMode)
@@ -52,11 +58,13 @@ function checkMajoranaEnc(enc::PairwiseStrEnc, explicitError::Bool=false)::Bool
         end
     end
 
-    nSite = (countSites∘first∘first)(enc)
+    firstOp = (first∘first)(enc)
+    nSite = countSites(firstOp)
+    checkSum = (firstOp isa PauliSum)
 
     for (sec, ops) in enumerate(enc), (i, op) in enumerate(ops)
 
-        if op.n != nSite
+        if countSites(op) != nSite
             if explicitError
                 throw(ArgumentError("All operators held by `enc` should explicitly act on "*
                                     "the same number of sites. Compared to the site count "*
@@ -67,14 +75,25 @@ function checkMajoranaEnc(enc::PairwiseStrEnc, explicitError::Bool=false)::Bool
             end
         end
 
-        if op.phase == posImg || op.phase == negImg
+        if !isHermitian(op) #> Hermitian `PauliStr` is automatically an involution
             if explicitError
-                throw(ArgumentError("Every operator held by `enc` should be Hermitian ("*
-                                    "and an involution, i.e., squared to the identity). "*
-                                    "Operator $i in `enc[$sec]` violates this condition "*
-                                    "due to having an imaginary phase."))
+                throw(ArgumentError("Every operator held by `enc` should be Hermitian. "*
+                                    "Operator $i in `enc[$sec]` violates this condition."))
             else
                 return false
+            end
+        end
+
+        if checkSum
+            if !(isIdentity∘mul)(op, op)
+                if explicitError
+                    throw(ArgumentError("Every operator held by `enc` should be an "*
+                                        "involution (i.e., squared to the identity "*
+                                        "operator). Operator $i in `enc[$sec]` violates "*
+                                        "this condition."))
+                else
+                    return false
+                end
             end
         end
     end

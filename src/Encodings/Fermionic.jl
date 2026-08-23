@@ -440,7 +440,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false)::Bool
     end
 
     for p in 1:nMode
-        if creOps[begin+p-1] != adjoint(annOps[begin+p-1])
+        if adjoint(annOps[begin+p-1]) != PauliSum(creOps[begin+p-1])
             if explicitError
                 throw(ArgumentError("Each creation operator should be the adjoint of the "*
                                     "annihilation operator of the same mode (i.e., "*

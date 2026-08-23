@@ -286,18 +286,22 @@ scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
 
 
 """
-    checkCommute(str1::PauliStr, str2::PauliStr) -> Bool
+    checkCommute(op1::PauliStr, op2::PauliStr) -> Bool
 
-Return `true` if the Pauli strings `str1` and `str2` commute and `false` if they 
-anticommute (any two Pauli strings do one or the other). When the two strings explicitly 
-act on different numbers of sites, commutation is evaluated under the implicit 
-identity-padding convention (see [`PauliStr`](@ref)): the sites of the longer string 
-beyond the shorter one's site count act against identities and never affect the result. 
-The phases of both strings are also irrelevant to the result.
+    checkCommute(op1::PauliSum, op2::PauliStr) -> Bool
+
+    checkCommute(op1::PauliSum, op2::PauliSum) -> Bool
+
+Return `true` if `op1` and `op2` commute. For two `PauliStr`, `false` also means they 
+anticommute. In other cases, no such dichotomy exists. When the two operators 
+explicitly act on different numbers of sites, commutation is evaluated under the implicit 
+identity-padding convention (see [`PauliStr`](@ref) and [`PauliSum`](@ref)): the sites of 
+the longer Pauli string beyond the shorter one's site count act against identities and 
+never affect the result.
 """
-function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
-    z1, x1 = str1.z, str1.x
-    z2, x2 = str2.z, str2.x
+function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
+    z1, x1 = op1.z, op1.x
+    z2, x2 = op2.z, op2.x
     nWord = min(length(z1), length(z2))   #> Shorter string is complemented with identities
     parity = 0
     @inbounds for w in 1:nWord
@@ -306,59 +310,75 @@ function checkCommute(str1::PauliStr, str2::PauliStr)::Bool
     iseven(parity)
 end
 
+checkCommute(op1::PauliSum, op2::PauliStrOrSum) = isempty(evalCommute(op1, op2).str)
+
 
 """
-    checkAntiCom(str1::PauliStr, str2::PauliStr) -> Bool
+    checkAntiCom(op1::PauliStr, op2::PauliStr) -> Bool
 
-Return `true` if `str1` and `str2` anticommute and `false` if they commute. It is the 
-logical negation of [`checkCommute`](@ref).
+    checkAntiCom(op1::PauliSum, op2::PauliStr) -> Bool
+
+    checkAntiCom(op1::PauliSum, op2::PauliSum) -> Bool
+
+Return `true` if `op1` and `op2` anticommute; otherwise, return `false`. For two 
+`PauliStr`, this function is the logical negation of [`checkCommute`](@ref). In other 
+cases, no such dichotomy exists. When the operators explicitly act on different numbers of 
+sites, the implicit identity-padding convention applies (see [`PauliStr`](@ref) and 
+[`PauliSum`](@ref)).
 """
-function checkAntiCom(str1::PauliStr, str2::PauliStr)::Bool
-    !checkCommute(str1, str2)
+function checkAntiCom(op1::PauliStr, op2::PauliStr)::Bool
+    !checkCommute(op1, op2)
 end
 
+checkAntiCom(op1::PauliSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, op2).str)
+
 
 """
-    evalCommute(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
+    evalCommute(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
 
-Return the commutator [`str1`, `str2`] = `str1`*`str2` - `str2`*`str1` as a `PauliSum`. 
-The multiplications within the commutation follow the implicit identity-padding convention 
-of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings explicitly act on 
-different numbers of sites, the returned sum explicitly acts on the larger site count. When 
-the commutator is zero (i.e., when `str1` and `str2` commute), this function returns an 
-empty `PauliSum` as the zero operator.
-"""
-function evalCommute(str1::PauliStr, str2::PauliStr)
-    prod1 = mul(str1, str2)
-    prod2 = mul(str2, str1)
-    prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
-end
+    evalCommute(op1::PauliStr, op2::PauliSum{T}) where {T<:Real} -> PauliSum{T}
 
-"""
+    evalCommute(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
+
     evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Return the commutator [`h1`, `h2`] = `h1`*`h2` - `h2`*`h1` as a `PauliSum`. The 
-multiplications within the commutation follow [`mul(h1::PauliSum, h2::PauliSum)`](@ref). 
-When the commutator is zero, this function returns an empty `PauliSum` as the zero 
+Return the commutator [`op1`, `op2`] = `op1`*`op2` - `op2`*`op1` as a `PauliSum`. 
+The multiplications within the commutation follow the implicit identity-padding convention 
+of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
+the returned sum explicitly acts on the larger site count. When the commutator is zero 
+(i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the zero 
 operator.
 """
-function evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real}
-    prod1 = mul(h1, h2)
-    prod2 = mul(h2, h1)
+function evalCommute(op1::PauliStr, op2::PauliStr)
+    prod1 = mul(op1, op2)
+    prod2 = mul(op2, op1)
+    prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
+end
+
+function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    prod1 = mul(op1, op2)::PauliSum
+    prod2 = mul(op2, op1)::PauliSum
     PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, -prod2.coeff))
 end
 
 
 """
-    evalAntiCom(str1::PauliStr, str2::PauliStr) -> PauliSum{Int}
+    evalAntiCom(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
 
-Return the anticommutator {`str1`, `str2`} = `str1`*`str2` + `str2`*`str1` as a `PauliSum`. 
-The multiplications within the anticommutation follow the implicit identity-padding 
-convention of [`mul(str1::PauliStr, str2::PauliStr)`](@ref), so when the two strings 
-explicitly act on different numbers of sites, the returned sum explicitly acts on the 
-larger site count. When the anticommutator is zero (i.e., when `str1` and `str2` 
-anticommute), this function returns an empty `PauliSum` as the zero operator.
+    evalAntiCom(op1::PauliStr, op2::PauliSum{T}) where {T<:Real} -> PauliSum{T}
+
+    evalAntiCom(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
+
+    evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
+
+Return the commutator [`op1`, `op2`] = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
+The multiplications within the commutation follow the implicit identity-padding convention 
+of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
+the returned sum explicitly acts on the larger site count. When the commutator is zero 
+(i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the zero 
+operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)
@@ -366,18 +386,9 @@ function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end
 
-"""
-    evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
-    PauliSum{promote_type(T1, T2)}
-
-Return the anticommutator {`h1`, `h2`} = `h1`*`h2` + `h2`*`h1` as a `PauliSum`. The 
-multiplications within the anticommutation follow 
-[`mul(h1::PauliSum, h2::PauliSum)`](@ref). When the anticommutator is zero, this function 
-returns an empty `PauliSum` as the zero operator.
-"""
-function evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real}
-    prod1 = mul(h1, h2)
-    prod2 = mul(h2, h1)
+function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    prod1 = mul(op1, op2)::PauliSum
+    prod2 = mul(op2, op1)::PauliSum
     PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, prod2.coeff))
 end
 

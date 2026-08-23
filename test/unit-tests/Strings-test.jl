@@ -258,4 +258,37 @@ end
 @test countWeight(pauli"XIZ") == 2
 @test countWeight(PauliStr(pauli"XIZ", 100)) == 2  #> Padding does not change the weight
 
+#> `isHermitian`
+@test  isHermitian(PauliSum([PauliStr(1, symY, Paulimorphic.negImg)], Complex{Int}(0, 2)))
+@test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(0, 2)))
+@test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(1, 1)))
+@test  isHermitian(PauliSum(Int))
+
+#> `isIdentity`
+@test !isIdentity(PauliSum(Int))
+@test  isIdentity(PauliSum(Int, [PauliStr(2)]))
+@test  isIdentity(mul(PauliSum([mul(pauli"II", Paulimorphic.negRea)], Complex{Int}(-1)), 1))
+
+@testset "toPauliStr" begin
+    #> Single term with a coefficient expressible as a phase
+    for (c, phase) in ((1, posRea), (-1, negRea), (im, posImg), (-im, negImg))
+        op = PauliSum([pauli"XZ"], Complex{Rational{Int}}(c))
+        @test toPauliStr(op) == mul(pauli"XZ", phase)
+        @test PauliSum(Int, [toPauliStr(op)]) == op #> Exact round trip as operators
+    end
+
+    #> Fallback-path checking
+    badCoeff = PauliSum([pauli"X"], Complex{Rational{Int}}(2, 0))
+    @test toPauliStr(badCoeff, pauli"Z") == pauli"Z"
+    twoTerm = PauliSum([pauli"X", pauli"Y"], Complex{Int}[1, 1])
+    @test toPauliStr(twoTerm, pauli"Z") == pauli"Z"
+    @test toPauliStr(PauliSum(Int), pauli"Z") == pauli"Z" #> Zero-term operator
+
+    #> Throwing path and per-specialization type stability
+    @test_throws "exactly one term" toPauliStr(twoTerm)
+    @test_throws "must carry a coefficient" toPauliStr(badCoeff)
+    @test (@inferred toPauliStr(PauliSum(Int, [pauli"X"]))) isa PauliStr
+    @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
+end
+
 end

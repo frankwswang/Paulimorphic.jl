@@ -621,23 +621,23 @@ toMajoranaEnc(enc::PairwiseSumEnc) = toMajoranaEnc(PauliStr, enc)
 
 """
     buildMajoranaFrame(enc::Pair{<:AbstractVector{<:PauliSum}, 
-                                   <:AbstractVector{<:PauliSum}}) -> 
+                                 <:AbstractVector{<:PauliSum}}) -> 
     Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:Real}
 
 Given a valid `PauliSum`-based Majorana encoding `enc` (verified via the matching method 
 of [`checkMajoranaEnc`](@ref)) of `nMode = length(enc.first)` fermionic modes, attempt to 
 rebuild its underlying `PauliStr`-based Majorana frame: `2nMode` single Pauli strings 
 `frame` (returned in ascending order, all carrying the positive-real phase) together with 
-a pair of (real) transformation matrices `matA => matC`, each of size `2nMode` by `nMode`, 
-such that 
+a pair of (real) transformation matrices `matAnn => matCre`, each of size `2nMode` by 
+`nMode`, such that 
 
-    enc.first[ begin+i-1] == PauliSum(frame, matA[:, i]), 
-    enc.second[begin+i-1] == PauliSum(frame, matC[:, i]).
+    PauliSum(enc.first[ begin+i-1]) == PauliSum(frame, matAnn[:, i]), 
+    PauliSum(enc.second[begin+i-1]) == PauliSum(frame, matCre[:, i]).
 
-In other words, the return value is `(matA=>matC, frame)`. Furthermore, `frame` exists if 
-and only if the number of distinct Pauli strings appearing across all operators in `enc` 
-equals `2nMode`, in which case `hcat(matA, matC)` is exactly orthogonal and its rows list 
-the odd-indexed Majorana operators followed by the even-indexed ones (a sorted-block 
+In other words, the return value is `(matAnn=>matCre, frame)`. Furthermore, `frame` exists 
+if and only if the number of distinct Pauli strings appearing across all operators in `enc` 
+equals `2nMode`, in which case `hcat(matAnn, matCre)` is exactly orthogonal and its columns 
+list the odd-indexed Majorana operators followed by the even-indexed ones (a sorted-block 
 ordering rather than the interleaved index ordering). When no such frame exists, the 
 returned matrices are 0-by-0 and `frame` is empty. The returned `frame` carries no mode 
 pairing or role assignment beyond its ascending string order. The result does not reference 
@@ -648,10 +648,11 @@ function buildMajoranaFrame(enc::PairwiseSumEnc)
     nMode = length(enc.first)
     nMajs = 2 * nMode
     tMatT = mapreduce(op->real(eltype(op.coeff)), promote_type, Iterators.flatten(enc))
-
     frameSet = Set{PauliStr}()
-    for ops in enc, op in ops, str in op.str
-        push!(frameSet, PauliStr(str, str.n, posRea)) #> Unify the phase of the frame basis
+    annOpVec = map(PauliSum, enc.first)  #> Canonicalize encoding operators to make sure 
+    creOpVec = map(PauliSum, enc.second) #> each string carries a `posRea` phase
+    for ops in (annOpVec, creOpVec), op in ops, str in op.str
+        push!(frameSet, str)
     end
 
     #> The frame is well defined iff exactly `nMajs` distinct strings appear: the trace-
@@ -672,26 +673,14 @@ function buildMajoranaFrame(enc::PairwiseSumEnc)
     end
 
     sort!(frame)
-    matA = zeros(tMatT, nMajs, nMode)
-    matC = zeros(tMatT, nMajs, nMode)
-    for (ops, mat) in ((enc.first, matA), (enc.second, matC))
-        for (iCol, op) in enumerate(ops), (str, coeff) in zip(op.str, op.coeff)
-            strPhase = str.phase
-            strLocal, coeffLocal = if (isreal∘evalPhase)(strPhase)
-                @assert isreal(coeff)
-                str, coeff
-            else
-                PauliStr(str, str.n, posRea), coeff * im^(4 - Int(strPhase))
-            end
-            iRow = searchsortedfirst(frame, strLocal)
-            mat[iRow, begin+iCol-1] = real(coeffLocal) #> Must be real for Hermiticity
-        end
-
-        idx = findfirst(!iszero, mat)
-        if idx !== nothing && mat[idx] < 0
-            mat .*= -one(tMatT) #> Stabilize the overall phase of `mat`
+    matAnn = zeros(tMatT, nMajs, nMode)
+    matCre = zeros(tMatT, nMajs, nMode)
+    for (ops, mat) in ((annOpVec, matAnn), (creOpVec, matCre)), (iCol, op) in enumerate(ops)
+        for (str, coeff) in zip(op.str, op.coeff)
+            iRow = searchsortedfirst(frame, str)
+            mat[iRow, begin+iCol-1] = real(coeff) #> The imaginary part should be zero
         end
     end
 
-    (matA=>matC, frame)
+    (matAnn=>matCre, frame)
 end

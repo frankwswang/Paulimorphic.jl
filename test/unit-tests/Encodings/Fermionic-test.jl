@@ -398,6 +398,56 @@ end
 
     #> Invalid input propagates the validation error
     @test_throws "Hermitian" buildMajoranaFrame(toDiracEnc(genJordanWignerEnc(2)))
+
+    #> Phase modification on a `PauliStr` (copied from `pSum`) that matches with `strTarget`
+    function changePhase(pSum::PauliSum, strTarget::PauliStr, phase::PhaseFactor)
+        res = PauliSum(pSum)
+        for (str, i) in zip(res.str, eachindex(res.coeff))
+            if str == strTarget
+                str.phase = phase
+                res.coeff[i] *= evalPhase(PhaseFactor((0x4 - UInt8(phase)) & 0x3))
+            end
+        end
+        res
+    end
+
+    @testset "Handling encodings with negative-phase `PauliStr`" begin
+        ann2, _ = toDiracEnc(genJordanWignerEnc(2))
+        b1 = add(mul(ann2[1], 3//5), mul(ann2[2],  4//5))
+        b2 = add(mul(ann2[1], 4//5), mul(ann2[2], -3//5))
+        mSum = toMajoranaEnc(PauliSum, [b1, b2] => [toAdjoint(b1), toAdjoint(b2)])
+
+        negged = [changePhase(mSum.first[1], pauli"XI", negRea), mSum.first[2]] => 
+                collect(mSum.second)
+        @test checkMajoranaEnc(negged) #> Sanity: value unchanged, still valid
+
+        mats, frame = buildMajoranaFrame(negged)
+        matA, _ = mats
+        @test frame == [pauli"XI", pauli"YI", pauli"ZX", pauli"ZY"]
+        @test iszero(matA[2, 1])              #> CURRENT: the `YI` row holds a stray `-3//5`
+        @test PauliSum(negged.first[1]) == PauliSum(frame, matA[:, 1])
+    end
+
+    @testset "Handling encodings with non-canonical (mergeable) `PauliSum`" begin
+        #> This encoding's is framed by string pair `(XI, YI)`, but the raw storage (built 
+        #> with `simplification=false`) contains a canceling `YZ` pair that pushes the 
+        #> distinct-string count to 3.
+        op1a = PauliSum([pauli"XI", pauli"YZ", pauli"YZ"], 
+                        Complex{Rational{Int}}[1, im, -im], false)
+        op2 = PauliSum(Int, [pauli"YI"])
+        @test checkMajoranaEnc([op1a] => [op2]) #> Value-level validation passes
+        matsA, frameA = buildMajoranaFrame([op1a] => [op2])
+        @test frameA == [pauli"XI", pauli"YI"]
+        @test PauliSum(op1a) == PauliSum(frameA, first(matsA)[:, 1])
+
+        #> When the phantom pair coincides with a genuine frame string
+        op1b = PauliSum([pauli"XI", pauli"YI", pauli"YI"], 
+                        Complex{Rational{Int}}[1, im, -im], false)
+        @test checkMajoranaEnc([op1b] => [op2])
+        matsB, frameB = buildMajoranaFrame([op1b] => [op2])
+        @test frameB == [pauli"XI", pauli"YI"]
+        @test PauliSum(op1b) == PauliSum(frameB, first(matsB)[:, 1])
+    end
 end
 
 end

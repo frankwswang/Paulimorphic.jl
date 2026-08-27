@@ -288,6 +288,8 @@ scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
 """
     checkCommute(op1::PauliStr, op2::PauliStr) -> Bool
 
+    checkCommute(op1::PauliStr, op2::PauliSum) -> Bool
+
     checkCommute(op1::PauliSum, op2::PauliStr) -> Bool
 
     checkCommute(op1::PauliSum, op2::PauliSum) -> Bool
@@ -310,11 +312,13 @@ function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
     iseven(parity)
 end
 
-checkCommute(op1::PauliSum, op2::PauliStrOrSum) = isempty(evalCommute(op1, op2).str)
+checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalCommute(op1, op2).str)
 
 
 """
     checkAntiCom(op1::PauliStr, op2::PauliStr) -> Bool
+
+    checkAntiCom(op1::PauliStr, op2::PauliSum) -> Bool
 
     checkAntiCom(op1::PauliSum, op2::PauliStr) -> Bool
 
@@ -330,7 +334,7 @@ function checkAntiCom(op1::PauliStr, op2::PauliStr)::Bool
     !checkCommute(op1, op2)
 end
 
-checkAntiCom(op1::PauliSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, op2).str)
+checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, op2).str)
 
 
 """
@@ -373,7 +377,7 @@ end
     evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Return the commutator [`op1`, `op2`] = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
+Return the anticommutator [`op1`, `op2`] = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
 The multiplications within the commutation follow the implicit identity-padding convention 
 of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
 the returned sum explicitly acts on the larger site count. When the commutator is zero 

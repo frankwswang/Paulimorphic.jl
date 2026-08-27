@@ -131,8 +131,8 @@ end
     end
 
     #>≡≡≡ Attribute 1: site count ≡≡≡<#
-    #> Pitfall: drafts that graded by weight first compared weights across different ambient 
-    #> spaces, e.g. ranking a 2-site identity before a 1-site X.
+    #> Pitfall: drafts that graded by weight first compared weights across different 
+    #> ambient spaces, e.g. ranking a 2-site identity before a 1-site X.
     @test PauliStr(0) < pauli"I"   #> Zero-site string precedes any explicit one
     @test pauli"X"  < pauli"II"    #> Site count dominates weight (1 vs 0)
     @test pauli"YY" < pauli"III"   #> ... even at maximal weight difference
@@ -257,5 +257,40 @@ end
 @test countWeight(PauliStr(0)) == countWeight(pauli"III") == 0
 @test countWeight(pauli"XIZ") == 2
 @test countWeight(PauliStr(pauli"XIZ", 100)) == 2  #> Padding does not change the weight
+
+#> `isHermitian`
+@test  isHermitian(PauliSum([PauliStr(1, symY, Paulimorphic.negImg)], Complex{Int}(0, 2)))
+@test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(0, 2)))
+@test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(1, 1)))
+@test  isHermitian(PauliSum(Int))
+
+#> `isIdentity`
+@test  isIdentity(PauliStr())
+@test  isIdentity(PauliSum(Int, [PauliStr(2)]))
+@test  isIdentity(mul(PauliSum([mul(pauli"II", Paulimorphic.negRea)], Complex{Int}(-1)), 1))
+@test !isIdentity(PauliSum(Int))
+@test !isIdentity(PauliStr(0, symI, posImg))
+
+@testset "toPauliStr" begin
+    #> Single term with a coefficient expressible as a phase
+    for (c, phase) in ((1, posRea), (-1, negRea), (im, posImg), (-im, negImg))
+        op = PauliSum([pauli"XZ"], Complex{Rational{Int}}(c))
+        @test toPauliStr(op) == mul(pauli"XZ", phase)
+        @test PauliSum(Int, [toPauliStr(op)]) == op #> Exact round trip as operators
+    end
+
+    #> Fallback-path checking
+    badCoeff = PauliSum([pauli"X"], Complex{Rational{Int}}(2, 0))
+    @test toPauliStr(badCoeff, pauli"Z") == pauli"Z"
+    twoTerm = PauliSum([pauli"X", pauli"Y"], Complex{Int}[1, 1])
+    @test toPauliStr(twoTerm, pauli"Z") == pauli"Z"
+    @test toPauliStr(PauliSum(Int), pauli"Z") == pauli"Z" #> Zero-term operator
+
+    #> Throwing path and per-specialization type stability
+    @test_throws "exactly one term" toPauliStr(twoTerm)
+    @test_throws "must carry a coefficient" toPauliStr(badCoeff)
+    @test (@inferred toPauliStr(PauliSum(Int, [pauli"X"]))) isa PauliStr
+    @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
+end
 
 end

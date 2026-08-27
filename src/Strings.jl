@@ -1,6 +1,6 @@
 export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       collectTerms
+       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr
 
 public sortStrings!, setCoeff!
 
@@ -41,8 +41,8 @@ construction.
 - `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
 
 !!! info
-    Any binary operation that combines two strings explicitly acting on different numbers 
-    of sites (e.g., [`mul`](@ref), [`checkCommute`](@ref)) follows the implicit 
+    Any binary operation that combines two `PauliStr` explicitly acting on different 
+    numbers of sites (e.g., [`mul`](@ref), [`checkCommute`](@ref)) follows the implicit 
     identity-padding convention: the string with the smaller site count is treated as if 
     temporarily promoted to the larger site count by tensoring single-site identities onto 
     its unrepresented sites,
@@ -470,6 +470,13 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 - `.coeff::Memory{Complex{T}}`: the coefficients associated with the Pauli strings, with 
   `length(.coeff) == length(.str)`.
 
+!!! info
+    For any binary operation that combines two `PauliSum` (or one `PauliStr` and one 
+    `PauliSum`) explicitly acting on different numbers of sites, if algebraically it can 
+    be distributed into the corresponding binary operation acting on two underlying 
+    `PauliStr` (e.g., [`mul`](@ref), [`checkCommute`](@ref)), it follows the same implicit 
+    identity-padding convention for [`PauliStr`](@ref).
+
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
@@ -692,6 +699,15 @@ function collectTerms(ham::PauliSum, copyStr::Bool=true)
         (copyStr ? PauliStr(str) : str) => coeff
     end
 end
+
+
+"""
+    countTerms(h::PauliSum) -> Int
+
+Return the number of terms (including terms with zero coefficients) stored in `h`, i.e., 
+the shared length of `h.str` and `h.coeff`. When `h` holds no terms, `0` is returned.
+"""
+countTerms(h::PauliSum) = length(h.str)
 
 
 """
@@ -1098,8 +1114,8 @@ Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operat
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
 The phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default), site 
 `first(srcRange)` of `src` lands on site `dstStart` of `dst`, with the remaining selected 
-sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` of 
-`src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
+sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` 
+of `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
 are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be in 
 `1:src.n`.
@@ -1337,4 +1353,108 @@ function reframe(ham::PauliSum, nSite::Integer=countSites(ham); lowToHigh::Bool=
         newStr
     end
     PauliSum(strs, coeffs, simplification)
+end
+
+
+"""
+    isHermitian(op::PauliStr) -> Bool
+
+    isHermitian(op::PauliSum) -> Bool
+
+Return `true` if the operator represented by `op` is Hermitian, i.e., `op == op'` (see 
+[`toAdjoint`](@ref)). The judgment is at the value level: it does not depend on the 
+specific representation of `op`. The judgment is exact, so an operator that is Hermitian in 
+exact arithmetic can fail the test if its coefficients carry floating-point rounding 
+residues.
+"""
+function isHermitian(op::PauliStr)
+    (op.phase != posImg) && (op.phase != negImg) 
+end
+
+function isHermitian(op::PauliSum)
+    if (all(isHermitian, op.str) && all(isreal, op.coeff)) || all(iszero, op.coeff)
+        true
+    elseif (isone∘countTerms)(op) #> This branch assumes a nonzero coefficient
+        c = first(op.coeff)
+        iszero(c + c') ? !isHermitian(op.str|>first) : false
+    else
+        hLocal = PauliSum(op)
+        for c in hLocal.coeff
+            isreal(c) || (return false)
+        end
+        true
+    end
+end
+
+
+"""
+    isIdentity(op::PauliStr) -> Bool
+
+    isIdentity(op::PauliSum) -> Bool
+
+Return `true` if the operator represented by `op` is the identity operator (on its 
+explicit site count). The judgment is at the value level: it does not depend on the 
+specific representation of `op`. In particular, the zero operator (e.g., an empty 
+`PauliSum`) is not considered an identity operator, while the zero-site `PauliStr` (i.e., 
+`PauliStr()`), as the multiplicative unit, is considered an identity operator. The judgment 
+is exact, so an operator that is an identity in exact arithmetic can fail the test if its 
+coefficients carry floating-point rounding residues.
+"""
+function isIdentity(op::PauliStr)
+    #> `all` returns `true` for empty collections
+    all(iszero, op.x) && all(iszero, op.z) && isequal(op.phase, posRea)
+end
+
+function isIdentity(op::PauliSum)
+    if countTerms(op) == 0
+        false
+    elseif all(isIdentity, op.str) && (isone∘sum)(op.coeff)
+        true
+    else
+        op2 = PauliSum(op)
+        (isone∘countTerms)(op2) && isIdentity(first(op2.str)) && isone(first(op2.coeff))
+    end
+end
+
+
+"""
+    toPauliStr(op::PauliSum, fallbackStr::Union{Missing, PauliStr}=missing) -> PauliStr
+
+Convert `op` into an equal `PauliStr`. The conversion is possible if and only if `op` 
+stores exactly one Pauli string whose coefficient is exactly `1`, `-1`, `im`, or `-im`, 
+which is folded into the phase of the returned string. When the conversion is impossible, 
+an error identifying the violated condition is thrown if `fallbackStr` is `missing` (the 
+default); otherwise `fallbackStr` is returned instead. The result does not reference any 
+data in `op`.
+"""
+function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
+    explicitError = ismissing(fallbackStr)
+
+    if !isone(length(op.str))
+        if explicitError
+            throw(ArgumentError("`op` must store exactly one term."))
+        else
+            return fallbackStr
+        end
+    end
+
+    str = first(op.str)
+    coeff = first(op.coeff)
+
+    phase = if coeff == 1
+        posRea
+    elseif coeff == -1
+        negRea
+    elseif coeff == im
+        posImg
+    elseif coeff == -im
+        negImg
+    elseif explicitError
+        throw(ArgumentError("The only `PauliStr` stored in `op` must carry a coefficient "*
+                            "of exactly `1`, `-1`, `im`, or `-im`, not `$coeff`."))
+    else
+        return fallbackStr
+    end
+
+    mul(str, phase)
 end

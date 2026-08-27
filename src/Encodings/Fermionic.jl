@@ -1,5 +1,5 @@
 export genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, checkMajoranaEnc, toDiracEnc, 
-       checkDiracEnc, toMajoranaEnc, buildMajoranaFrame
+       checkDiracEnc, toMajoranaEnc, toMajoranaPair, buildMajoranaFrame
 
 const PairwiseStrEnc{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
       Pair{T1, T2}
@@ -373,6 +373,34 @@ end
 toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
 
 
+"""
+    toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair::Bool=true) -> 
+    Pair{<:PauliSum, <:PauliSum}
+
+Convert a single-mode Dirac-operator pair `opPair`, with `opPair.first` and 
+`opPair.second` respectively storing the annihilation operator `a` and the creation 
+operator `c` of the same fermionic mode, into the corresponding pair of Majorana operators 
+returned as `res`: 
+
+    res.first = a + c,    res.second = im * (c - a). 
+
+When `checkForDiracPair=true`, `opPair` is first verified to form a valid single-mode 
+Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
+act on the same number of sites for the verification to pass. When 
+`checkForDiracPair=false`, the verification is skipped, in which case the output is 
+physically meaningful only for valid Dirac-operator pair as the input. The two operators 
+held by `res` are in the canonical form and do not reference any data in `opPair`.
+
+# Example
+```jldoctest
+julia> dEnc = toDiracEnc(genJordanWignerEnc(1));
+
+julia> mPair = toMajoranaPair(dEnc.first[1] => dEnc.second[1]);
+
+julia> mPair == (PauliSum(Int, [pauli"X"]) => PauliSum(Int, [pauli"Y"]))
+true
+```
+"""
 function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair::Bool=true)
     annOp, creOp = opPair
 

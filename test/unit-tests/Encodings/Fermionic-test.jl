@@ -119,7 +119,7 @@ end
               PauliSum(Int, [mEnc2.first[2]])] => oneTemSum(mEnc2.second)
     @test checkMajoranaEnc(negged)
 
-    #> A genuinely `PauliSum`-based (class-3) example: exact rational conjugated frame 
+    #> A genuinely `PauliSum`-based example: exact rational conjugated frame 
     #> with commuting support strings (matrix-validated); valid despite 8 > 2n strings
     c, s = 3//5, 4//5
     conjEnc = [PauliSum([pauli"XI", pauli"YZ"], [c,  s]), 
@@ -325,6 +325,61 @@ end
     a1 = toDiracEnc(genJordanWignerEnc(1)).first[1]
     @test_throws "adjoint" toMajoranaEnc(PauliStr, [a1] => [a1])
     @test_throws "adjoint" toMajoranaEnc(PauliSum, [a1] => [a1])
+end
+
+@testset "toMajoranaPair" begin
+    #> Agreement with `toMajoranaEnc` on every mode of every generator
+    for gen in (genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc), n in 1:3
+        dEnc = toDiracEnc(gen(n))
+        mSum = toMajoranaEnc(PauliSum, dEnc)
+        for p in 1:n
+            mPair = toMajoranaPair(dEnc.first[begin+p-1] => dEnc.second[begin+p-1])
+            @test mPair == (mSum.first[begin+p-1] => mSum.second[begin+p-1])
+        end
+    end
+
+    dEnc1 = toDiracEnc(genJordanWignerEnc(1))
+    a1 = dEnc1.first[begin]
+    c1 = dEnc1.second[begin]
+    mPair = toMajoranaPair(a1 => c1)
+
+    #> Single-mode equivalency: the output forms a valid 1-mode Majorana encoding
+    @test checkMajoranaEnc([mPair.first] => [mPair.second])
+    @test mPair == (PauliSum(Int, [pauli"X"]) => PauliSum(Int, [pauli"Y"]))
+
+    #> Inverse identities: a == (γ_odd + im γ_even)/2, c == (γ_odd - im γ_even)/2
+    @test a1 == mul(add(mPair.first, mul(mPair.second,  im)), 1//2)
+    @test c1 == mul(add(mPair.first, mul(mPair.second, -im)), 1//2)
+
+    #> Rotated two-term pair converts and stays valid
+    ann2, _ = toDiracEnc(genJordanWignerEnc(2))
+    b1 = add(mul(ann2[1], 3//5), mul(ann2[2], 4//5))
+    rPair = toMajoranaPair(b1 => toAdjoint(b1))
+    @test rPair.first == 
+          PauliSum([pauli"XI", pauli"ZX"], Complex{Rational{Int}}[3//5, 4//5])
+    @test checkMajoranaEnc([rPair.first] => [rPair.second])
+
+    #> Validation branches, pinned by message. The conjugacy branch is checked 
+    #> structurally because the anticommutation conditions cannot imply it: `creFake` 
+    #> satisfies both anticommutation conditions yet is not the adjoint of `a1`.
+    creFake = PauliSum([pauli"Z", pauli"Y"], 
+                       [Complex{Rational{Int}}(1, 0), Complex{Rational{Int}}(0, -1)])
+    @test_throws "Hermitian adjoint" toMajoranaPair(a1 => creFake)
+    @test_throws "Hermitian adjoint" toMajoranaPair(a1 => a1)
+    badNorm = mul(a1, 2) #> Adjoint pairing intact; {2a, (2a)'} == 4I != I
+    @test_throws "equal an identity" toMajoranaPair(badNorm => toAdjoint(badNorm))
+    rotOp = PauliSum([pauli"X", pauli"Y"], 
+                    [Complex{Rational{Int}}(7//10, 0), Complex{Rational{Int}}(0, -1//10)])
+    @test_throws "anticommute with itself" toMajoranaPair(rotOp => toAdjoint(rotOp))
+
+    #> `checkForDiracPair=false` skips the verification entirely
+    @test toMajoranaPair(a1 => a1, false) isa Pair
+
+    #> A phase mutation still verifies, and (canonicalized) output is unchanged
+    aMut = PauliSum(a1)
+    aMut.str[begin].phase = Paulimorphic.negImg
+    aMut.coeff[begin] *= evalPhase(Paulimorphic.posImg)
+    @test toMajoranaPair(aMut => c1) == mPair
 end
 
 @testset "buildMajoranaFrame" begin

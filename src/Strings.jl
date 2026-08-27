@@ -1401,11 +1401,13 @@ is exact, so an operator that is an identity in exact arithmetic can fail the te
 coefficients carry floating-point rounding residues.
 """
 function isIdentity(op::PauliStr)
-    all(iszero, op.x) && all(iszero, op.z) && (op.phase == posRea)
+    countSites(op) == 0 || (all(iszero, op.x) && all(iszero, op.z) && (op.phase == posRea))
 end
 
 function isIdentity(op::PauliSum)
-    if all(isIdentity, op.str) && (isone∘sum)(op.coeff)
+    if countTerms(op) == 0
+        false
+    elseif all(isIdentity, op.str) && (isone∘sum)(op.coeff)
         true
     else
         op2 = PauliSum(op)

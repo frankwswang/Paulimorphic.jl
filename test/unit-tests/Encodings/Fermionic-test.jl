@@ -420,7 +420,7 @@ end
             b2 = add(mul(ann2[1], 4//5), mul(ann2[2], -3//5))
             mSum = toMajoranaEnc(PauliSum, [b1, b2] => [toAdjoint(b1), toAdjoint(b2)])
 
-            negged = [changePhase(mSum.first[1], pauli"XI", negRea), mSum.first[2]] => 
+            negged = [changePhase(mSum.first[1], pauli"XI", phase), mSum.first[2]] => 
                     collect(mSum.second)
             @test checkMajoranaEnc(negged) #> Sanity: value unchanged, still valid
 

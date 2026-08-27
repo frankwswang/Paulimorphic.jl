@@ -472,7 +472,7 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 
 !!! info
     For any binary operation that combines two `PauliSum` (or one `PauliStr` and one 
-    `PauliSum`)  explicitly acting on different numbers of sites, if algebraically it can 
+    `PauliSum`) explicitly acting on different numbers of sites, if algebraically it can 
     be distributed into the corresponding binary operation acting on two underlying 
     `PauliStr` (e.g., [`mul`](@ref), [`checkCommute`](@ref)), it follows the same implicit 
     identity-padding convention for [`PauliStr`](@ref).
@@ -1114,7 +1114,7 @@ Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operat
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
 The phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default), site 
 `first(srcRange)` of `src` lands on site `dstStart` of `dst`, with the remaining selected 
-sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)`  
+sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` 
 of `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
 are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be in 

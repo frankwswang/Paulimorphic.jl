@@ -20,7 +20,7 @@ const PairwiseSumEnc{T1<:AbstractVector{<:PauliSum}, T2<:AbstractVector{<:PauliS
 Return `true` if `enc` forms a valid `PauliStr`-based or `PauliSum`-based Majorana encoding 
 of `length(enc.first)` fermionic modes, where `enc.first` and `enc.second` respectively 
 store the odd-indexed (`γ_{2p-1}`) and even-indexed (`γ_{2p}`) Majorana operators. Every 
-stored operator `γ_i` must be Hermitian and they must also satisfy the following 
+stored operator `γ_i` must be Hermitian and the operators must also satisfy the following 
 anticommutation relation: 
 
     γ_i γ_j + γ_j γ_i == 2δ_{ij} I. 

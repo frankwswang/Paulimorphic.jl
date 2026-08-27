@@ -377,12 +377,12 @@ end
     evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Return the anticommutator [`op1`, `op2`] = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
-The multiplications within the commutation follow the implicit identity-padding convention 
-of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
-the returned sum explicitly acts on the larger site count. When the commutator is zero 
-(i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the zero 
-operator.
+Return the anticommutator {`op1`, `op2`} = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
+The multiplications within the anticommutation follow the implicit identity-padding 
+convention of [`mul`](@ref), so when the two operators explicitly act on different numbers 
+of sites, the returned sum explicitly acts on the larger site count. When the 
+anticommutator is zero (i.e., when `op1` and `op2` commute), this function returns an empty 
+`PauliSum` as the zero operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)

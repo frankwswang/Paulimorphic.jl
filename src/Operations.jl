@@ -381,8 +381,8 @@ Return the anticommutator {`op1`, `op2`} = `op1`*`op2` + `op2`*`op1` as a `Pauli
 The multiplications within the anticommutation follow the implicit identity-padding 
 convention of [`mul`](@ref), so when the two operators explicitly act on different numbers 
 of sites, the returned sum explicitly acts on the larger site count. When the 
-anticommutator is zero (i.e., when `op1` and `op2` commute), this function returns an empty 
-`PauliSum` as the zero operator.
+anticommutator is zero (i.e., when `op1` and `op2` anticommute), this function returns an 
+empty `PauliSum` as the zero operator.
 """
 function evalAntiCom(str1::PauliStr, str2::PauliStr)
     prod1 = mul(str1, str2)

@@ -1,5 +1,5 @@
-export checkMajoranaEnc, genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, toDiracEnc, 
-       checkDiracEnc
+export genJordanWignerEnc, genParityEnc, genBravyiKitaevEnc, checkMajoranaEnc, toDiracEnc, 
+       checkDiracEnc, toMajoranaEnc, buildMajoranaFrame
 
 const PairwiseStrEnc{T1<:AbstractVector{PauliStr}, T2<:AbstractVector{PauliStr}} = 
       Pair{T1, T2}
@@ -369,9 +369,37 @@ end
 toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
 
 
+function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair::Bool=true)
+    annOp, creOp = opPair
+
+    if checkForDiracPair
+        if PauliSum(creOp) != toAdjoint(annOp)
+            throw(ArgumentError("`opPair.first` must be the Hermitian adjoint of "*
+                                "`opPair.second`."))
+        end
+
+        if !(isIdentity∘evalAntiCom)(annOp, creOp)
+            throw(ArgumentError("The anticommutator between `opPair.first` and "*
+                                "`opPair.second` must equal an identity."))
+        end
+
+        for op in opPair
+            if !(iszero∘countTerms∘evalAntiCom)(op, op)
+                throw(ArgumentError("Each operator in `opPair` must anticommute with "*
+                                    "itself."))
+            end
+        end
+    end
+
+    gOdd = add(annOp, creOp)
+    gEve = mul(add(creOp, mul(annOp, -1)), im)
+    gOdd => gEve
+end
+
+
 """
     checkDiracEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}, 
-                  explicitError::Bool=false) -> 
+                  explicitError::Bool=false; strRestricted::Bool=false) -> 
     Bool
 
 Return `true` if `enc` forms a valid Dirac-operator encoding. It must contain a `Pair` of 
@@ -393,6 +421,13 @@ Additionally, `enc` must be formatted such that
 - All contained `PauliSum` explicitly act on the same number of sites (i.e., 
   [`countSites`](@ref) returns the same value)
 
+When `strRestricted=true`, `enc` must additionally be convertible to a Pauli-string-based 
+Majorana encoding: for each mode `i`, `a_i + c_i` and `im * (c_i - a_i)` must each be 
+representable as a `PauliStr` with a phase of exactly `1` or `-1`. Under the default 
+`strRestricted=false`, encodings whose modes are represented as `PauliSum` beyond 
+containing a single `PauliStr` are accepted as long as they satisfy the Hermitian adjoint 
+condition and the anticommutation relations.
+
 All operator comparisons are exact, so an encoding whose coefficients are subject to 
 floating-point errors (e.g., mode-mixing amplitudes that are not exactly representable) 
 can fail the verification despite being valid in exact arithmetic; exact coefficient types 
@@ -403,7 +438,8 @@ reported by returning `false` unless `explicitError=true`, in which case an `Arg
 identifying the violated condition (and the immediate offending operators) is thrown 
 instead.
 """
-function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false)::Bool
+function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false; 
+                       strRestricted::Bool=false)::Bool
     nMode = length(enc.first)
 
     if iszero(nMode)
@@ -481,5 +517,181 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false)::Bool
         end
     end
 
+    if strRestricted
+        for p in 1:nMode
+            for op in toMajoranaPair(enc.first[begin+p-1]=>enc.second[begin+p-1], false)
+                isValidStr = if (isone∘countTerms)(op)
+                    coeff = first(op.coeff)
+                    coeff == 1 || coeff == -1
+                else
+                    false
+                end #> `op` must equal a single Pauli string up to a factor of `1` or `-1`
+
+                if !isValidStr
+                    if explicitError
+                        throw(ArgumentError("The two Majorana operators (converted via "*
+                                            "`toMajoranaPair`) corresponding to mode $p "*
+                                            "are both restricted to single Pauli strings."))
+                    else
+                        return false
+                    end
+                end
+            end
+        end
+    end
+
     true
+end
+
+
+"""
+    toMajoranaEnc(::Type{PauliStr}, 
+                  enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}) -> 
+    Pair{Vector{PauliStr}, Vector{PauliStr}}
+
+    toMajoranaEnc(::Type{PauliSum}, 
+                  enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}) -> 
+    Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}
+
+    toMajoranaEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}) -> 
+    Pair{Vector{PauliStr}, Vector{PauliStr}}
+
+Convert a valid Dirac-operator encoding `enc` (verified via [`checkDiracEnc`](@ref)) of 
+`length(enc.first)` fermionic modes back to a Majorana encoding returned as `res`, acting 
+as the inverse transformation of [`toDiracEnc`](@ref): 
+
+    γ_{2p-1} = (a_p)' + a_p,    γ_{2p} = im * ((a_p)' - a_p), 
+
+where `a_p = enc.first[begin+p-1]`, `γ_{2p-1} = res.first[begin+p-1]`, and `γ_{2p} = 
+res.second[begin+p-1]`. In the first two method signatures, the first argument selects the 
+output representation:
+
+- `::Type{PauliStr}`: each recovered Majorana operator must be representable as a single 
+  `PauliStr` with a coefficient of exactly `1` or `-1`; equivalently, `enc` must satisfy 
+  `checkDiracEnc(enc; strRestricted=true)`.
+- `::Type{PauliSum}`: applicable to every valid Dirac encoding. Each recovered Majorana 
+  operator is stored as a (Hermitian) `PauliSum`, and the result satisfies the 
+  `PauliSum`-based method of [`checkMajoranaEnc`](@ref).
+
+The third method signature fall backs to the first method signature.
+
+In both representations, the result does not reference any data in `enc`. The 
+`PauliStr`-based conversion and `toDiracEnc` are mutually inverse: 
+
+```jldoctest
+julia> mEnc = genBravyiKitaevEnc(3);
+
+julia> dEnc = toDiracEnc(mEnc);
+
+julia> toMajoranaEnc(dEnc) == mEnc
+true
+
+julia> toDiracEnc(toMajoranaEnc(dEnc)) == dEnc
+true
+```
+"""
+function toMajoranaEnc(::Type{PauliStr}, enc::PairwiseSumEnc)::PairwiseStrEnc
+    checkDiracEnc(enc, true, strRestricted=true)
+    nMode = length(enc.first)
+
+    oddOps = Vector{PauliStr}(undef, nMode)
+    eveOps = Vector{PauliStr}(undef, nMode)
+
+    for p in 1:nMode
+        gOdd, gEve = toMajoranaPair(enc.first[begin+p-1]=>enc.second[begin+p-1], false)
+        oddOps[begin+p-1] = toPauliStr(gOdd)
+        eveOps[begin+p-1] = toPauliStr(gEve)
+    end
+
+    oddOps => eveOps
+end
+
+function toMajoranaEnc(::Type{PauliSum}, enc::PairwiseSumEnc)::PairwiseSumEnc
+    checkDiracEnc(enc, true, strRestricted=false)
+
+    pairs = map(enc.first, enc.second) do annOp, creOp
+        toMajoranaPair(annOp=>creOp, false)
+    end
+
+    map(first, pairs) => map(last, pairs)
+end
+
+toMajoranaEnc(enc::PairwiseSumEnc) = toMajoranaEnc(PauliStr, enc)
+
+
+"""
+    buildMajoranaFrame(enc::Pair{<:AbstractVector{<:PauliSum}, 
+                                   <:AbstractVector{<:PauliSum}}) -> 
+    Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:Real}
+
+Given a valid `PauliSum`-based Majorana encoding `enc` (verified via the matching method 
+of [`checkMajoranaEnc`](@ref)) of `nMode = length(enc.first)` fermionic modes, attempt to 
+rebuild its underlying `PauliStr`-based Majorana frame: `2nMode` single Pauli strings 
+`frame` (returned in ascending order, all carrying the positive-real phase) together with 
+a pair of (real) transformation matrices `matA => matC`, each of size `2nMode` by `nMode`, 
+such that 
+
+    enc.first[ begin+i-1] == PauliSum(frame, matA[:, i]), 
+    enc.second[begin+i-1] == PauliSum(frame, matC[:, i]).
+
+In other words, the return value is `(matA=>matC, frame)`. Furthermore, `frame` exists if 
+and only if the number of distinct Pauli strings appearing across all operators in `enc` 
+equals `2nMode`, in which case `hcat(matA, matC)` is exactly orthogonal and its rows list 
+the odd-indexed Majorana operators followed by the even-indexed ones (a sorted-block 
+ordering rather than the interleaved index ordering). When no such frame exists, the 
+returned matrices are 0-by-0 and `frame` is empty. The returned `frame` carries no mode 
+pairing or role assignment beyond its ascending string order. The result does not reference 
+any data in `enc`.
+"""
+function buildMajoranaFrame(enc::PairwiseSumEnc)
+    checkMajoranaEnc(enc, true)
+    nMode = length(enc.first)
+    nMajs = 2 * nMode
+    tMatT = mapreduce(op->real(eltype(op.coeff)), promote_type, Iterators.flatten(enc))
+
+    frameSet = Set{PauliStr}()
+    for ops in enc, op in ops, str in op.str
+        push!(frameSet, PauliStr(str, str.n, posRea)) #> Unify the phase of the frame basis
+    end
+
+    #> The frame is well defined iff exactly `nMajs` distinct strings appear: the trace-
+    #> orthonormality of a valid encoding forces at least `nMajs`, and with exactly `nMajs` 
+    #> the (square) coefficient matrix is orthogonal.
+    if length(frameSet) != nMajs
+        return (Matrix{tMatT}(undef, 0, 0)=>Matrix{tMatT}(undef, 0, 0), PauliStr[])
+    end
+
+    frame = collect(frameSet)
+
+    #> Defensive check: distinct strings inside the frame of a validated encoding must 
+    #> anticommute; reachable solely through broken upstream invariants
+    for i in 1:nMajs, j in (i+1):nMajs
+        if !checkAntiCom(frame[begin+i-1], frame[begin+j-1])
+            return (Matrix{tMatT}(undef, 0, 0)=>Matrix{tMatT}(undef, 0, 0), PauliStr[])
+        end
+    end
+
+    sort!(frame)
+    matA = zeros(tMatT, nMajs, nMode)
+    matC = zeros(tMatT, nMajs, nMode)
+    for (ops, mat) in ((enc.first, matA), (enc.second, matC))
+        for (iCol, op) in enumerate(ops), (str, coeff) in zip(op.str, op.coeff)
+            strPhase = str.phase
+            strLocal, coeffLocal = if (isreal∘evalPhase)(strPhase)
+                @assert isreal(coeff)
+                str, coeff
+            else
+                PauliStr(str, str.n, posRea), coeff * im^(4 - Int(strPhase))
+            end
+            iRow = searchsortedfirst(frame, strLocal)
+            mat[iRow, begin+iCol-1] = real(coeffLocal) #> Must be real for Hermiticity
+        end
+
+        idx = findfirst(!iszero, mat)
+        if idx !== nothing && mat[idx] < 0
+            mat .*= -one(tMatT) #> Stabilize the overall phase of `mat`
+        end
+    end
+
+    (matA=>matC, frame)
 end

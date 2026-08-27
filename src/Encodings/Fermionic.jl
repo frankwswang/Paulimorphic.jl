@@ -61,6 +61,7 @@ function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc},
     firstOp = (first∘first)(enc)
     nSite = countSites(firstOp)
     checkSum = (firstOp isa PauliSum)
+    offset = firstindex(enc) - 1
 
     for (sec, ops) in enumerate(enc), (i, op) in enumerate(ops)
 
@@ -69,7 +70,7 @@ function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc},
                 throw(ArgumentError("All operators held by `enc` should explicitly act on "*
                                     "the same number of sites. Compared to the site count "*
                                     "of the first operator (`first(enc)[begin]`), "*
-                                    "operator $i in `enc[$sec]` disagrees."))
+                                    "operator $i in `enc[$(sec+offset)]` disagrees."))
             else
                 return false
             end
@@ -78,7 +79,8 @@ function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc},
         if !isHermitian(op) #> Hermitian `PauliStr` is automatically an involution
             if explicitError
                 throw(ArgumentError("Every operator held by `enc` should be Hermitian. "*
-                                    "Operator $i in `enc[$sec]` violates this condition."))
+                                    "Operator $i in `enc[$(sec+offset)]` violates this "*
+                                    "condition."))
             else
                 return false
             end
@@ -89,8 +91,8 @@ function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc},
                 if explicitError
                     throw(ArgumentError("Every operator held by `enc` should be an "*
                                         "involution (i.e., squared to the identity "*
-                                        "operator). Operator $i in `enc[$sec]` violates "*
-                                        "this condition."))
+                                        "operator). Operator $i in `enc[$(sec+offset)]` "*
+                                        "violates this condition."))
                 else
                     return false
                 end
@@ -101,15 +103,17 @@ function checkMajoranaEnc(enc::Union{PairwiseStrEnc, PairwiseSumEnc},
     @inbounds for secPair in ((1, 1), (2, 2), (1, 2))
         sec1, sec2 = secPair
         sameSec = (sec1 == sec2)
-        ops1 = enc[begin+sec1-1]
-        ops2 = enc[begin+sec2-1]
+        idx1 = offset + sec1
+        idx2 = offset + sec2
+        ops1 = enc[idx1]
+        ops2 = enc[idx2]
 
         for i in 1:(nMode - sameSec), j in (sameSec ? i + 1 : 1):nMode
             if !checkAntiCom(ops1[begin+i-1], ops2[begin+j-1])
                 if explicitError
                     throw(ArgumentError("Every pair of distinct operators in `enc` should "*
-                                        "anticommute. Operator $i in `enc[$sec1]` and "*
-                                        "operator $j in `enc[$sec2]` do not."))
+                                        "anticommute. Operator $i in `enc[$idx1]` and "*
+                                        "operator $j in `enc[$idx2]` do not."))
                 else
                     return false
                 end
@@ -328,9 +332,9 @@ relations:
 
     a_p (a_q)' + (a_q)' a_p == δ_{pq} I,    a_p a_q + a_q a_p == 0, 
 
-where `a_p` is the annihilation operator stored at `res.first[p]` and `(a_p)'` is the 
-creation operator stored at `res.second[p]`. Furthermore, the relations between the Dirac 
-operators and the Majorana operators are as follows: 
+where `a_p` is the annihilation operator stored at `res.first[begin+p-1]` and `(a_p)'` is 
+the creation operator stored at `res.second[begin+p-1]`. Furthermore, the relations between 
+the Dirac operators and the Majorana operators are as follows: 
 
     a_p = (γ_{2p-1} + im * γ_{2p}) / 2,    (a_p)' = (γ_{2p-1} - im * γ_{2p}) / 2, 
 
@@ -359,8 +363,8 @@ function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:Re
         majOdd  = enc.first[ begin+p-1]
         majEven = enc.second[begin+p-1]
         opPair  = [majOdd, majEven]
-        annOps[p] = PauliSum(opPair, aCoeff)
-        creOps[p] = PauliSum(opPair, cCoeff)
+        annOps[begin+p-1] = PauliSum(opPair, aCoeff)
+        creOps[begin+p-1] = PauliSum(opPair, cCoeff)
     end
 
     annOps => creOps
@@ -384,7 +388,7 @@ function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair:
         end
 
         for op in opPair
-            if !(iszero∘countTerms∘evalAntiCom)(op, op)
+            if !checkAntiCom(op, op)
                 throw(ArgumentError("Each operator in `opPair` must anticommute with "*
                                     "itself."))
             end
@@ -405,8 +409,9 @@ end
 Return `true` if `enc` forms a valid Dirac-operator encoding. It must contain a `Pair` of 
 `AbstractVector`, holding in total (positive) `2p` operators represented by `PauliSum`. 
 Specifically, `enc.first` and `enc.second` must respectively store `p` annihilation 
-operators (`a_i = enc.first[i]`) and creation operators (`c_j = enc.second[j]`), which 
-satisfy the following adjoint condition and anticommutation relations: 
+operators (`a_i = enc.first[begin+i-1]`) and creation operators 
+(`c_j = enc.second[begin+j-1]`), which satisfy the following adjoint condition and 
+anticommutation relations: 
 
     c_i == (a_i)',    a_i c_j + c_j a_i == δ_{ij} I,    a_i a_j + a_j a_i == 0
 
@@ -461,6 +466,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     annOps = enc.first
     creOps = enc.second
     nSite = (countSites∘first)(annOps)
+    offset = firstindex(enc) - 1
 
     for (sec, ops) in enumerate(enc), (i, op) in enumerate(ops)
         if countSites(op) != nSite
@@ -468,7 +474,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
                 throw(ArgumentError("All operators held by `enc` should explicitly act on "*
                                     "the same number of sites. Compared to the site count "*
                                     "of the first operator (`first(enc)[begin]`), "*
-                                    "operator $i in `enc[$sec]` disagrees."))
+                                    "operator $i in `enc[$(sec+offset)]` disagrees."))
             else
                 return false
             end
@@ -531,7 +537,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
                     if explicitError
                         throw(ArgumentError("The two Majorana operators (converted via "*
                                             "`toMajoranaPair`) corresponding to mode $p "*
-                                            "are both restricted to single Pauli strings."))
+                                            "should both be single Pauli strings."))
                     else
                         return false
                     end
@@ -573,7 +579,7 @@ output representation:
   operator is stored as a (Hermitian) `PauliSum`, and the result satisfies the 
   `PauliSum`-based method of [`checkMajoranaEnc`](@ref).
 
-The third method signature fall backs to the first method signature.
+The third method signature falls back to the first method signature.
 
 In both representations, the result does not reference any data in `enc`. The 
 `PauliStr`-based conversion and `toDiracEnc` are mutually inverse: 

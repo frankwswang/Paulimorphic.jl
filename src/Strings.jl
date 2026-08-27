@@ -1114,8 +1114,8 @@ Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operat
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
 The phase of `dst` (`dst.phase`) is left untouched. When `lowToHigh=true` (default), site 
 `first(srcRange)` of `src` lands on site `dstStart` of `dst`, with the remaining selected 
-sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)` of 
-`src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
+sites extending toward higher site indices; when `lowToHigh=false`, site `last(srcRange)`  
+of `src` lands on site `dstStart`, with the remaining selected sites extending toward lower 
 site indices. In either direction, the selected sites of `src` that fall outside `1:dst.n` 
 are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must be in 
 `1:src.n`.
@@ -1388,7 +1388,7 @@ end
 
 
 """
-    isIdentity(s::PauliStr) -> Bool
+    isIdentity(op::PauliStr) -> Bool
 
     isIdentity(op::PauliSum) -> Bool
 
@@ -1425,7 +1425,7 @@ stores exactly one Pauli string whose coefficient is exactly `1`, `-1`, `im`, or
 which is folded into the phase of the returned string. When the conversion is impossible, 
 an error identifying the violated condition is thrown if `fallbackStr` is `missing` (the 
 default); otherwise `fallbackStr` is returned instead. The result does not reference any 
-data in `op` or `fallbackStr`.
+data in `op`.
 """
 function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
     explicitError = ismissing(fallbackStr)

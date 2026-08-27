@@ -131,8 +131,8 @@ end
     end
 
     #>≡≡≡ Attribute 1: site count ≡≡≡<#
-    #> Pitfall: drafts that graded by weight first compared weights across different ambient 
-    #> spaces, e.g. ranking a 2-site identity before a 1-site X.
+    #> Pitfall: drafts that graded by weight first compared weights across different 
+    #> ambient spaces, e.g. ranking a 2-site identity before a 1-site X.
     @test PauliStr(0) < pauli"I"   #> Zero-site string precedes any explicit one
     @test pauli"X"  < pauli"II"    #> Site count dominates weight (1 vs 0)
     @test pauli"YY" < pauli"III"   #> ... even at maximal weight difference

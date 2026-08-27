@@ -401,6 +401,8 @@ function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair:
 end
 
 
+#>-- Reference(s) --<#
+#> [DOI] 10.21468/SciPostPhysLectNotes.54
 """
     checkDiracEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}, 
                   explicitError::Bool=false; strRestricted::Bool=false) -> 

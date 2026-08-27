@@ -371,6 +371,8 @@ end
     @test all(count(!iszero, wR[i, :]) == 1 for i in 1:4)      #> One entry per row
     @test all(x -> x == 0 || x == 1 || x == -1, wR)
     @test any(==(-1), wA)                                      #> The negRea sign survives
+    @test all(PauliSum(wrapped.first[i])  == PauliSum(wFrame, wA[:, i]) for i in 1:2)
+    @test all(PauliSum(wrapped.second[i]) == PauliSum(wFrame, wC[:, i]) for i in 1:2)
 
     #> Class-3 inputs: valid encoding but wrong frame basis count
     skew = [PauliSum([pauli"X", pauli"Y", pauli"Z"], 
@@ -412,20 +414,22 @@ end
     end
 
     @testset "Handling encodings with negative-phase `PauliStr`" begin
-        ann2, _ = toDiracEnc(genJordanWignerEnc(2))
-        b1 = add(mul(ann2[1], 3//5), mul(ann2[2],  4//5))
-        b2 = add(mul(ann2[1], 4//5), mul(ann2[2], -3//5))
-        mSum = toMajoranaEnc(PauliSum, [b1, b2] => [toAdjoint(b1), toAdjoint(b2)])
+        for phase in (negRea, negImg)
+            ann2, _ = toDiracEnc(genJordanWignerEnc(2))
+            b1 = add(mul(ann2[1], 3//5), mul(ann2[2],  4//5))
+            b2 = add(mul(ann2[1], 4//5), mul(ann2[2], -3//5))
+            mSum = toMajoranaEnc(PauliSum, [b1, b2] => [toAdjoint(b1), toAdjoint(b2)])
 
-        negged = [changePhase(mSum.first[1], pauli"XI", negRea), mSum.first[2]] => 
-                collect(mSum.second)
-        @test checkMajoranaEnc(negged) #> Sanity: value unchanged, still valid
+            negged = [changePhase(mSum.first[1], pauli"XI", negRea), mSum.first[2]] => 
+                    collect(mSum.second)
+            @test checkMajoranaEnc(negged) #> Sanity: value unchanged, still valid
 
-        mats, frame = buildMajoranaFrame(negged)
-        matA, _ = mats
-        @test frame == [pauli"XI", pauli"YI", pauli"ZX", pauli"ZY"]
-        @test iszero(matA[2, 1])              #> CURRENT: the `YI` row holds a stray `-3//5`
-        @test PauliSum(negged.first[1]) == PauliSum(frame, matA[:, 1])
+            mats, frame = buildMajoranaFrame(negged)
+            matA, _ = mats
+            @test frame == [pauli"XI", pauli"YI", pauli"ZX", pauli"ZY"]
+            @test iszero(matA[2, 1])
+            @test PauliSum(negged.first[1]) == PauliSum(frame, matA[:, 1])
+        end
     end
 
     @testset "Handling encodings with non-canonical (mergeable) `PauliSum`" begin

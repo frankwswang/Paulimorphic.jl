@@ -1401,7 +1401,8 @@ is exact, so an operator that is an identity in exact arithmetic can fail the te
 coefficients carry floating-point rounding residues.
 """
 function isIdentity(op::PauliStr)
-    countSites(op) == 0 || (all(iszero, op.x) && all(iszero, op.z) && (op.phase == posRea))
+    #> `all` returns `true` for empty collections
+    all(iszero, op.x) && all(iszero, op.z) && isequal(op.phase, posRea)
 end
 
 function isIdentity(op::PauliSum)

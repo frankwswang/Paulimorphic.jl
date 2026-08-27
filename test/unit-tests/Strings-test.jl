@@ -265,9 +265,11 @@ end
 @test  isHermitian(PauliSum(Int))
 
 #> `isIdentity`
-@test !isIdentity(PauliSum(Int))
+@test  isIdentity(PauliStr())               
 @test  isIdentity(PauliSum(Int, [PauliStr(2)]))
 @test  isIdentity(mul(PauliSum([mul(pauli"II", Paulimorphic.negRea)], Complex{Int}(-1)), 1))
+@test !isIdentity(PauliSum(Int))
+@test !isIdentity(PauliStr(0, symI, posImg))
 
 @testset "toPauliStr" begin
     #> Single term with a coefficient expressible as a phase

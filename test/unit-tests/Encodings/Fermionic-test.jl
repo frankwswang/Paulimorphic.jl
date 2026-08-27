@@ -368,9 +368,9 @@ end
     @test_throws "Hermitian adjoint" toMajoranaPair(a1 => a1)
     badNorm = mul(a1, 2) #> Adjoint pairing intact; {2a, (2a)'} == 4I != I
     @test_throws "equal an identity" toMajoranaPair(badNorm => toAdjoint(badNorm))
-    rotOp = PauliSum([pauli"X", pauli"Y"], 
-                    [Complex{Rational{Int}}(7//10, 0), Complex{Rational{Int}}(0, -1//10)])
-    @test_throws "anticommute with itself" toMajoranaPair(rotOp => toAdjoint(rotOp))
+    op = PauliSum([pauli"X", pauli"Y"], 
+                  [Complex{Rational{Int}}(7//10, 0), Complex{Rational{Int}}(0, -1//10)])
+    @test_throws "anticommute with itself" toMajoranaPair(op => toAdjoint(op))
 
     #> `checkForDiracPair=false` skips the verification entirely
     @test toMajoranaPair(a1 => a1, false) isa Pair

@@ -388,7 +388,7 @@ When `checkForDiracPair=true`, `opPair` is first verified to form a valid single
 Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
 act on the same number of sites for the verification to pass. When 
 `checkForDiracPair=false`, the verification is skipped, in which case the output is 
-physically meaningful only for valid Dirac-operator pair as the input. The two operators 
+physically meaningful only when the input is a valid Dirac-operator pair. The two operators 
 held by `res` are in the canonical form and do not reference any data in `opPair`.
 
 # Example

@@ -683,12 +683,21 @@ function buildMajoranaFrame(enc::PairwiseSumEnc)
     checkMajoranaEnc(enc, true)
     nMode = length(enc.first)
     nMajs = 2 * nMode
-    tMatT = mapreduce(op->real(eltype(op.coeff)), promote_type, Iterators.flatten(enc))
     frameSet = Set{PauliStr}()
-    annOpVec = map(PauliSum, enc.first)  #> Canonicalize encoding operators to make sure 
-    creOpVec = map(PauliSum, enc.second) #> each string carries a `posRea` phase
+    #> Canonicalize encoding operators to make sure each string carries a `posRea` phase
+    annOpVec = map(x->PauliSum(x), enc.first ) #> using `x->PauliSum(x)` for type stability
+    creOpVec = map(x->PauliSum(x), enc.second)
     for ops in (annOpVec, creOpVec), op in ops, str in op.str
         push!(frameSet, str)
+    end
+
+    tMatT = mapreduce(promote_type, (annOpVec, creOpVec)) do ops
+        dataT = (getCoreDataType∘eltype)(ops)
+        if isconcretetype(dataT)
+            dataT
+        else
+            mapreduce(op->(real∘eltype)(op.coeff), promote_type, ops, init=Union{})
+        end::Type{<:dataT}
     end
 
     #> The frame is well defined iff exactly `nMajs` distinct strings appear: the trace-

@@ -153,12 +153,15 @@ function genNBodyOperatorSum(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEn
 
     for carteIdx in CartesianIndices(orbInte)
         inteCoeff = orbInte[carteIdx]
+        iszero(inteCoeff) && continue
+
         idxTuple = Tuple(carteIdx)
         iPairs = map(ntuple(identity, Val(N)), iModeStart) do i, iStart
             m, n = (2i - 1), 2i
             offset = (iStart, iStart) .- (iFirstAxial[begin+m-1], iFirstAxial[begin+n-1])
             offset .+ (idxTuple[begin+m-1], idxTuple[begin+n-1])
         end
+
         op = genNBodyOperator(format, enc, spinSecConfig, iPairs, false)
 
         for (str, encCoeff) in zip(op.str, op.coeff)

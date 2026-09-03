@@ -174,29 +174,25 @@ function genNBodyOperatorSum(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEn
 end
 
 function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractArray{T, D}, 
-                             isSpin2Sec::Bool, idxPairSymm::Bool=false; 
-                             hermiticity::Bool=true, 
-                             iModeStart::Integer=1, 
-                             checkInput::Bool=true) where {T<:RealOrComplex, D}
-    orbSecLabel = (1,)
-
+                             idxPairSymm::Bool=false; hermiticity::Bool=true, 
+                             iModeStart::Integer=1, checkInput::Bool=true) where 
+                            {T<:RealOrComplex, D}
     if checkInput
         checkDiracEnc(oneSecEnc, true)
 
         nOrb = size(orbInte, 1)
-        checkNBodyInteTensor(orbInte, (nOrb,), orbSecLabel, (idxPairSymm,), true; 
-                             hermiticity)
+        checkNBodyInteTensor(orbInte, (nOrb,), (1,), (idxPairSymm,), true; hermiticity)
 
         windowSize = length(oneSecEnc.first) - iModeStart + 1
         if nOrb > windowSize
-            throw(ArgumentError("The window size (bounded by `iModeStart`) for `enc` is "*
-                                "$windowSize. It is not large enough to be associated "*
-                                "with the first axis of `orbInte`, which has an extent "*
-                                "of $nOrb."))
+            throw(ArgumentError("The window size (bounded by `iModeStart`) for "*
+                                "`oneSecEnc` is $windowSize. It is not large enough to be "*
+                                "associated with the first axis of `orbInte`, which has "*
+                                "an extent of $nOrb."))
         end
     end
 
-    genNBodyOperatorSum(PairedOrder(), (oneSecEnc, oneSecEnc), orbInte, (isSpin2Sec,); 
+    genNBodyOperatorSum(PairedOrder(), (oneSecEnc, oneSecEnc), orbInte, (false,); 
                         hermiticity, iModeStart=(iModeStart,), checkInput=false)
 end
 

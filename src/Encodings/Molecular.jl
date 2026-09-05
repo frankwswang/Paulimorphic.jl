@@ -1,7 +1,7 @@
 export checkSpinSectoredEnc, formatSpinSectoredEnc, PairedOrder, NormalOrder, 
        gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
 
-public NBodyOpFormat, genNBodyOperator, formatMolecularInteData
+public NBodyOrdering, genNBodyOperator, formatMolecularInteData
 
 """
     checkSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, explicitError::Bool=false) -> 
@@ -128,11 +128,11 @@ where `c_n == (a_n)'` (`1 <= n <= N`).
 """
 struct NormalOrder <: StructuredType end #> (1', 2', ..., N', N, ..., 2, 1)
 
-const NBodyOpFormat = Union{PairedOrder, NormalOrder}
+const NBodyOrdering = Union{PairedOrder, NormalOrder}
 
 
 """
-    genNBodyOperator(format::$NBodyOpFormat, enc::NTuple{2, PairwiseSumEnc}, 
+    genNBodyOperator(format::$NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                      spinSecConfig::NTuple{N, Bool}, 
                      modeIdxConfig::NTuple{N, NTuple{2, Integer}}, 
                      checkEncoding::Bool=true) -> 
@@ -152,7 +152,7 @@ indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces th
 ordering: `c_1' c_2' ... c_N' a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, 
 `enc` is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
 """
-function genNBodyOperator(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEnc}, 
+function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                           spinSecConfig::NonEmptyTuple{Bool, M}, 
                           modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
                           checkEncoding::Bool=true)::PauliSum where {M}
@@ -207,7 +207,7 @@ end
 
 
 """
-    genNBodyOperatorSum(format::$NBodyOpFormat, enc::NTuple{2, PairwiseSumEnc}, 
+    genNBodyOperatorSum(format::$NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                         orbInte::AbstractArray{C, D}, spinSecConfig::NTuple{N, Bool}, 
                         iModeStart::NTuple{N, Integer}=ntuple(_->1, Val(N)); 
                         particleExch::Bool=true, 
@@ -270,7 +270,7 @@ validate the structure of `orbInte` when `checkInput=true`:
     [`checkSpinSectoredEnc`](@ref), and each mode window is checked against the capacity of 
     its sector in `enc`.
 """
-function genNBodyOperatorSum(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEnc}, 
+function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                              orbInte::AbstractArray{T, D}, 
                              spinSecConfig::NonEmptyTuple{Bool, M}, 
                              iModeStart::NonEmptyTuple{Integer, M}=ntuple(_->1, Val(M+1)); 
@@ -416,7 +416,7 @@ const MolInteTensor1B2B{T<:RealOrComplex, T1<:AbstractMatrix{T}, T2<:AbstractArr
 const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 """
-    encodeElecHam(format::$NBodyOpFormat, 
+    encodeElecHam(format::$NBodyOrdering, 
                   enc::Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}, 
                   inte1B2BSpin1::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   inte1B2BSpin2::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
@@ -473,7 +473,7 @@ underlying electronic Hamiltonian) regardless of the value of `format`.
 
 ## Simplified method
 
-    encodeElecHam(format::$NBodyOpFormat, enc::OptSpinSectoredEnc, 
+    encodeElecHam(format::$NBodyOrdering, enc::OptSpinSectoredEnc, 
                   orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}
                   checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
@@ -495,7 +495,7 @@ that the input per-spin-sector two-body tensors hold an eight-fold symmetry (two
 particle-exchange times four-fold index-pair transposition) as long as there elements are 
 all real.
 """
-function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc, 
+function encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc, 
                        inte1B2BSpin1::MolInteTensor1B2B{T}, 
                        inte1B2BSpin2::MolInteTensor1B2B{T}, 
                        inte2BCross::AbstractArray{T, 4}, 
@@ -542,7 +542,7 @@ function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc,
     h1Spin1 + h1Spin2 + h2Spin1 + h2Spin2 + h2Cross
 end
 
-encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc, 
+encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc, 
               orbInte1B2B::MolInteTensor1B2B{T}, checkEncoding::Bool=true; 
               hermiticity::Bool=true, 
               idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)) where 

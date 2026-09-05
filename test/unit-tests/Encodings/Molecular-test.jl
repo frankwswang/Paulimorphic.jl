@@ -36,8 +36,6 @@ end
         genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), (false, false), 
                             (1, 2); checkInput=false)
     end
-    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), (false, false), 
-                              (1, 3)) == PauliSum(Float64)
 
     #> Literal-weight convention (`particleExch=false`)
     gN = genNBodyOperatorSum(NormalOrder(), secEnc, g1, (false, false); checkInput=false)
@@ -54,6 +52,14 @@ end
                               checkInput=false, particleExch=false) == litSum
     @test genNBodyOperatorSum(PairedOrder(), secEnc, g2, (false, false); 
                               particleExch=false) isa PauliSum
+
+    t1 = ones(2, 2, 3, 3) #> particle 1 window 1:2, particle 2 window 1:3
+    @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, t1, 
+        (false, false), (1, 1); checkInput=false) #> Overlapped windows disallowed
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8,  ones(2,2,2,2), 
+        (false, false), (1, 1); checkInput=false) isa PauliSum #> Identical windows allowed
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2,2,2,2), 
+        (false, false), (1, 3)) == PauliSum(Float64) #> Disjoint windows allowed
 end
 
 @testset "gen1BodyOperatorSum" begin
@@ -63,14 +69,6 @@ end
           PauliSum([pauli"IIII", pauli"ZIII"], [1.0, -1.0])
     @test gen1BodyOperatorSum(first(secEnc), fill(2.0, 1, 1), 2; checkInput=false) == 
           PauliSum([pauli"IIII", pauli"IZII"], [1.0, -1.0])
-
-    t1 = ones(2, 2, 3, 3)  #> particle 1 window 1:2, particle 2 window 1:3
-    @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, t1, 
-        (false, false), (1, 1); checkInput=false) #> Overlapped windows disallowed
-    @test genNBodyOperatorSum(NormalOrder(), secEnc8,  ones(2,2,2,2), 
-        (false, false), (1, 1); checkInput=false) isa PauliSum #> Identical windows allowed
-    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2,2,2,2), 
-        (false, false), (1, 3)) == PauliSum(Float64) #> Disjoint windows allowed
 end
 
 @testset "formatMolecularInteData" begin

@@ -73,8 +73,9 @@ toMatrix(sym::PauliSym) = toMatrix(Int, sym)
 
 Return the first index `idx` (in column-major order) of `tensor` at which the symmetry 
 `tensor[idx...] == tensor[permIdx...]` (or `tensor[idx...] == tensor[permIdx...]'` if 
-`conjugated` is `true`) fails, where `permIdx` is the permutation of `idx` specified by 
-`axisPerm`. If no such `idx` is found (i.e., the symmetry holds everywhere), 
+`conjugated` is `true`) fails, where the "position" of `permIdx` along axis `d` (i.e., the 
+index difference to the first index of that axis) equals the position of `idx` along axis 
+`axisPerm[begin+d-1]`. If no such `idx` is found (i.e., the symmetry holds everywhere), 
 `findAxisPermViolation` returns `nothing`. `axisPerm` must be a permutation of `1:D` such 
 that `Base.isperm(axisPerm) == true` and only maps between axes of equal extent.
 """

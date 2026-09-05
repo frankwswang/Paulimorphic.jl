@@ -147,7 +147,7 @@ its creation and annihilation operators within that `sector`:
     c_p' = sector.second[begin+iCre-1];     a_p = sector.first[begin+iAnn-1]
 
 Additionally, `format` specifies the operator ordering of the monomial: 
-[`PairedOrder`](@ref) produced pairwise ordering (similar to the Chemist notation for the 
+[`PairedOrder`](@ref) produces pairwise ordering (similar to the Chemist notation for the 
 indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces the normal 
 ordering: `c_1' c_2' ... c_N' a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, 
 `enc` is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
@@ -230,7 +230,7 @@ products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`)
 axes follow the index-pair layout: axes `(2p-1, 2p)` host the index pair 
 `(c_p, a_p) == ((a_p)', a_p)` of particle `p` (`1 <= p <= N`). Specifically, index `i_k` 
 along axis `k` of `orbInte` maps to the mode `iModeStart[begin+p-1] + i_k - 1` of particle 
-`p = (k+1) ÷ 2` in the one of the two spin sectors specified by `spinSecConfig[begin+p-1]`. 
+`p = (k+1) ÷ 2` in one of the two spin sectors specified by `spinSecConfig[begin+p-1]`. 
 Subsequently, the returned summation is evaluated as 
 
     prefactor * sum(orbInte[idx] * monomial(idx) for idx in CartesianIndices(orbInte))
@@ -481,7 +481,7 @@ underlying electronic Hamiltonian) regardless of the value of `format`.
 ## Simplified method
 
     encodeElecHam(format::$NBodyOrdering, enc::OptSpinSectoredEnc, 
-                  orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}
+                  orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
                   idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)) -> 
@@ -499,7 +499,7 @@ tensors, which is imposed by the default value of `idxPairSymm` exactly when the
 are real and pairwise Hermitian, matching the symmetry of real spatial orbitals under the 
 Coulomb interaction. As a result, `encodeElecHam` (with default argument values) assumes 
 that the input per-spin-sector two-body tensors hold an eight-fold symmetry (two-fold 
-particle-exchange times four-fold index-pair transposition) as long as there elements are 
+particle-exchange times four-fold index-pair transposition) as long as their elements are 
 all real.
 """
 function encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc, 
@@ -568,7 +568,7 @@ encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), checkEnc
     Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}
 
 Validate the format of molecular integrals (`first(inteData)` as the one-body matrix and 
-`last(inteData)` as the two-body tensor) of a single spin sector return `inteData` 
+`last(inteData)` as the two-body tensor) of a single spin sector and return `inteData` 
 unchanged to comply with the coefficient requirement for a second-quantized molecular 
 electronic Hamiltonian under the `NormalOrder` format.
 

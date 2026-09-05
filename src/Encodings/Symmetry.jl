@@ -242,9 +242,10 @@ function checkNBodyInteTensor(inte::AbstractArray{<:RealOrComplex, D},
         end
     end
 
-    #> Type-aware fast path for one-body integral tensors
-    if iszero(M)
-        if eltype(inte) <: Real
+    #> Type-aware fast path for one-body integral tensors that cannot contain `NaN`
+    coreT = eltype(inte)
+    if iszero(M) && (real(coreT) <: Union{Integer, Rational})
+        if coreT <: Real
             inte isa Union{Symmetric, Hermitian}
         else
             (inte isa Hermitian) && !idxPairSymm[begin]

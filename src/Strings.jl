@@ -7,7 +7,7 @@ public sortStrings!, setCoeff!
 using LinearAlgebra: dot
 
 """
-    PauliStr <: DiscreteOperator
+    PauliStr <: $DiscreteOperator
 
 An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
@@ -456,7 +456,7 @@ end
 
 
 """
-    PauliSum{T<:Real} <: DiscreteOperator
+    PauliSum{T<:Real} <: $DiscreteOperator
 
 A linear combination of Pauli strings, i.e. a general operator
 

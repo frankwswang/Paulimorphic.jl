@@ -23,7 +23,7 @@ store the odd-indexed (`γ_{2p-1}`) and even-indexed (`γ_{2p}`) Majorana operat
 stored operator `γ_i` must be Hermitian and the operators must also satisfy the following 
 anticommutation relation: 
 
-    γ_i γ_j + γ_j γ_i == 2δ_{ij} I. 
+    γ_i γ_j + γ_j γ_i == 2δ_{ij} I.
 
 Additionally, `enc` must be formatted such that all contained Majorana operators explicitly 
 act on the same number of sites (i.e., [`countSites`](@ref) returns the same value). All 
@@ -325,16 +325,16 @@ end
     toDiracEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}) -> 
     Pair{Vector{ PauliSum{Rational{Int}} }, Vector{ PauliSum{Rational{Int}} }}
 
-Convert a valid Majorana encoding `enc` (verified via [`checkMajoranaEnc`](@ref) with 
-argument `explicitError=true`) of `length(enc.first)` fermionic modes to a Dirac-operator 
-encoding returned as `res`, whose stored operators obey the following anticommutation 
-relations: 
+Convert a valid Majorana fermionic encoding `enc` (verified via [`checkMajoranaEnc`](@ref) 
+with argument `explicitError=true`) of `length(enc.first)` fermionic modes to a Dirac 
+fermionic encoding returned as `res`, whose stored operators obey the following 
+anticommutation relations: 
 
     a_p (a_q)' + (a_q)' a_p == δ_{pq} I,    a_p a_q + a_q a_p == 0, 
 
 where `a_p` is the annihilation operator stored at `res.first[begin+p-1]` and `(a_p)'` is 
 the creation operator stored at `res.second[begin+p-1]`. Furthermore, the relations between 
-the Dirac operators and the Majorana operators are as follows: 
+the Dirac (fermionic) operators and the Majorana operators are as follows: 
 
     a_p = (γ_{2p-1} + im * γ_{2p}) / 2,    (a_p)' = (γ_{2p-1} - im * γ_{2p}) / 2, 
 
@@ -377,8 +377,8 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
     toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair::Bool=true) -> 
     Pair{<:PauliSum, <:PauliSum}
 
-Convert a single-mode Dirac-operator pair `opPair`, with `opPair.first` and 
-`opPair.second` respectively storing the annihilation operator `a` and the creation 
+Convert a single-mode Dirac-operator pair `opPair`, in which `opPair.first` and 
+`opPair.second` respectively represent the annihilation operator `a` and the creation 
 operator `c` of the same fermionic mode, into the corresponding pair of Majorana operators 
 returned as `res`: 
 
@@ -436,7 +436,7 @@ end
                   explicitError::Bool=false; strRestricted::Bool=false) -> 
     Bool
 
-Return `true` if `enc` forms a valid Dirac-operator encoding. It must contain a `Pair` of 
+Return `true` if `enc` forms a valid Dirac fermionic encoding. It must contain a `Pair` of 
 `AbstractVector`, holding in total (positive) `2p` operators represented by `PauliSum`. 
 Specifically, `enc.first` and `enc.second` must respectively store `p` annihilation 
 operators (`a_i = enc.first[begin+i-1]`) and creation operators 
@@ -592,7 +592,7 @@ end
     toMajoranaEnc(enc::Pair{<:AbstractVector{<:PauliSum}, <:AbstractVector{<:PauliSum}}) -> 
     Pair{Vector{PauliStr}, Vector{PauliStr}}
 
-Convert a valid Dirac-operator encoding `enc` (verified via [`checkDiracEnc`](@ref)) of 
+Convert a valid Dirac fermionic encoding `enc` (verified via [`checkDiracEnc`](@ref)) of 
 `length(enc.first)` fermionic modes back to a Majorana encoding returned as `res`, acting 
 as the inverse transformation of [`toDiracEnc`](@ref): 
 

@@ -1,4 +1,4 @@
-abstract type LinearOperator <:Any end
+abstract type LinearOperator <: Any end
 abstract type DiscreteOperator <: LinearOperator end
 
 abstract type StructuredType <:Any end

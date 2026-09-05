@@ -273,7 +273,8 @@ function genNBodyOperatorSum(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEn
                              iModeStart::NonEmptyTuple{Integer, M}=ntuple(_->1, Val(M+1)); 
                              particleExch::Bool=true, 
                              hermiticity::Bool=true, 
-                             idxPairSymm::NonEmptyTuple{Bool}=ntuple(_->false, Val(M+1)), 
+                             idxPairSymm::NonEmptyTuple{Bool, M}=
+                                          ntuple(_->false, Val(M+1)), 
                              checkInput::Bool=true) where {T<:RealOrComplex, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
@@ -380,10 +381,10 @@ details) is checked against the capacity of `oneSecEnc`, and the symmetries of `
 (as well as the resulting operator summation) asserted by `hermiticity` and `idxPairSymm` 
 are verified via [`checkNBodyInteTensor`](@ref).
 """
-function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractArray{T, D}, 
+function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{T}, 
                              iModeStart::Integer=1; hermiticity::Bool=true, 
                              idxPairSymm::Bool=false, checkInput::Bool=true) where 
-                            {T<:RealOrComplex, D}
+                            {T<:RealOrComplex}
     idxPairSymm = (idxPairSymm,)
 
     if checkInput

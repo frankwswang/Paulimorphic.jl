@@ -174,25 +174,29 @@ function genNBodyOperator(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEnc},
 end
 
 
-function getOrbSecLabel(spinIdxFirstKeys::NonEmptyTuple{Tuple{Bool, Integer}, M}) where {M}
+#> `spinSecConfig[begin+p-1]` specifies the spin sector (whether is spin-two) for pair of
+#> axes `(2p-1 2p)`, and `iModeRange[begin+p-1]` specifies the corresponding mode range.
+function getOrbSecLabel(spinSecConfig::NonEmptyTuple{Bool, M}, 
+                        iModeRange::SameTypePair{<:NonEmptyTuple{Integer, M}}) where {M}
+    iStart, iFinal = iModeRange
     buffer = ntuple(_->0, Val(M+1))
     header = 0
 
-    for offset in 0:M
-        keyTarget = spinIdxFirstKeys[begin+offset]
+    @inbounds for offset in 0:M
+        key = (spinSecConfig[begin+offset], iStart[begin+offset], iFinal[begin+offset])
         matchedIdx = 0
 
-        for idx in 1:offset
-            keyLabeled = spinIdxFirstKeys[begin+idx-1]
+        for i in 1:offset
+            keyLabeled = (spinSecConfig[begin+i-1], iStart[begin+i-1], iFinal[begin+i-1])
 
-            if keyTarget == keyLabeled
-                matchedIdx = idx
+            if key == keyLabeled
+                matchedIdx = i
                 break
             end
         end
 
         label = iszero(matchedIdx) ? (header += 1) : buffer[begin+matchedIdx-1]
-        buffer = buffer .+ ntuple(i->ifelse(i==offset+1, label, 0), Val(M+1))
+        buffer = buffer .+ ntuple(j->ifelse(j==offset+1, label, 0), Val(M+1))
     end
 
     buffer
@@ -277,7 +281,8 @@ function genNBodyOperatorSum(format::NBodyOpFormat, enc::NTuple{2, PairwiseSumEn
         throw(DomainError(iModeStart, "All elements of `iModeStart` must be positive."))
     end
 
-    orbSecLabel = getOrbSecLabel(map(tuple, spinSecConfig, iModeStart))
+    iModeFinal = ntuple(i->size(orbInte, 2i-1), Val(N))
+    orbSecLabel = getOrbSecLabel(spinSecConfig, iModeStart=>iModeFinal)
 
     if particleExch
         for q in 2:N, p in 1:(q-1)

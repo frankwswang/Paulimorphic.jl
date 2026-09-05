@@ -1,3 +1,8 @@
+export checkSpinSectoredEnc, formatSpinSectoredEnc, PairedOrder, NormalOrder, 
+       gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
+
+public NBodyOpFormat, genNBodyOperator, formatMolecularInteData
+
 """
     checkSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, explicitError::Bool=false) -> 
     Bool

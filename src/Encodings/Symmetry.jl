@@ -1,3 +1,6 @@
+export checkInteHermiticity, checkInteParticleExchange, checkIntePairTransposition, 
+       checkNBodyInteTensor
+
 using LinearAlgebra: Symmetric, Hermitian
 
 """
@@ -107,7 +110,7 @@ under transposing the index pair `(a_p, c_p)` of particle `p = pos` (`1 <= p <= 
 An integral tensor
 
     inte[c_1, a_1, ..., c_N, a_N] = 
-    \\int_{dx_1 ... dx_N} O[f_{c_1}', f_{a_1}, ..., f_{c_N}', f_{a_N}](x_1, ..., x_N)
+    ∫_{dx_1 ... dx_N} O[f_{c_1}', f_{a_1}, ..., f_{c_N}', f_{a_N}](x_1, ..., x_N)
 
 may hold such a symmetry when the action of the underlying core operator `O` onto all the 
 basis wavefunctions `f` indexed by `(c_1, a_1, ..., c_N, a_N)` is invariant under the 

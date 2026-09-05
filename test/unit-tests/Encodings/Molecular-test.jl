@@ -19,9 +19,6 @@ secEnc8 = formatSpinSectoredEnc(enc8, (4, 4))
 
 @testset "formatSpinSectoredEnc" begin
     @test length(first(secEnc).first) == 2
-    #> The pair method now trims each sector to the requested mode count; currently it 
-    #> raises UndefVarError, since the do-block references `annOps`/`creOps` from the 
-    #> single-encoding method instead of `sec.first`/`sec.second`
     trimmed = formatSpinSectoredEnc(secEnc8, (2, 3))
     @test map(sec->length(sec.first), trimmed) == (2, 3)
     @test map(sec->length(sec.second), trimmed) == (2, 3)
@@ -35,9 +32,10 @@ end
     @test genNBodyOperatorSum(NormalOrder(), secEnc, zeros(2, 2, 2, 2), 
                               (false, false)) == PauliSum(Float64)
 
-    #> Window disjointness under `particleExch=true` (now enforced unconditionally)
-    @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
-        zeros(2, 2, 2, 2), (false, false), (1, 2); checkInput=false)
+    @test_throws ArgumentError begin
+        genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), (false, false), 
+                            (1, 2); checkInput=false)
+    end
     @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), (false, false), 
                               (1, 3)) == PauliSum(Float64)
 
@@ -63,7 +61,6 @@ end
           PauliSum([pauli"IIII", pauli"ZIII"], [1.0, -1.0])
     @test gen1BodyOperatorSum(first(secEnc), fill(2.0, 1, 1); checkInput=false) == 
           PauliSum([pauli"IIII", pauli"ZIII"], [1.0, -1.0])
-    #> `iModeStart` is now the optional positional argument
     @test gen1BodyOperatorSum(first(secEnc), fill(2.0, 1, 1), 2; checkInput=false) == 
           PauliSum([pauli"IIII", pauli"IZII"], [1.0, -1.0])
 end
@@ -78,10 +75,6 @@ end
 end
 
 @testset "encodeElecHam (golden acceptance)" begin
-    #> Single-encoding path currently raises DomainError: the `h1Spin1` call still 
-    #> passes the removed `isSpin2Sec` Boolean, which now lands in `iModeStart` 
-    #> (`false` -> mode start `0`); the `h1Spin2` call survives only because 
-    #> `true == 1`. The stale third positional should be deleted from both calls.
     @test encodeElecHam(NormalOrder(), enc2, (fill(1.0, 1, 1), zeros(1, 1, 1, 1))) == 
           PauliSum([pauli"II", pauli"ZI", pauli"IZ"], [1.0, -0.5, -0.5])
 
@@ -99,14 +92,7 @@ end
     @test encodeElecHam(NormalOrder(), enc4, (h2, g1)) == golden
     @test encodeElecHam(PairedOrder(), enc4, (h2, g1)) == golden
 
-    #> Pair-encoding path currently raises UndefVarError inside the pair method of 
-    #> `formatSpinSectoredEnc` (see above)
     @test encodeElecHam(NormalOrder(), secEnc, (h2, g1)) == golden
-
-    #> Note (no runtime test): the same-spin two-body calls pass the per-spin pair 
-    #> `idxPairSymm` as per-particle flags; they should pass `(sec1Symm, sec1Symm)` and 
-    #> `(sec2Symm, sec2Symm)` respectively. Inert while `checkInput=false`, but mixed 
-    #> flags would trip the checker's constancy rule if validation is ever enabled.
 end
 
 end

@@ -31,11 +31,13 @@ function isIndexLabel(candidate::NonEmptyTuple{Integer},
 end
 
 
+const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
+
 """
 
     toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> Matrix{Complex{T}}
 
-    toMatrix(sym::PauliSym) -> Matrix{Complex{Int}}
+    toMatrix(sym::PauliSym) -> $SparseMatrixCSC{Complex{T}, Int}
 
 Return the 2×2 matrix representation (in the Pauli-Z eigenbasis) of the single-site 
 Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Complex{T}`. When 
@@ -45,7 +47,7 @@ data with any global state.
 """
 function toMatrix(::Type{T}, sym::PauliSym) where {T<:Real}
     (T <: Bool) && throw(ArgumentError("T = $T is disallowed."))
-    mat = zeros(Complex{T}, 2, 2)
+    mat = spzeros(Complex{T}, 2, 2)
     matVec = vec(mat)
 
     if sym == symI

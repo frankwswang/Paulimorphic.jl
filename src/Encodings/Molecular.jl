@@ -59,7 +59,7 @@ encodings are **views** into `enc`, so they share its underlying encoding operat
 """
 function formatSpinSectoredEnc(enc::PairwiseSumEnc, spinOrbNumPair::NTuple{2, Integer}, 
                                checkEncoding::Bool=true)
-    checkDiracEnc(enc, checkEncoding)
+    checkEncoding && checkDiracEnc(enc, true)
     nOp = length(enc.first)
     if any(x->x<0, spinOrbNumPair)
         throw(DomainError(spinOrbNumPair, "Both elements in `spinOrbNumPair` should be "*
@@ -177,16 +177,23 @@ function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc},
 end
 
 
-#> `spinSecConfig[begin+p-1]` specifies the spin sector (whether is spin-two) for pair of
-#> axes `(2p-1 2p)`, and `iModeRange[begin+p-1]` specifies the corresponding mode range.
+#> `spinSecConfig[begin+p-1]` specifies the spin sector (whether it is spin-two) for pair 
+#> of axes `(2p-1, 2p)`, and `iModeRange[begin+p-1]` specifies the corresponding mode range.
 function getOrbSecLabel(spinSecConfig::NonEmptyTuple{Bool, M}, 
                         iModeRange::SameTypePair{<:NonEmptyTuple{Integer, M}}) where {M}
-    iStart, iFinal = iModeRange
+    iStart, iFinal = iModeRange #> The one-based indices with respect to the encoding frame
     buffer = ntuple(_->0, Val(M+1))
     header = 0
 
     @inbounds for offset in 0:M
-        key = (spinSecConfig[begin+offset], iStart[begin+offset], iFinal[begin+offset])
+        posStart = iStart[begin+offset]
+        posFinal = iFinal[begin+offset]
+        if posStart > posFinal
+            throw(ArgumentError("Each element in `iModeRange.first` must respectively "*
+                                "be no larger than each element in `iModeRange.second`. "*
+                                "The $(M+1)-th one failed."))
+        end
+        key = (spinSecConfig[begin+offset], posStart, posFinal)
         matchedIdx = 0
 
         for i in 1:offset

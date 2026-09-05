@@ -509,8 +509,10 @@ function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc,
     inte1BSpin2, inte2BSpin2 = formatMolecularInteData(
         format, inte1B2BSpin2, nOrbSpin2; idxPairSymm=last(idxPairSymm),  hermiticity)
 
-    #> Check cross-section two-body integrals
-    if inte2BCross != inte2BSpin1 && inte2BCross != inte2BSpin2
+    #> Check cross-sector two-body integrals. Skipping is safe only when all three
+    #> tensors are the equal arrays. Here we use the stricter (but faster) egal comparison 
+    #> which relies on `formatMolecularInteData` returning `last(inteData)` un-copied.
+    if !(inte2BCross === inte2BSpin1 === inte2BSpin2)
         checkNBodyInteTensor(inte2BCross, (nOrbSpin1, nOrbSpin2), (1, 2), idxPairSymm, 
                              true; hermiticity)
     end

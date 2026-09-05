@@ -82,7 +82,7 @@ end
           (fill(0.5, 1, 1), fill(1, 1, 1, 1, 1))
 end
 
-@testset "encodeElecHam (golden acceptance)" begin
+@testset "encodeElecHam" begin
     @test encodeElecHam(NormalOrder(), enc2, (fill(1.0, 1, 1), zeros(1, 1, 1, 1))) == 
           PauliSum([pauli"II", pauli"ZI", pauli"IZ"], [1.0, -0.5, -0.5])
 
@@ -101,6 +101,27 @@ end
     @test encodeElecHam(PairedOrder(), enc4, (h2, g1)) == golden
 
     @test encodeElecHam(NormalOrder(), secEnc, (h2, g1)) == golden
+
+    @testset "Cross-tensor validation" begin
+        g3 = zeros(2, 2, 2, 2) #> Hermitian and exchange symmetric; not pair transposable
+        g3[1, 2, 1, 2] = 1.0
+        g3[2, 1, 2, 1] = 1.0
+        h0 = zeros(2, 2)
+
+        #> An aliased or value-equal cross tensor must still be validated as a cross tensor
+        @test_throws ArgumentError encodeElecHam(NormalOrder(), enc4, (h0, g3), (h0, g1), 
+                                                 g3; idxPairSymm=(false, true))
+        @test_throws ArgumentError encodeElecHam(NormalOrder(), enc4, (h0, g3), (h0, g1), 
+                                                 copy(g3); idxPairSymm=(false, true))
+        @test_throws ArgumentError encodeElecHam(NormalOrder(), enc4, (h0, g1), (h0, g3), 
+                                                 g3; idxPairSymm=(true, false))
+
+        #> Outputs must be consistent across different call patterns that are equivalent
+        @test encodeElecHam(NormalOrder(), enc4, (h2, g1), (h2, g1), copy(g1)) == 
+              encodeElecHam(NormalOrder(), enc4, (h2, g1))
+        @test encodeElecHam(PairedOrder(), enc4, (h2, g1), (h2, g1), copy(g1)) == 
+              encodeElecHam(PairedOrder(), enc4, (h2, g1))
+    end
 end
 
 end

@@ -209,7 +209,7 @@ function checkNBodyInteTensor(inte::AbstractArray{<:RealOrComplex, D},
         nOrbSec < 0 && throw(DomainError(nOrbSec, "`nOrb[$i]` must be non-negative."))
     end
 
-    if !isIndexLabel(orbSecLabel)
+    if !isIndexLabel(orbSecLabel, 1)
         throw(ArgumentError("`orbSecLabel` is not in a valid form."))
     end
 

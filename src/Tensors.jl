@@ -1,22 +1,27 @@
+export findAxisPermViolation
+
+public isIndexLabel
+
 """
     isIndexLabel(candidate::Tuple{Integer, Vararg{Integer}}, 
-                 iStart::Union{Integer, Missing}=1) -> Bool
+                 iStart::Integer=first(candidate)) -> Bool
 
-Return `true` if `candidate` is considered a valid integer-index label. In other words, it 
-should obey the following canonical form: every element must be an `Integer` no larger than 
-one plus the maximum of all its preceding elements; the first element also must equal 
-`iStart` when `iStart` is not `missing`. This form admits exactly one unique integer label 
-per equality pattern, so every two elements of `candidate` are equal if and only if the 
-objects they index are considered the same object. If `candidate` violates this canonical 
-form, `isIndexLabel` returns `false`.
+Return `true` if `candidate` is considered a valid integer-index label, of which every two 
+elements are equal if and only if the objects they index are considered the same object. In 
+other words, `candidate` should obey the following canonical form: every element must be 
+an `Integer` no smaller than `iStart` and no larger than one plus the maximum of all its 
+preceding elements; in particular, the first element must equal `iStart`. Hence, the 
+distinct values in a valid `candidate` always form a contiguous integer range starting at 
+`iStart`, and for any fixed `iStart`, exactly one valid labeling exists per equality 
+pattern. If `candidate` violates this canonical form, `isIndexLabel` returns `false`.
 """
-function isIndexLabel(candidate::NonEmptyTuple{Integer}, iStart::MissingOr{Integer}=1)::Bool
-    labelMax = ismissing(iStart) ? first(candidate) : (iStart - 1)
+function isIndexLabel(candidate::NonEmptyTuple{Integer}, 
+                      iStart::Integer=first(candidate))::Bool
+    labelMax = iStart - 1
 
     for i in eachindex(candidate)
         label = candidate[i]
-        bl = ismissing(iStart) ? (label <= labelMax+1) : (iStart <= label <= labelMax+1)
-        bl || (return false)
+        (iStart <= label <= labelMax+1) || (return false)
         labelMax = max(labelMax, label)
     end
 

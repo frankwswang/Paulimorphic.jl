@@ -1,4 +1,4 @@
-export PauliSym, symI, symX, symY, symZ, PhaseFactor, evalPhase, mul, toMatrix
+export PauliSym, symI, symX, symY, symZ, PhaseFactor, evalPhase, mul
 
 const PauliXMatEntries = (0,   1,    1,  0) #> (m11, m21, m12, m22)
 const PauliYMatEntries = (0, 1im, -1im,  0)
@@ -44,39 +44,6 @@ function genPauliSym(ele::AbstractChar)
 end
 
 genPauliSym(num::Integer) = PauliSym(num)
-
-
-"""
-
-    toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> Matrix{Complex{T}}
-
-    toMatrix(sym::PauliSym) -> Matrix{Complex{Int}}
-
-Return the 2×2 matrix representation (in the Pauli-Z eigenbasis) of the single-site 
-Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Complex{T}`. When 
-`T` is unspecified, method `toMatrix(sym::PauliSym)` defaults it to `Int`. `T` is 
-disallowed to be `Bool`. The returned matrix is newly allocated on every call and shares no 
-data with any global state.
-"""
-function toMatrix(::Type{T}, sym::PauliSym) where {T<:Real}
-    (T <: Bool) && throw(ArgumentError("T = $T is disallowed."))
-    mat = zeros(Complex{T}, 2, 2)
-    matVec = vec(mat)
-
-    if sym == symI
-        matVec[begin] = mat[end] = one(T)
-    elseif sym == symX
-        matVec .= PauliXMatEntries
-    elseif sym == symY
-        matVec .= PauliYMatEntries
-    else
-        matVec .= PauliZMatEntries
-    end
-
-    mat
-end
-
-toMatrix(sym::PauliSym) = toMatrix(Int, sym)
 
 
 """

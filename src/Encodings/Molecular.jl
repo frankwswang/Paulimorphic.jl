@@ -45,19 +45,21 @@ end
 
 
 """
-    formatSpinSectoredEnc(enc::PairwiseSumEnc, spinOrbNumPair::NTuple{2, Integer}) -> 
+    formatSpinSectoredEnc(enc::PairwiseSumEnc, spinOrbNumPair::NTuple{2, Integer}, 
+                          checkEncoding::Bool=true) -> 
     NTuple{2, PairwiseSumEnc}
 
-Split a (spin-1/2) Dirac fermionic encoding `enc` into two spin-sector encodings, assigning 
-its first `spinOrbNumPair[begin]` modes to the first (spin) sector and the following 
-`spinOrbNumPair[end]` modes to the second (spin) sector; any remaining modes of `enc` 
-belong to neither sector. `enc` is validated via [`checkDiracEnc`](@ref); both elements 
-of `spinOrbNumPair` must be non-negative, and `enc` must contain at least 
-`sum(spinOrbNumPair)` modes. The returned sector encodings are **views** into `enc`, so 
-they share its underlying encoding operators.
+Split a Dirac fermionic encoding `enc` into a pair of (spin-1/2) spin-sectored encodings, 
+assigning its first `spinOrbNumPair[begin]` modes to the first (spin) sector and the 
+following `spinOrbNumPair[end]` modes to the second (spin) sector; any remaining modes of 
+`enc` belong to neither sector. Both elements of `spinOrbNumPair` must be non-negative, and 
+`enc` must contain at least `sum(spinOrbNumPair)` modes. `enc` is checked for its validity 
+as an encoding via [`checkDiracEnc`](@ref) when `checkEncoding=true`. The returned sector 
+encodings are **views** into `enc`, so they share its underlying encoding operators.
 """
-function formatSpinSectoredEnc(enc::PairwiseSumEnc, spinOrbNumPair::NTuple{2, Integer})
-    checkDiracEnc(enc, true)
+function formatSpinSectoredEnc(enc::PairwiseSumEnc, spinOrbNumPair::NTuple{2, Integer}, 
+                               checkEncoding::Bool=true)
+    checkDiracEnc(enc, checkEncoding)
     nOp = length(enc.first)
     if any(x->x<0, spinOrbNumPair)
         throw(DomainError(spinOrbNumPair, "Both elements in `spinOrbNumPair` should be "*
@@ -76,18 +78,19 @@ end
 
 """
     formatSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, 
-                          spinOrbNumPair::NTuple{2, Integer}) -> 
+                          spinOrbNumPair::NTuple{2, Integer}, checkEncoding::Bool=true) -> 
     NTuple{2, PairwiseSumEnc}
 
-Validate a given pair of spin-sector encodings via [`checkSpinSectoredEnc`](@ref) and 
-return a pair of spin-sector encodings where the `i`-th sector is a **view** into exactly 
-first `i_k = spinOrbNumPair[begin+i-1]` modes from the corresponding sector of `enc`. 
-Therefore, the returned pair shares underlying encoding operators with `enc`, and the 
-`i`-th sector of `enc` must contain at least that `i_k` modes.
+Return a pair of (spin-1/2) spin-sector encodings where the `i`-th sector is a **view** 
+into exactly first `i_k = spinOrbNumPair[begin+i-1]` modes from the corresponding sector of 
+`enc`, a pair of valid fermionic encodings. Therefore, the returned pair shares underlying 
+encoding operators with `enc`, and the `i`-th sector of `enc` must contain at least that 
+`i_k` modes. The validity of `enc` is checked via [`checkSpinSectoredEnc`](@ref) when 
+`checkEncoding=true`.
 """
 function formatSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, 
-                               spinOrbNumPair::NTuple{2, Integer})
-    checkSpinSectoredEnc(enc, true)
+                               spinOrbNumPair::NTuple{2, Integer}, checkEncoding::Bool=true)
+    checkEncoding && checkSpinSectoredEnc(enc, true)
 
     map(spinOrbNumPair, enc, ("begin", "end")) do nOrb, sec, iName
         annOps, creOps = sec
@@ -417,7 +420,7 @@ const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
                   enc::Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}, 
                   inte1B2BSpin1::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   inte1B2BSpin2::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
-                  inte2BCross::AbstractArray{C, 4}; 
+                  inte2BCross::AbstractArray{C, 4}, checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
                   idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)
                   ) where {T<:Real, C<:Union{Complex{T}, T}} -> 
@@ -429,7 +432,8 @@ Return `PauliSum`-based encoding (representation) of the molecular electronic Ha
 
 where `c_{i,s} = (a_{i,s})'` is the Dirac creation operator for mode `i` in spin sector 
 `s`, represented by products of single-mode fermionic operator from the input encoding 
-`enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)`; `inte2BCross` is the 
+`enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)` whose validity checking is 
+controlled by the same-named argument `checkEncoding`; `inte2BCross` is the 
 cross-spin-sector two-body spatial molecular integral tensor and `H_s` is a per-spin-sector 
 Hamiltonian fragment 
 
@@ -470,7 +474,8 @@ underlying electronic Hamiltonian) regardless of the value of `format`.
 ## Simplified method
 
     encodeElecHam(format::$NBodyOpFormat, enc::OptSpinSectoredEnc, 
-                  orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}; 
+                  orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}
+                  checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
                   idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)) -> 
     PauliSum
@@ -493,7 +498,8 @@ all real.
 function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc, 
                        inte1B2BSpin1::MolInteTensor1B2B{T}, 
                        inte1B2BSpin2::MolInteTensor1B2B{T}, 
-                       inte2BCross::AbstractArray{T, 4}; 
+                       inte2BCross::AbstractArray{T, 4}, 
+                       checkEncoding::Bool=true; 
                        hermiticity::Bool=true, 
                        idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)
                        ) where {T<:RealOrComplex}
@@ -504,7 +510,7 @@ function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc,
     end
 
     checkInput = false
-    secEnc = formatSpinSectoredEnc(enc, (nOrbSpin1, nOrbSpin2))
+    secEnc = formatSpinSectoredEnc(enc, (nOrbSpin1, nOrbSpin2), checkEncoding)
     inte1BSpin1, inte2BSpin1 = formatMolecularInteData(
         format, inte1B2BSpin1, nOrbSpin1; idxPairSymm=first(idxPairSymm), hermiticity)
     inte1BSpin2, inte2BSpin2 = formatMolecularInteData(
@@ -537,10 +543,11 @@ function encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc,
 end
 
 encodeElecHam(format::NBodyOpFormat, enc::OptSpinSectoredEnc, 
-              orbInte1B2B::MolInteTensor1B2B{T}; hermiticity::Bool=true, 
+              orbInte1B2B::MolInteTensor1B2B{T}, checkEncoding::Bool=true; 
+              hermiticity::Bool=true, 
               idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)) where 
              {T<:RealOrComplex} = 
-encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B); 
+encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), checkEncoding; 
               hermiticity, idxPairSymm)
 
 

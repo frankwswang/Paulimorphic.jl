@@ -1,6 +1,8 @@
-export toMatrix, findAxisPermViolation
+export toMatrix
 
-public isIndexLabel
+public isIndexLabel, findAxisPermViolation
+
+using SparseArrays: spzeros, SparseMatrixCSC
 
 """
     isIndexLabel(candidate::Tuple{Integer, Vararg{Integer}}, 
@@ -69,10 +71,10 @@ toMatrix(sym::PauliSym) = toMatrix(Int, sym)
 
 Return the first index `idx` (in column-major order) of `tensor` at which the symmetry 
 `tensor[idx...] == tensor[permIdx...]` (or `tensor[idx...] == tensor[permIdx...]'` if 
-`conjugated` is `true`) fails, where `permIdx` is generated from `idx` by `axisPerm`. If no 
-such `idx` is found (i.e., the symmetry holds everywhere), `findAxisPermViolation` returns 
-`nothing`. `axisPerm` must be a permutation of `1:D` such that 
-`Base.isperm(axisPerm) == true` and only maps between axes of equal extent.
+`conjugated` is `true`) fails, where `permIdx` is the permutation of `idx` specified by 
+`axisPerm`. If no such `idx` is found (i.e., the symmetry holds everywhere), 
+`findAxisPermViolation` returns `nothing`. `axisPerm` must be a permutation of `1:D` such 
+that `Base.isperm(axisPerm) == true` and only maps between axes of equal extent.
 """
 function findAxisPermViolation(tensor::AbstractArray{<:RealOrComplex, D}, 
                                axisPerm::NTuple{D, Int}, conjugated::Bool) where {D}

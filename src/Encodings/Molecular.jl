@@ -638,7 +638,7 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
                                  idxPairSymm::Bool=(hermiticity && T<:Real)) where 
                                 {T<:RealOrComplex}
     inte1B, inte2B = formatMolecularInteData(NormalOrder(), inteData, nOrbital; 
-                                              idxPairSymm, hermiticity)
+                                             idxPairSymm, hermiticity)
     eleT = (typeof∘inv∘one)(eltype(inte1B))
     newInte1B = similar(inte1B, eleT, size(inte1B))
     offset = nOrbital - 1

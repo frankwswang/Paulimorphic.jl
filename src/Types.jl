@@ -1,7 +1,7 @@
 abstract type LinearOperator <: Any end
 abstract type DiscreteOperator <: LinearOperator end
 
-abstract type StructuredType <:Any end
+abstract type StructuredType <: Any end
 
 const RealOrComplex{T<:Real} = Union{T, Complex{T}}
 

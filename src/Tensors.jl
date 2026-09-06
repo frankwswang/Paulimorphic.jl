@@ -35,9 +35,9 @@ const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
 
 """
 
-    toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> Matrix{Complex{T}}
+    toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> $SparseMatrixCSC{Complex{T}, Int}
 
-    toMatrix(sym::PauliSym) -> $SparseMatrixCSC{Complex{T}, Int}
+    toMatrix(sym::PauliSym) -> $SparseMatrixCSC{Complex{Int}, Int}
 
 Return the 2×2 matrix representation (in the Pauli-Z eigenbasis) of the single-site 
 Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Complex{T}`. When 

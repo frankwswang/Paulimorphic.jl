@@ -228,9 +228,9 @@ Return a spin-1/2 `N`-particle operator summation as the linear combination of p
 products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`), whose 
 axes follow the index-pair layout: axes `(2p-1, 2p)` host the index pair 
 `(c_p, a_p) == ((a_p)', a_p)` of particle `p` (`1 <= p <= N`). Specifically, index `i_k` 
-along axis `k` of `orbInte` maps to the mode `iModeStart[begin+p-1] + i_k - 1` of particle 
-`p = (k+1) ÷ 2` in one of the two spin sectors specified by `spinSecConfig[begin+p-1]`. 
-Subsequently, the returned summation is evaluated as 
+along axis `k` of `orbInte` maps to the mode `n = iModeStart[begin+p-1] + i_k - 1` of 
+particle `p = (k+1) ÷ 2` (`n >= 1` and `i_k >= 1`) in one of the two spin sectors specified 
+by `spinSecConfig[begin+p-1]`. Subsequently, the returned summation is evaluated as 
 
     prefactor * sum(orbInte[idx] * monomial(idx) for idx in CartesianIndices(orbInte))
 

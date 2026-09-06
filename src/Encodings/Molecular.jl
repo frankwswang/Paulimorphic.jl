@@ -323,7 +323,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
         #> After the shape of `orbInte` is verified to be consistent with `orbSecExtents`
         for (n, isSec2, idx) in zip(1:N, spinSecConfig, eachindex(iModeStart))
-            iStart = iModeStart[idx]
+            iStart = Int(iModeStart[idx])
             modeCount = length(enc[begin+isSec2].first)
             windowSize = modeCount - iStart + 1
             nOrb = orbSecExtents[begin+n-1]
@@ -405,7 +405,7 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
         nOrb = size(orbInte, 1)
         checkNBodyInteTensor(orbInte, (nOrb,), (1,), idxPairSymm, true; hermiticity)
 
-        windowSize = length(oneSecEnc.first) - iModeStart + 1
+        windowSize = length(oneSecEnc.first) - Int(iModeStart) + 1
         if nOrb > windowSize
             throw(ArgumentError("The window size (bounded by `iModeStart`) for "*
                                 "`oneSecEnc` is $windowSize. It is not large enough to be "*

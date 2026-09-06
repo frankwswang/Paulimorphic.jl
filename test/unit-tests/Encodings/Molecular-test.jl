@@ -56,10 +56,14 @@ end
     t1 = ones(2, 2, 3, 3) #> particle 1 window 1:2, particle 2 window 1:3
     @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, t1, 
         (false, false), (1, 1); checkInput=false) #> Overlapped windows disallowed
-    @test genNBodyOperatorSum(NormalOrder(), secEnc8,  ones(2,2,2,2), 
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8,  ones(2, 2, 2, 2), 
         (false, false), (1, 1); checkInput=false) isa PauliSum #> Identical windows allowed
-    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2,2,2,2), 
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), 
         (false, false), (1, 3)) == PauliSum(Float64) #> Disjoint windows allowed
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(0, 0, 2, 2), 
+        (false, false), (4, 3)) == PauliSum(Float64) #> Zero axis extent allowed
+    @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
+        zeros(0, 0, 2, 2), (false, false), (5, 3)) #> Out-off bound mode index rejected
 end
 
 @testset "gen1BodyOperatorSum" begin

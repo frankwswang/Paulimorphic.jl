@@ -180,7 +180,8 @@ end
 #> `spinSecConfig[begin+p-1]` specifies the spin sector (whether it is spin-two) for pair 
 #> of axes `(2p-1, 2p)`, and `iModeRange[begin+p-1]` specifies the corresponding mode range.
 function getOrbSecLabel(spinSecConfig::NonEmptyTuple{Bool, M}, 
-                        iModeRange::SameTypePair{<:NonEmptyTuple{Integer, M}}) where {M}
+                        iModeRange::Pair{<:NonEmptyTuple{Integer, M}, 
+                                         <:NonEmptyTuple{Integer, M}}) where {M}
     iStart, iFinal = iModeRange #> The one-based indices with respect to the encoding frame
     buffer = ntuple(_->0, Val(M+1))
     header = 0

@@ -62,6 +62,8 @@ end
         (false, false), (1, 3)) == PauliSum(Float64) #> Disjoint windows allowed
     @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(0, 0, 2, 2), 
         (false, false), (4, 3)) == PauliSum(Float64) #> Zero axis extent allowed
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), 
+        (false, false), (Int8(1), Int8(3))) == PauliSum(Float64) #> Non-`Int` index allowed
     @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
         zeros(0, 0, 2, 2), (false, false), (5, 3)) #> Out-off bound mode index rejected
 end

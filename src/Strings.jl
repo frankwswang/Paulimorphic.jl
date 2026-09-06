@@ -7,7 +7,7 @@ public sortStrings!, setCoeff!
 using LinearAlgebra: dot
 
 """
-    PauliStr <: DiscreteOperator
+    PauliStr <: $DiscreteOperator
 
 An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
@@ -456,7 +456,7 @@ end
 
 
 """
-    PauliSum{T<:Real} <: DiscreteOperator
+    PauliSum{T<:Real} <: $DiscreteOperator
 
 A linear combination of Pauli strings, i.e. a general operator
 
@@ -623,8 +623,9 @@ function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[],
     PauliSum(strs, one(Complex{T}), simplification)
 end
 
-PauliSum(ham::PauliSum, simplification::Bool=true) = 
-PauliSum(ham.str, ham.coeff, simplification)
+function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}
+    PauliSum(ham.str, ham.coeff, simplification)
+end
 
 function Base.hash(pSum::PauliSum, hashCode::UInt)
     code = hash(pSum.str, hashCode)
@@ -634,6 +635,10 @@ end
 function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
 end
+
+
+getCoreDataType(::Type{PauliSum{T}}) where {T<:Real} = T
+getCoreDataType(::Type{<:PauliSum}) = Real
 
 
 """

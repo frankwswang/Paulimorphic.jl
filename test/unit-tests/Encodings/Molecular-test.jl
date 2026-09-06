@@ -66,7 +66,6 @@ end
         (false, false), (Int8(1), Int8(3))) == PauliSum(Float64) #> Non-`Int` index allowed
     @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
         zeros(0, 0, 2, 2), (false, false), (5, 3)) #> Out-of-bound mode index rejected
-    #> Currently BoundsError from `enc` indexing; intended: the capacity ArgumentError
     @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
         ones(2, 2, 2, 2), (false, false), (UInt(1), UInt(6))) #> Out-of-bound `UInt` index
 end

@@ -405,8 +405,12 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
         nOrb = size(orbInte, 1)
         checkNBodyInteTensor(orbInte, (nOrb,), (1,), idxPairSymm, true; hermiticity)
 
-        windowSize = length(oneSecEnc.first) - Int(iModeStart) + 1
-        if nOrb > windowSize
+        modeCount = length(oneSecEnc.first)
+        windowSize = modeCount - Int(iModeStart) + 1
+        if windowSize < 1
+                throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
+                                    "`oneSecEnc`: $modeCount."))
+        elseif nOrb > windowSize
             throw(ArgumentError("The window size (bounded by `iModeStart`) for "*
                                 "`oneSecEnc` is $windowSize. It is not large enough to be "*
                                 "associated with the first axis of `orbInte`, which has "*

@@ -228,8 +228,8 @@ Return a spin-1/2 `N`-particle operator summation as the linear combination of p
 `PauliSum` provided by the input encoding `enc`. The linear coefficients of the `PauliSum` 
 products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`), whose 
 axes follow the index-pair layout: axes `(2p-1, 2p)` host the index pair 
-`(c_p, a_p) == ((a_p)', a_p)` of particle `p` (`1 <= p <= N`). Specifically, index `i_k` 
-along axis `k` of `orbInte` maps to the mode `n = iModeStart[begin+p-1] + i_k - 1` of 
+`(c_p, a_p) == ((a_p)', a_p)` of particle `p` (`1 <= p <= N`). Specifically, the `i_k`-th 
+index along axis `k` of `orbInte` maps to the mode `n = iModeStart[begin+p-1] + i_k - 1` of 
 particle `p = (k+1) ÷ 2` (`n >= 1` and `i_k >= 1`) in one of the two spin sectors specified 
 by `spinSecConfig[begin+p-1]`. Subsequently, the returned summation is evaluated as 
 
@@ -288,9 +288,9 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
                              checkInput::Bool=true) where {T<:RealOrComplex, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
-    for (iAxis, iStart) in enumerate(iModeStart)
+    for (p, iStart) in enumerate(iModeStart)
         if iStart < 1
-            throw(DomainError(iStart, "`iModeStart[begin+$(iAxis-1)]` should be positive."))
+            throw(DomainError(iStart, "`iModeStart[begin+$(p-1)]` should be positive."))
         end
     end
     iModeFinal = ntuple(i->size(orbInte, 2i-1)-1, Val(N)) .+ iModeStart

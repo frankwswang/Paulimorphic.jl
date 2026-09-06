@@ -65,7 +65,7 @@ end
     @test genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), 
         (false, false), (Int8(1), Int8(3))) == PauliSum(Float64) #> Non-`Int` index allowed
     @test_throws ArgumentError genNBodyOperatorSum(NormalOrder(), secEnc8, 
-        zeros(0, 0, 2, 2), (false, false), (5, 3)) #> Out-off bound mode index rejected
+        zeros(0, 0, 2, 2), (false, false), (5, 3)) #> Out-of-bound mode index rejected
 end
 
 @testset "gen1BodyOperatorSum" begin

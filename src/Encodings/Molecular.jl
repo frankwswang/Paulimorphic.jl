@@ -188,10 +188,9 @@ function getOrbSecLabel(spinSecConfig::NonEmptyTuple{Bool, M},
     @inbounds for offset in 0:M
         posStart = iStart[begin+offset]
         posFinal = iFinal[begin+offset]
-        if posStart > posFinal
-            throw(ArgumentError("Each element in `iModeRange.first` must respectively "*
-                                "be no larger than each element in `iModeRange.second`. "*
-                                "The $(M+1)-th one failed."))
+        if posStart < 1 #> `posStart` is lower bounded, but not `posFinal`, e.g., `1:-1`
+            throw(DomainError(posStart, "`iModeRange.first[begin+$offset]` should be "*
+                                        "positive."))
         end
         key = (spinSecConfig[begin+offset], posStart, posFinal)
         matchedIdx = 0
@@ -288,20 +287,20 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
                              checkInput::Bool=true) where {T<:RealOrComplex, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
-    if any(i <= 0 for i in iModeStart)
-        throw(DomainError(iModeStart, "All elements of `iModeStart` must be positive."))
+    for (iAxis, iStart) in enumerate(iModeStart)
+        if iStart < 1
+            throw(DomainError(iStart, "`iModeStart[begin+$(iAxis-1)]` should be positive."))
+        end
     end
-
-    iModeFinal = ntuple(i->size(orbInte, 2i-1), Val(N))
+    iModeFinal = ntuple(i->size(orbInte, 2i-1)-1, Val(N)) .+ iModeStart
     orbSecLabel = getOrbSecLabel(spinSecConfig, iModeStart=>iModeFinal)
 
     if particleExch
         for q in 2:N, p in 1:(q-1)
             if spinSecConfig[begin+p-1] == spinSecConfig[begin+q-1] &&
                  orbSecLabel[begin+p-1] !=   orbSecLabel[begin+q-1]
-                pHead, qHead = iModeStart[begin+p-1], iModeStart[begin+q-1]
-                pTail = pHead + size(orbInte, 2p-1) - 1
-                qTail = qHead + size(orbInte, 2q-1) - 1
+                pHead, pTail = iModeStart[begin+p-1], iModeFinal[begin+p-1]
+                qHead, qTail = iModeStart[begin+q-1], iModeFinal[begin+q-1]
                 if max(pHead, qHead) <= min(pTail, qTail)
                     throw(ArgumentError("Particles `$p` and `$q` have different mode "*
                                         "(index) windows, $(pHead:pTail) and "*
@@ -324,9 +323,13 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
         #> After the shape of `orbInte` is verified to be consistent with `orbSecExtents`
         for (n, isSec2, idx) in zip(1:N, spinSecConfig, eachindex(iModeStart))
             iStart = iModeStart[idx]
-            windowSize = length(enc[begin+isSec2].first) - iStart + 1
+            modeCount = length(enc[begin+isSec2].first)
+            windowSize = modeCount - iStart + 1
             nOrb = orbSecExtents[begin+n-1]
-            if nOrb > windowSize
+            if windowSize < 1
+                throw(ArgumentError("`iModeStart[$idx]` should not exceed the mode count "*
+                                    "of `enc[begin+$isSec2]`: $modeCount."))
+            elseif nOrb > windowSize
                 throw(ArgumentError("The window size (bounded by `iModeStart[$idx]`) for "*
                                     "`enc` is $windowSize. It is not large enough to be "*
                                     "associated with the $n-th axis of `orbInte`, which "*
@@ -351,11 +354,9 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
         inteCoeff = orbInte[carteIdx]
         iszero(inteCoeff) && continue
 
-        idxTuple = Tuple(carteIdx)
+        offsetTuple = Tuple(carteIdx) .- iFirstAxial
         iPairs = map(ntuple(identity, Val(N)), iModeStart) do i, iStart
-            m, n = (2i - 1), 2i
-            offset = (iStart, iStart) .- (iFirstAxial[begin+m-1], iFirstAxial[begin+n-1])
-            offset .+ (idxTuple[begin+m-1], idxTuple[begin+n-1])
+            (iStart, iStart) .+ (offsetTuple[begin+2i-2], offsetTuple[begin+2i-1])
         end
 
         op = genNBodyOperator(format, enc, spinSecConfig, iPairs, false)

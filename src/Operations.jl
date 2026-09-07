@@ -43,8 +43,8 @@ If `simplification=true`, the same simplification procedure used by the [`PauliS
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h1` or `h2`.
 """
-function add(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
-             simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
+function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
+             simplification::Bool=true) where {T<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
 
     nTerm1 = countTerms(h1)
@@ -81,8 +81,8 @@ returning the sum with the coefficient type automatically promoted. The added st
 the [`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is 
 applied to the result. The result does not reference any data in either `h` or `term`.
 """
-function add(::Type{T}, h::PauliSum{T1}, term::PauliStrToVal{T2}, 
-             simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
+function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
+             simplification::Bool=true) where {T<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
 
     coeffs = Memory{Complex{T}}(undef, countTerms(h)+1)
@@ -210,6 +210,7 @@ the result. The result does not reference any data in `str`.
 """
 function mul(::Type{T}, str::PauliStr, coeff::RealOrComplex, 
              simplification::Bool=true) where {T<:Real}
+    (T <: Bool) && throwBoolPauliSumErr()
     PauliSum([str], Complex{T}(coeff), simplification)
 end
 
@@ -239,11 +240,13 @@ is multiplied by `s` on the matching side while the coefficients are carried ove
 not reference any data in either `s` or `h`.
 """
 function mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:Real}
+    (T <: Bool) && throwBoolPauliSumErr()
     newStrs = map(ele->mul(s, ele), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
 
 function mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real}
+    (T <: Bool) && throwBoolPauliSumErr()
     newStrs = map(ele->mul(ele, s), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
@@ -255,8 +258,8 @@ mul(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} =
 mul(T, h, s, simplification)
 
 """
-    mul(::Type{T}, h1::PauliSum, h2::PauliSum, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
 
     mul(h1::PauliSum{T1}, h2::PauliSum{T2}, 
         simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
@@ -267,7 +270,12 @@ mul(T, h, s, simplification)
 Multiply `h1` by `h2`, returning their product. If `simplification=true`, the same 
 simplification procedure used by the `PauliSum` constructor (when the same-named argument 
 is set to `true`) is applied to the result. The result does not reference any data in 
-either `h1` or `h2`.
+either `h1` or `h2`. 
+
+!!! info
+    For the first method signature where `T` specifies the core type of the returned 
+    `PauliSum`, each intermediate coefficient product is evaluated first at accuracy level 
+    of `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
@@ -309,12 +317,18 @@ Multiply `h` by a coefficient `coeff`, returning a new `PauliSum` whose coeffici
 is automatically promoted. When `simplification=true`, the result is fully canonicalized; 
 in particular, scaling by an exact zero returns an empty `PauliSum` as the zero operator. 
 For in-place scaling without type promotion, see [`scale!`](@ref).
+
+!!! info
+    For the first method signature where `T` specifies the core type of the returned 
+    `PauliSum`, each intermediate coefficient product is evaluated first at accuracy level 
+    of `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
-function mul(::Type{T}, h::PauliSum, coeff::RealOrComplex{T1}, 
-             simplification::Bool=true) where {T<:Real, T1<:Real}
+function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
+             simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
-    tempC = Complex{promote_type(T, T1)}
-    coeffs = map(x->Complex{T}(tempC(x) * tempC(coeff)), h.coeff)
+    tempC = Complex{promote_type(T, T1, T2)}
+    losslessCoeff = tempC(coeff)
+    coeffs = map(x->Complex{T}(tempC(x) * losslessCoeff), h.coeff)
     PauliSum(h.str, coeffs, simplification)
 end
 

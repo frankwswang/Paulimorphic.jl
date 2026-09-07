@@ -517,8 +517,12 @@ Construct a `PauliSum` with the coefficient of every Pauli string initialized to
     PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
-and does not reference any data in `ham`. This constructor method can be used to obtain a 
-restored canonical form of a `ham` (with the core data type being `T`).
+and does not reference any data in `ham`. These two constructor signatures can be used to 
+obtain a restored canonical form of a `ham`. Particularly, when `T` is specified as the 
+first argument, the coefficients of `ham` are represented as `Complex{T}` if possible, 
+otherwise an `InexactError` is thrown upon construction. Thus, narrowing floating-point `T` 
+may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
+`T=Bool` is disallowed for the same reason as the first Initialization method.
 
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
 
@@ -556,7 +560,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         T = real(C)
         inputSize = length(strs)
         coeffsAsVec = coeffs isa AbstractVector
-        (T <: Bool) && throwBoolPauliSumErr("T = eltype(coeffs)")
+        (T <: Bool) && throwBoolPauliSumErr("T = real(coeffs|>eltype)")
         if coeffsAsVec && inputSize != length(coeffs)
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
@@ -631,7 +635,7 @@ end
 
 function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
-    PauliSum(ham.str, map(Complex{T}, ham.coeff), simplification)
+    PauliSum(ham.str, convert(Memory{Complex{T}}, ham.coeff), simplification)
 end
 
 function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}

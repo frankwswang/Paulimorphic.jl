@@ -93,6 +93,14 @@ end
           PauliSum([pauli"IIII", pauli"ZIII"], [1.0, -1.0])
     @test gen1BodyOperatorSum(first(secEnc), fill(2.0, 1, 1), 2; checkInput=false) == 
           PauliSum([pauli"IIII", pauli"IZII"], [1.0, -1.0])
+
+    #> Coefficient summation accuracy check
+    oneSec = toDiracEnc(genJordanWignerEnc(3))
+    h = [2e16 0.0 0.0; 0.0 2.0 0.0; 0.0 0.0 -2e16]
+    res = gen1BodyOperatorSum(oneSec, h)
+    @test countTerms(res) == 4
+    @test res == PauliSum([pauli"III", pauli"ZII", pauli"IZI", pauli"IIZ"], 
+                        [1.0, -1e16, -1.0, 1e16])
 end
 
 @testset "formatMolecularInteData" begin
@@ -102,6 +110,15 @@ end
           ([-1.53125 0.3125; 0.3125 -0.65625], g1)
     @test formatMolecularInteData(PairedOrder(), (fill(1, 1, 1), fill(1, 1, 1, 1, 1))) == 
           (fill(0.5, 1, 1), fill(1, 1, 1, 1, 1))
+
+    #> Coefficient summation accuracy check
+    g = zeros(3, 3, 3, 3)
+    g[1, 1, 1, 1] = 1e16
+    for idx in ((1, 2, 2, 1), (2, 1, 2, 1), (1, 2, 1, 2), (2, 1, 1, 2)); g[idx...] = 1.0 end
+    for idx in ((1, 3, 3, 1), (3, 1, 3, 1), (1, 3, 1, 3), (3, 1, 1, 3)); g[idx...] = -1e16 end
+    new1B, _ = formatMolecularInteData(PairedOrder(), (zeros(3, 3), g))
+    @test new1B[1, 1] == -0.5
+    @test new1B[2, 2] == -0.5 #> Control entry: independent of the accumulation order
 end
 
 @testset "encodeElecHam" begin

@@ -495,10 +495,12 @@ over `strs`. Therefore, every string in `res` explicitly acts on the same number
 (equal to [`countSites`](@ref)`(res)`). Each string's phase is absorbed into its matching 
 coefficient, so even with a `coeffs::C`, the stored coefficients may differ term by term. 
 When `simplification=true` (by default), equal strings — including strings that 
-become equal only after the rebuild (e.g., `X` and `XI`) — are combined into one term and 
-any term whose coefficient is exactly zero is removed; when `simplification=false`, such 
-equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
-canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
+term whose coefficient is exactly zero is removed; for `T<:AbstractFloat`, for each group 
+of equal strings, their corresponding coefficients are accumulated via Neumaier-compensated 
+summation. when `simplification=false`, such equal strings are retained. In both cases the 
+terms in `res` are stored in a deterministic canonical order such that for 
+`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 
     res2.str == res.str && res2.coeff == res.coeff
 
@@ -593,12 +595,17 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 p = perm[begin+k-1]
                 str = sInput[p]
                 acc = cInput[p]
+                residue = zero(acc)
 
                 k += 1
                 while k <= inputSize && sInput[perm[begin+k-1]] == str
-                    acc += cInput[perm[begin+k-1]]
+                    acc, residue = neumaierAdd(acc, cInput[perm[begin+k-1]], residue)
                     k += 1
                 end
+
+                #> Skipped when no rounding residue was collected to keep signed zero 
+                #> intact: `Complex{T}` with `!(T<:AbstractFloat)`, one-term construction
+                iszero(residue) || (acc += residue)
 
                 if !iszero(acc) #>> Drop terms with coefficients exactly equal zero
                     mergedSize += 1

@@ -412,7 +412,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
     realT = (typeof∘inv∘one∘real)(T)
     coreT = Complex{realT}
-    coeffCache = Dict{PauliStr, coreT}()
+    coeffCache = Dict{PauliStr, NTuple{2, coreT}}() #> Value: (total, residue)
     encOpCache = genNBodyOperatorCache(format, realT)
 
     prefactor = one(realT)
@@ -436,11 +436,15 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
         for (str, encCoeff) in zip(op.str, op.coeff)
             opCoeff = prefactor * encCoeff * inteCoeff
-            coeffCache[str] = get(coeffCache, str, zero(coreT)) + coreT(opCoeff)
+            total, residue = get(coeffCache, str, (zero(coreT), zero(coreT)))
+            coeffCache[str] = neumaierAdd(total, coreT(opCoeff), residue)
         end
     end
 
-    PauliSum((collect∘keys)(coeffCache), (collect∘values)(coeffCache))
+    coeffs = map((collect∘values)(coeffCache)) do (total, residue)
+        total + residue
+    end
+    PauliSum((collect∘keys)(coeffCache), coeffs)
 end
 
 """
@@ -551,7 +555,7 @@ one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `
 
         residue[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
 
-This compensation is carried out automatically (via [`formatMolecularInteData`](@ref)) 
+This residue is carried out automatically (via [`formatMolecularInteData`](@ref)) 
 when `format = PairedOrder()`, hence `encodeElecHam` always returns an equivalent encoding 
 for the same input molecular integral tensors (i.e., preserving the eigenspectrum of the 
 underlying electronic Hamiltonian) regardless of the value of `format`.
@@ -730,11 +734,14 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
     prefactor = inv(2|>eleT)
 
     for j in 0:offset, i in 0:offset
-        residue = zero(eleT)
-        for k in 0:offset #> No residue contribution from cross-spin two-body integrals
-            residue += inte2B[begin+i, begin+k, begin+k, begin+j]
+        compensation = zero(eleT)
+        compnResidue = zero(eleT)
+        for k in 0:offset #> No compensation contribution from cross-spin two-body integrals
+            val = eleT(inte2B[begin+i, begin+k, begin+k, begin+j])
+            compensation, compnResidue = neumaierAdd(compensation, val, compnResidue)
         end
-        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * residue
+        compensation += compnResidue
+        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * compensation
     end
 
     (newInte1B, inte2B)

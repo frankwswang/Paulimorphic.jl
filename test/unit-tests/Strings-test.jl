@@ -224,6 +224,14 @@ end
     @test PauliSum(Float64, h) == h #> Equal result for the same `T`
     @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
     @test_throws ArgumentError PauliSum(Bool, h)
+
+    #> Coefficient summation accuracy check
+    res1 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16])
+    @test countTerms(res1) == 1
+    @test res1.coeff == Complex{Float64}[1.0]
+
+    res2 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0])
+    @test countTerms(res2) == 0
 end
 
 @testset "indexTerm" begin

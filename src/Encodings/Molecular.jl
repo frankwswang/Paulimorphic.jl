@@ -176,6 +176,82 @@ function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc},
     end
 end
 
+const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
+
+function genNBodyOperatorCore!(::NormalOrder, 
+                               poCache::AbstractDict{NormalOrderOpCacheKey, PauliSum{T}}, 
+                               enc::NTuple{2, PairwiseSumEnc}, 
+                               spinSecConfig::NonEmptyTuple{Bool, M}, 
+                               modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
+                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+    checkEncoding && checkSpinSectoredEnc(enc, true)
+    oddParticleNum = iseven(M)
+    boundM = M - oddParticleNum
+
+    if oddParticleNum || boundM < 0
+        cenPInSec2 = last(spinSecConfig)
+        iCreCenPar, iAnnCenPar = last(modeIdxConfig)
+        secEnc = enc[begin+cenPInSec2]
+        cenOpL = secEnc.second[begin+iCreCenPar-1]
+        cenOpR = secEnc.first[begin+iAnnCenPar-1]
+        centerProd = mul(T, cenOpL, cenOpR)
+    end
+
+    if boundM < 0
+        centerProd
+    else
+        idsPair = (0:(+2):boundM, boundM:(-2):0)
+        prodL, prodR = map((true, false), idsPair) do isCreOp, particleSeq
+            mapfoldl((lOp, rOp)->mul(T, lOp, rOp), particleSeq) do p1Offset
+                p2Offset = p1Offset + ifelse(isCreOp, +1, -1)
+                p1InSec2 = spinSecConfig[begin+p1Offset]
+                p2InSec2 = spinSecConfig[begin+p2Offset]
+                 p1opIdx = modeIdxConfig[begin+p1Offset][end-isCreOp]
+                 p2opIdx = modeIdxConfig[begin+p2Offset][end-isCreOp]
+                get!(poCache, isCreOp=>(p1InSec2=>p1opIdx, p2InSec2=>p2opIdx)) do
+                    p1Op = enc[begin+p1InSec2][begin+isCreOp][begin+p1opIdx-1]
+                    p2Op = enc[begin+p2InSec2][begin+isCreOp][begin+p2opIdx-1]
+                    mul(T, p1Op, p2Op)
+                end
+            end
+        end
+
+        if oddParticleNum
+            mul(T, mul(T, prodL, centerProd), prodR)
+        else
+            mul(T, prodL, prodR)
+        end
+    end
+end
+
+
+const PairedOrderOpCacheKey = Pair{Bool, NTuple{2, Int}}
+
+function genNBodyOperatorCore!(::PairedOrder, 
+                               poCache::AbstractDict{PairedOrderOpCacheKey, PauliSum{T}}, 
+                               enc::NTuple{2, PairwiseSumEnc}, 
+                               spinSecConfig::NonEmptyTuple{Bool, M}, 
+                               modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
+                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+    checkEncoding && checkSpinSectoredEnc(enc, true)
+
+    mapreduce((lOp, rOp)->mul(T, lOp, rOp), spinSecConfig, modeIdxConfig) do isSec2, idxPair
+        spinSec = enc[begin+isSec2]
+        get!(poCache, isSec2=>idxPair) do
+            iCre, iAnn = idxPair #> `iCre` and `iAnn` belong to the same particle
+            mul(T, spinSec.second[begin+iCre-1], spinSec.first[begin+iAnn-1])
+        end
+    end
+end
+
+function initializeNBodyOpCache(::PairedOrder, ::Type{T}) where {T<:Real}
+    Dict{PairedOrderOpCacheKey, PauliSum{T}}()
+end
+
+function initializeNBodyOpCache(::NormalOrder, ::Type{T}) where {T<:Real}
+    Dict{NormalOrderOpCacheKey, PauliSum{T}}()
+end
+
 
 #> `spinSecConfig[begin+p-1]` specifies the spin sector (whether it is spin-two) for pair 
 #> of axes `(2p-1, 2p)`, and `iModeRange[begin+p-1]` specifies the corresponding mode range.
@@ -342,6 +418,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
     realT = (typeof∘inv∘one∘real)(T)
     coreT = Complex{realT}
     cache = Dict{PauliStr, coreT}()
+    opProdCache = initializeNBodyOpCache(format, realT)
 
     prefactor = one(realT)
     if particleExch
@@ -360,7 +437,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
             (iStart, iStart) .+ (offsetTuple[begin+2i-2], offsetTuple[begin+2i-1])
         end
 
-        op = genNBodyOperator(format, enc, spinSecConfig, iPairs, false)
+        op = genNBodyOperatorCore!(format, opProdCache, enc, spinSecConfig, iPairs, false)
 
         for (str, encCoeff) in zip(op.str, op.coeff)
             opCoeff = prefactor * encCoeff * inteCoeff

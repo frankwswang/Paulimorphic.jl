@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: formatMolecularInteData
+using Paulimorphic: formatMolecularInteData, genNBodyOperator
 
 @testset "Molecular.jl" begin
 
@@ -26,6 +26,13 @@ secEnc8 = formatSpinSectoredEnc(enc8, (4, 4))
     @test_throws ArgumentError formatSpinSectoredEnc(enc4, (3, 2))
 end
 
+@testset "genNBodyOperator" begin
+    @test genNBodyOperator(PairedOrder(), secEnc, (false,), ((1, 2),)) == 
+          mul(first(secEnc).second[1], first(secEnc).first[2])
+    @test genNBodyOperator(NormalOrder(), secEnc, (false,), ((2, 1),)) == 
+          mul(first(secEnc).second[2], first(secEnc).first[1])
+end
+
 @testset "genNBodyOperatorSum" begin
     @test genNBodyOperatorSum(NormalOrder(), secEnc, zeros(2, 2, 2, 2), (false, false); 
                               checkInput=false) == PauliSum(Float64)
@@ -36,6 +43,15 @@ end
         genNBodyOperatorSum(NormalOrder(), secEnc8, zeros(2, 2, 2, 2), (false, false), 
                             (1, 2); checkInput=false)
     end
+
+    #> Odd particle count exercises the center branch of `genNBodyOperatorCore!`
+    s1, s2 = secEnc8
+    litOp = s1.second[1] * s1.second[4] * s2.second[1] * s2.first[2] * s1.first[3] * 
+            s1.first[2]
+    t6 = zeros(2, 2, 2, 2, 2, 2)
+    t6[1, 2, 2, 1, 1, 2] = 1.0
+    @test genNBodyOperatorSum(NormalOrder(), secEnc8, t6, (false, false, true), 
+                              (1, 3, 1); hermiticity=false) == PauliSum(Float64, litOp)
 
     #> Literal-weight convention (`particleExch=false`)
     gN = genNBodyOperatorSum(NormalOrder(), secEnc, g1, (false, false); checkInput=false)

@@ -158,7 +158,10 @@ function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc},
                           checkEncoding::Bool=true)::PauliSum where {M}
     checkEncoding && checkSpinSectoredEnc(enc, true)
     sec1, sec2 = enc
-    T = promote_type((getCoreDataType∘eltype)(sec1), (getCoreDataType∘eltype)(sec2))
+    T = promote_type((getCoreDataType∘eltype)(sec1.first), 
+                     (getCoreDataType∘eltype)(sec2.first), 
+                     (getCoreDataType∘eltype)(sec1.second), 
+                     (getCoreDataType∘eltype)(sec2.second))
     cache = genNBodyOperatorCache(format, T)
     genNBodyOperatorCore!(format, cache, enc, spinSecConfig, modeIdxConfig, checkEncoding)
 end

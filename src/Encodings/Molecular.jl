@@ -412,7 +412,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
     realT = (typeof∘inv∘one∘real)(T)
     coreT = Complex{realT}
-    coeffCache = Dict{PauliStr, NTuple{2, coreT}}() #> Value: (total, residue)
+    coeffCache = Dict{PauliStr, NTuple{2, coreT}}() #> Value: (coeffSum, sumResidue)
     encOpCache = genNBodyOperatorCache(format, realT)
 
     prefactor = one(realT)
@@ -436,13 +436,13 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
         for (str, encCoeff) in zip(op.str, op.coeff)
             opCoeff = prefactor * encCoeff * inteCoeff
-            total, residue = get(coeffCache, str, (zero(coreT), zero(coreT)))
-            coeffCache[str] = neumaierAdd(total, coreT(opCoeff), residue)
+            coeffSum, sumResidue = get(coeffCache, str, (zero(coreT), zero(coreT)))
+            coeffCache[str] = neumaierAdd(coeffSum, coreT(opCoeff), sumResidue)
         end
     end
 
-    coeffs = map((collect∘values)(coeffCache)) do (total, residue)
-        total + residue
+    coeffs = map((collect∘values)(coeffCache)) do (coeffSum, sumResidue)
+        coeffSum + sumResidue
     end
     PauliSum((collect∘keys)(coeffCache), coeffs)
 end
@@ -551,14 +551,16 @@ two-body term in the form (associated with the same two-body tensor)
 
 Consequently, for the resulting encoding to represent the same electronic Hamiltonian, the 
 coefficient matrix for the one-body terms (`c_{i,s} a_{j,s}`) can no longer directly be the 
-one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `residue`:
+one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `correction`
+matrix
 
-        residue[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
+        correction[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
 
-This residue is carried out automatically (via [`formatMolecularInteData`](@ref)) 
-when `format = PairedOrder()`, hence `encodeElecHam` always returns an equivalent encoding 
-for the same input molecular integral tensors (i.e., preserving the eigenspectrum of the 
-underlying electronic Hamiltonian) regardless of the value of `format`.
+from the one-body tensor. This correction is carried out automatically 
+(via [`formatMolecularInteData`](@ref)) when `format = PairedOrder()`, hence 
+`encodeElecHam` always returns an equivalent encoding for the same input molecular integral 
+tensors (i.e., preserving the eigenspectrum of the underlying electronic Hamiltonian) 
+regardless of the value of `format`.
 
 ## Simplified method
 
@@ -702,12 +704,12 @@ the symmetry of real spatial orbitals under the Coulomb interaction.
 
 ## Reformatted one-body integrals
 The first element of the returned integral data, `newInte1B`, is the result of subtracting 
-the coefficient matrix for the residue of the two-body term in the Hamiltonian under the 
+the coefficient matrix of a specific two-index two-body term in the Hamiltonian under the 
 `PairedOrder` format from `first(inteData)`:
 
     newInte1B[i, j] == inte1B[i, j] - (1/2) * sum(inte2B[i, k, k, j] for k in 1:nOrbital)
 
-This correction on the one-body matrix follows from the two-body operator monomial identity 
+This correction on the one-body matrix derives from the two-body operator monomial identity 
 
     c_i a_j c_k a_l == c_i c_k a_l a_j + (j == k) * c_i a_l
 
@@ -734,14 +736,14 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
     prefactor = inv(2|>eleT)
 
     for j in 0:offset, i in 0:offset
-        compensation = zero(eleT)
-        compnResidue = zero(eleT)
-        for k in 0:offset #> No compensation contribution from cross-spin two-body integrals
+        correction = zero(eleT)
+        sumResidue = zero(eleT)
+        for k in 0:offset #> No correction contribution from cross-spin two-body integrals
             val = eleT(inte2B[begin+i, begin+k, begin+k, begin+j])
-            compensation, compnResidue = neumaierAdd(compensation, val, compnResidue)
+            correction, sumResidue = neumaierAdd(correction, val, sumResidue)
         end
-        compensation += compnResidue
-        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * compensation
+        correction += sumResidue
+        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * correction
     end
 
     (newInte1B, inte2B)

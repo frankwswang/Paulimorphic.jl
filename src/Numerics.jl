@@ -13,8 +13,8 @@ function neumaierStep(x1::FloatOrComplex{T}, x2::FloatOrComplex{T}) where {T<:Ab
 end
 
 function neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:FloatOrComplex}
-    total, correction = neumaierStep(total, val)
-    (total, residue + correction)
+    total, localResidue = neumaierStep(total, val)
+    (total, residue + localResidue)
 end
 
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
@@ -28,12 +28,12 @@ function neumaierSum(vals::AbstractVector{<:FloatOrComplex})
                             "well-defined."))
     end
 
-    total = zero(T)
-    residue = zero(T)
+    naiveSum = zero(T)
+    sumResidue = zero(T)
 
     for val in vals
-        total, residue = neumaierAdd(total, val, residue)
+        naiveSum, sumResidue = neumaierAdd(naiveSum, val, sumResidue)
     end
 
-    total + residue
+    naiveSum + sumResidue
 end

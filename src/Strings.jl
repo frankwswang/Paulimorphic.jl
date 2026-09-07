@@ -595,17 +595,17 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 p = perm[begin+k-1]
                 str = sInput[p]
                 acc = cInput[p]
-                residue = zero(acc)
+                accResidue = zero(acc)
 
                 k += 1
                 while k <= inputSize && sInput[perm[begin+k-1]] == str
-                    acc, residue = neumaierAdd(acc, cInput[perm[begin+k-1]], residue)
+                    acc, accResidue = neumaierAdd(acc, cInput[perm[begin+k-1]], accResidue)
                     k += 1
                 end
 
                 #> Skipped when no rounding residue was collected to keep signed zero 
                 #> intact: `Complex{T}` with `!(T<:AbstractFloat)`, one-term construction
-                iszero(residue) || (acc += residue)
+                iszero(accResidue) || (acc += accResidue)
 
                 if !iszero(acc) #>> Drop terms with coefficients exactly equal zero
                     mergedSize += 1

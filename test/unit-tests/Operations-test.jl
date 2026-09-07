@@ -124,6 +124,12 @@ end
     #>> Intentionally unsupported combinations stay unsupported
     @test_throws MethodError +(pauli"X")            #>> No unary `+`
     @test_throws MethodError pauli"X" + (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+
+    #> Type-conversion methods
+    h1 = PauliSum([pauli"X"], [3])
+    h2 = PauliSum([pauli"Z"], [0.5])
+    @test add(Float32, h1, h2) isa PauliSum{Float32}
+    @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
 end
 
 @testset "mul" begin
@@ -341,6 +347,16 @@ end
 
     #> Family consistency: string-scalar and sum-scalar products agree
     @test mul(pauli"X", 2.0) == mul(PauliSum([pauli"X"], 1), 2.0)
+
+    #> Type-conversion methods
+    h1 = PauliSum([pauli"X"], [4])
+    h2 = PauliSum([pauli"Z"], [0.6])
+    @test mul(Float32, h1, h2)         isa PauliSum{Float32}
+    @test mul(Float32, pauli"X", h2)   isa PauliSum{Float32}
+    @test mul(Float32, h2, pauli"X")   isa PauliSum{Float32}
+    @test mul(Float32, h2, posImg)     isa PauliSum{Float32}
+    @test_throws InexactError mul(Int, h2, 2) #> 0.6 not representable in Int
+    @test mul(h1, h2)                  isa PauliSum{Float64}
 end
 
 #> `checkCommute` and `checkAntiCom`

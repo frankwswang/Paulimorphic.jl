@@ -486,9 +486,9 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 Construct a `res::PauliSum{T}` with `T=real(C)` from `strs` and `coeffs`. When `coeffs` is 
 an `AbstractVector`, it must have the same length as `strs`, and each `coeffs[i]` is the 
 coefficient initially associated with `strs[i]`; when `coeffs` is a `C` (scalar), it is the 
-coefficient initially associated with every string in `strs`. `T=Bool` is specifically 
-disallowed because phase absorption must be able to scale a coefficient by `±1` and `±im`, 
-which `Complex{Bool}` cannot represent.
+coefficient initially associated with every string in `strs`. The core data type `T=Bool` 
+is specifically disallowed because phase absorption must be able to scale a coefficient by 
+`±1` and `±im`, which `Complex{Bool}` cannot represent.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -511,11 +511,14 @@ Construct a `PauliSum` with the coefficient of every Pauli string initialized to
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
 `T=Bool` is disallowed for the same reason as the first Initialization method.
 
+    PauliSum(::Type{T}, ham::PauliSum, 
+             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+
     PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
 and does not reference any data in `ham`. This constructor method can be used to obtain a 
-restored canonical form of a `ham`.
+restored canonical form of a `ham` (with the core data type being `T`).
 
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
 
@@ -553,8 +556,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         T = real(C)
         inputSize = length(strs)
         coeffsAsVec = coeffs isa AbstractVector
-        (T <: Bool) && throw(ArgumentError("`coeffs::$(typeof(coeffs))` is disallowed "*
-                                           "because phase absorption cannot be supported."))
+        (T <: Bool) && throwBoolPauliSumErr("T = eltype(coeffs)")
         if coeffsAsVec && inputSize != length(coeffs)
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
@@ -616,15 +618,24 @@ struct PauliSum{T<:Real} <: DiscreteOperator
     end
 end
 
+function throwBoolPauliSumErr(typeStr::AbstractString="T")
+    throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
+                        "`PauliSum{Bool}` cannot be realized."))
+end
+
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
          simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throw(ArgumentError("T = $T is disallowed because phase absorption "*
-                                       "cannot be supported."))
+    (T <: Bool) && throwBoolPauliSumErr()
     PauliSum(strs, one(Complex{T}), simplification)
 end
 
+function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
+    (T <: Bool) && throwBoolPauliSumErr()
+    PauliSum(ham.str, map(Complex{T}, ham.coeff), simplification)
+end
+
 function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}
-    PauliSum(ham.str, ham.coeff, simplification)
+    PauliSum(T, ham, simplification)
 end
 
 function Base.hash(pSum::PauliSum, hashCode::UInt)

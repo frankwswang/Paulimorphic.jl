@@ -56,7 +56,7 @@ m = "X"
     end
 end
 
-@testset "PauliStr printing" begin
+@testset "`PauliStr` printing" begin
     ctx = (:limit=>true)
 
     #> Non-limited IO stays faithful regardless of length (`repr`/`string`/`print` path)
@@ -210,6 +210,20 @@ end
     #> Zero-site identity composes with implicit-site mode
     @test indexSite(PauliStr(0), 1, true) === symI
     @test_throws DomainError indexSite(PauliStr(0), 1)
+end
+
+@testset "PauliSum" begin
+    h = PauliSum([pauli"X", PauliStr([symZ], posImg)], [1e-50, 2.0])
+    r = PauliSum(Float32, h)
+
+    @test r isa PauliSum{Float32}
+    @test 1 == countTerms(r)        #> `1e-50` rounds to `0f0` and is dropped
+    @test r.coeff == [0f0 + 2f0im]
+    @test r == PauliSum(r, true)    #> Canonicalization
+    @test r.str[1] !== h.str[2]     #> Strings are rebuilt
+    @test PauliSum(Float64, h) == h #> Equal result for the same `T`
+    @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
+    @test_throws ArgumentError PauliSum(Bool, h)
 end
 
 @testset "indexTerm" begin

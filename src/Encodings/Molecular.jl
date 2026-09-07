@@ -163,13 +163,14 @@ function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc},
                      (getCoreDataType∘eltype)(sec1.second), 
                      (getCoreDataType∘eltype)(sec2.second))
     cache = genNBodyOperatorCache(format, T)
-    genNBodyOperatorCore!(format, cache, enc, spinSecConfig, modeIdxConfig, checkEncoding)
+    genNBodyOperatorCore!(format, cache, enc, spinSecConfig, modeIdxConfig, false)
 end
 
 const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
 
 
-#> Computation grouping: (c_1'c_2')(c_3'c_4')...(c_N'a_N)...(a_4a_3)(a_2a_1)
+#> Computation grouping: (c_1*c_2)*(c_3*c_4)*...*(c_N*a_N)*...*(a_4*a_3)(a_2*a_1);
+#> Center pair (c_N*a_N) only appears when N is odd
 function genNBodyOperatorCore!(::NormalOrder, 
                                poCache::AbstractDict{NormalOrderOpCacheKey, PauliSum{T}}, 
                                enc::NTuple{2, PairwiseSumEnc}, 
@@ -220,7 +221,7 @@ end
 const PairedOrderOpCacheKey = Pair{Bool, NTuple{2, Int}}
 
 
-#> Computation grouping: (c_1'a_1')(c_2'a_2')...(c_N'a_N)
+#> Computation grouping: (c_1*a_1)*(c_2*a_2)*...*(c_N*a_N)
 function genNBodyOperatorCore!(::PairedOrder, 
                                poCache::AbstractDict{PairedOrderOpCacheKey, PauliSum{T}}, 
                                enc::NTuple{2, PairwiseSumEnc}, 

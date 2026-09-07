@@ -263,7 +263,7 @@ end
 
 """
     decompose(g::SimpleGraph{T}) where {T<:Integer} -> 
-    Pair{Vector{Vector{T}}, Vector{SimpleGraph{T}}}
+    Pair{Vector{Vector{T}}, Vector{ SimpleGraph{T} }}
 
 Return `components => subgraphs`, where `components` is the output of `listComponents(g)` 
 and `subgraphs[k]` is the induced subgraph on `components[k]`, with its vertices relabelled 

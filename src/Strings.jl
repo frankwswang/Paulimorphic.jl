@@ -704,7 +704,7 @@ end
 
 """
     collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:Real} -> 
-    Vector{Pair{PauliStr, Complex{T}}}
+    Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
 `i`th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 

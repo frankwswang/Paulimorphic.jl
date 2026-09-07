@@ -165,6 +165,8 @@ end
 
 const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
 
+
+#> Computation grouping: (c_1'c_2')(c_3'c_4')...(c_N'a_N)...(a_4a_3)(a_2a_1)
 function genNBodyOperatorCore!(::NormalOrder, 
                                poCache::AbstractDict{NormalOrderOpCacheKey, PauliSum{T}}, 
                                enc::NTuple{2, PairwiseSumEnc}, 
@@ -214,6 +216,8 @@ end
 
 const PairedOrderOpCacheKey = Pair{Bool, NTuple{2, Int}}
 
+
+#> Computation grouping: (c_1'a_1')(c_2'a_2')...(c_N'a_N)
 function genNBodyOperatorCore!(::PairedOrder, 
                                poCache::AbstractDict{PairedOrderOpCacheKey, PauliSum{T}}, 
                                enc::NTuple{2, PairwiseSumEnc}, 

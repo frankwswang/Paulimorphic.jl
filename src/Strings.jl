@@ -1,6 +1,6 @@
 export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr
+       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
 
@@ -1485,3 +1485,46 @@ function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
 
     mul(str, phase)
 end
+
+
+"""
+    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+
+Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
+string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
+a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
+selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
+
+The accumulation is performed at the promoted precision `Complex{promote_type(T, R)}` and 
+converted to `Complex{R}` only once at the end. For floating-point precisions, the 
+selected coefficients are accumulated with Neumaier-compensated summation, following the 
+term order of `h`. For exact coefficient types (e.g., `Rational`), the accumulation is 
+carried out by exact addition.
+
+!!! info
+    When `T` is an exact type but `R` is a floating-point type, `promote_type(T, R)` is 
+    the floating-point type, so each selected coefficient is rounded before the 
+    accumulation. To round only once — after an exact accumulation — sum at the native 
+    precision first: `sumCoeffs(selector, h) |> Complex{R}`.
+
+# Example
+```jldoctest
+julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16]);
+
+julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
+6.0 + 0.0im
+
+julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
+1.0 + 0.0im
+```
+"""
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T) where {F, T<:Real, R<:Real}
+    accuT = Complex{promote_type(T, R)}
+    nTerm = countTerms(h)
+    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
+    neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
+end
+
+sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} = sumCoeffs(_->true, h, R)

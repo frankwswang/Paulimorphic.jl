@@ -315,4 +315,12 @@ end
     @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
 end
 
+@testset "sumCoeffs" begin
+    h = PauliSum([pauli"XI", pauli"YI", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
+    @test sumCoeffs(h) == Complex(6.0)                      #> Naive accumulation gives 4.0
+    @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
+    @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
+    @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
+end
+
 end

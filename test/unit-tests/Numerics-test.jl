@@ -25,5 +25,13 @@ using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum
         @test neumaierSum(ComplexF64[1e16+im, 1.0+im, -1e16-2im]) == ComplexF64(1.0, 0.0)
         @test neumaierSum(Float64[]) == 0.0
         @test_throws ArgumentError neumaierSum(AbstractFloat[1.0, 2.0])
+
+        @test neumaierSum(Float64, Iterators.filter(>(1), [0.5, 1.5])) == 1.5
+        @test neumaierSum(Float64, skipmissing([1e16, missing, 1.0, -1e16])) == 1.0
+        @test neumaierSum(abs, Float64, [-1.0, 2.0]) == 3.0
+        @test_throws ArgumentError neumaierSum(Complex, ComplexF64[1.0im])
+        @test_throws ArgumentError let scope = (x for x in Iterators.countfrom(1.0))
+            neumaierSum(Float64, scope)
+        end
     end
 end

@@ -20,20 +20,27 @@ end
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
 (total + val, residue)
 
-function neumaierSum(vals::AbstractVector{<:FloatOrComplex})
-    eleT = eltype(vals)
-    T = eleT <: AbstractFloat ? eleT : typeintersect(eleT, Complex)
-    if !(isconcretetype(T) && (isconcretetype∘real)(T))
-        throw(ArgumentError("The Neumaier sum of `vals::$(typeof(vals))` is not "*
-                            "well-defined."))
+function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
+    eleT = T <: Real ? T : typeintersect(T, Complex)
+    if !(isconcretetype(eleT) && (isconcretetype∘real)(eleT))
+        throw(ArgumentError("The Neumaier sum based on `T = $T` is not well-defined."))
     end
 
-    naiveSum = zero(T)
-    sumResidue = zero(T)
+    if Base.IteratorSize(S) isa Base.IsInfinite
+        throw(ArgumentError("`iterable` must not be an infinite iterator."))
+    end
 
-    for val in vals
-        naiveSum, sumResidue = neumaierAdd(naiveSum, val, sumResidue)
+    naiveSum = zero(eleT)
+    sumResidue = zero(eleT)
+
+    for item in iterable
+        formattedVal = eleT(item|>mapper)
+        naiveSum, sumResidue = neumaierAdd(naiveSum, formattedVal, sumResidue)
     end
 
     naiveSum + sumResidue
 end
+
+neumaierSum(::Type{T}, iterable) where {T} = neumaierSum(Base.identity, T, iterable)
+
+neumaierSum(arr::AbstractArray{T}) where {T} = neumaierSum(T, arr)

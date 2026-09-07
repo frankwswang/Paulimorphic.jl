@@ -157,23 +157,10 @@ function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc},
                           modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
                           checkEncoding::Bool=true)::PauliSum where {M}
     checkEncoding && checkSpinSectoredEnc(enc, true)
-
-    if format isa PairedOrder
-        mapreduce(*, spinSecConfig, modeIdxConfig) do isSec2, idxPair
-            iCre, iAnn = idxPair #> `iCre` and `iAnn` belong to the same particle
-            spinSec = enc[begin+isSec2]
-            spinSec.second[begin+iCre-1] * spinSec.first[begin+iAnn-1]
-        end
-    else #> `format isa NormalOrder`
-        mapreduce(*, (true, false), (0:(+1):M, M:(-1):0)) do isCreOp, particlePtr
-            mapfoldl(*, particlePtr) do offset
-                isSec2 = spinSecConfig[begin+offset]
-                iOpPair = modeIdxConfig[begin+offset]
-                ops = enc[begin+isSec2][begin+isCreOp]
-                ops[begin+iOpPair[end-isCreOp]-1]
-            end
-        end
-    end
+    sec1, sec2 = enc
+    T = promote_type((getCoreDataType∘eltype)(sec1), (getCoreDataType∘eltype)(sec2))
+    cache = genNBodyOperatorCache(format, T)
+    genNBodyOperatorCore!(format, cache, enc, spinSecConfig, modeIdxConfig, checkEncoding)
 end
 
 const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
@@ -188,7 +175,7 @@ function genNBodyOperatorCore!(::NormalOrder,
     oddParticleNum = iseven(M)
     boundM = M - oddParticleNum
 
-    if oddParticleNum || boundM < 0
+    if oddParticleNum || boundM < 0 #> The secondary check is technically decorative
         cenPInSec2 = last(spinSecConfig)
         iCreCenPar, iAnnCenPar = last(modeIdxConfig)
         secEnc = enc[begin+cenPInSec2]
@@ -244,11 +231,11 @@ function genNBodyOperatorCore!(::PairedOrder,
     end
 end
 
-function initializeNBodyOpCache(::PairedOrder, ::Type{T}) where {T<:Real}
+function genNBodyOperatorCache(::PairedOrder, ::Type{T}) where {T<:Real}
     Dict{PairedOrderOpCacheKey, PauliSum{T}}()
 end
 
-function initializeNBodyOpCache(::NormalOrder, ::Type{T}) where {T<:Real}
+function genNBodyOperatorCache(::NormalOrder, ::Type{T}) where {T<:Real}
     Dict{NormalOrderOpCacheKey, PauliSum{T}}()
 end
 
@@ -417,8 +404,8 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
     realT = (typeof∘inv∘one∘real)(T)
     coreT = Complex{realT}
-    cache = Dict{PauliStr, coreT}()
-    opProdCache = initializeNBodyOpCache(format, realT)
+    coeffCache = Dict{PauliStr, coreT}()
+    encOpCache = genNBodyOperatorCache(format, realT)
 
     prefactor = one(realT)
     if particleExch
@@ -437,15 +424,15 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
             (iStart, iStart) .+ (offsetTuple[begin+2i-2], offsetTuple[begin+2i-1])
         end
 
-        op = genNBodyOperatorCore!(format, opProdCache, enc, spinSecConfig, iPairs, false)
+        op = genNBodyOperatorCore!(format, encOpCache, enc, spinSecConfig, iPairs, false)
 
         for (str, encCoeff) in zip(op.str, op.coeff)
             opCoeff = prefactor * encCoeff * inteCoeff
-            cache[str] = get(cache, str, zero(coreT)) + coreT(opCoeff)
+            coeffCache[str] = get(coeffCache, str, zero(coreT)) + coreT(opCoeff)
         end
     end
 
-    PauliSum((collect∘keys)(cache), (collect∘values)(cache))
+    PauliSum((collect∘keys)(coeffCache), (collect∘values)(coeffCache))
 end
 
 """

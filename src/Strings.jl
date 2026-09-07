@@ -584,6 +584,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
             sortStrings!(s, c, true)
         else
             perm = sortperm(sInput)
+            shift = 1 - firstindex(sInput)
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
             cBuffer = Memory{Complex{T}}(undef, inputSize)
@@ -594,12 +595,15 @@ struct PauliSum{T<:Real} <: DiscreteOperator
             @inbounds while k <= inputSize
                 p = perm[begin+k-1]
                 str = sInput[p]
-                acc = cInput[p]
+                acc = cInput[begin+p+shift-1]
                 accResidue = zero(acc)
 
                 k += 1
-                while k <= inputSize && sInput[perm[begin+k-1]] == str
-                    acc, accResidue = neumaierAdd(acc, cInput[perm[begin+k-1]], accResidue)
+                while k <= inputSize
+                    sIdx = perm[begin+k-1]
+                    sInput[sIdx] == str || break
+                    cOffset = sIdx + shift - 1
+                    acc, accResidue = neumaierAdd(acc, cInput[begin+cOffset], accResidue)
                     k += 1
                 end
 

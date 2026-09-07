@@ -144,13 +144,13 @@ specifies its spin `sector` (`false` for the first element of `enc`, `true` for 
 second), and `(iCre, iAnn) = modeIdxConfig[begin+p-1]` specifies the modes associated with 
 its creation and annihilation operators within that `sector`: 
 
-    c_p' = sector.second[begin+iCre-1];     a_p = sector.first[begin+iAnn-1]
+    c_p = sector.second[begin+iCre-1];    a_p = sector.first[begin+iAnn-1];    c_p == (a_p)'
 
 Additionally, `format` specifies the operator ordering of the monomial: 
 [`PairedOrder`](@ref) produces pairwise ordering (similar to the Chemist notation for the 
 indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces the normal 
-ordering: `c_1' c_2' ... c_N' a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, 
-`enc` is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
+ordering: `c_1 c_2 ... c_N a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, `enc` 
+is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
 """
 function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                           spinSecConfig::NonEmptyTuple{Bool, M}, 
@@ -169,7 +169,7 @@ end
 const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
 
 
-#> Computation grouping: (c_1*c_2)*(c_3*c_4)*...*(c_N*a_N)*...*(a_4*a_3)(a_2*a_1);
+#> Computation grouping: (c_1*c_2)*(c_3*c_4)*...*(c_N*a_N)*...*(a_4*a_3)*(a_2*a_1);
 #> Center pair (c_N*a_N) only appears when N is odd
 function genNBodyOperatorCore!(::NormalOrder, 
                                poCache::AbstractDict{NormalOrderOpCacheKey, PauliSum{T}}, 

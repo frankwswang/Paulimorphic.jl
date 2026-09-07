@@ -498,7 +498,7 @@ When `simplification=true` (by default), equal strings — including strings tha
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
 term whose coefficient is exactly zero is removed; for `T<:AbstractFloat`, for each group 
 of equal strings, their corresponding coefficients are accumulated via Neumaier-compensated 
-summation. when `simplification=false`, such equal strings are retained. In both cases the 
+summation. When `simplification=false`, such equal strings are retained. In both cases the 
 terms in `res` are stored in a deterministic canonical order such that for 
 `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 

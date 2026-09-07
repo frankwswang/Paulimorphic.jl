@@ -11,10 +11,10 @@ using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum
 
     @testset "neumaierAdd" begin
         #> Residue-step methods: the float path collects the addition residue
-        @test neumaierAdd(1e16, 1.0, 0.0) == (1e16, 1.0)
+        @test neumaierAdd(1e16, 1.0, 0.0) == neumaierAdd(1e16, 1.0) == (1e16, 1.0)
         @test neumaierAdd(1e16, -1e16, 1.0) == (0.0, 1.0)
         #> Exact fallback: plain addition with an untouched residue slot
-        @test neumaierAdd(1//2, 1//3, 0//1) == (5//6, 0//1)
+        @test neumaierAdd(1//2, 1//3, 0//1) == neumaierAdd(1//2, 1//3) == (5//6, 0//1)
         @test neumaierAdd(Complex(1, 2), Complex(3, 4), Complex(0, 0)) == 
                          (Complex(4, 6), Complex(0, 0))
     end

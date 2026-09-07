@@ -114,8 +114,8 @@ end
     #> Coefficient summation accuracy check
     g = zeros(3, 3, 3, 3)
     g[1, 1, 1, 1] = 1e16
-    for idx in ((1, 2, 2, 1), (2, 1, 2, 1), (1, 2, 1, 2), (2, 1, 1, 2)); g[idx...] = 1.0 end
-    for idx in ((1, 3, 3, 1), (3, 1, 3, 1), (1, 3, 1, 3), (3, 1, 1, 3)); g[idx...] = -1e16 end
+    for idx in ((1,2,2,1), (2,1,2,1), (1,2,1,2), (2,1,1,2)); g[idx...] = 1.0 end
+    for idx in ((1,3,3,1), (3,1,3,1), (1,3,1,3), (3,1,1,3)); g[idx...] = -1e16 end
     new1B, _ = formatMolecularInteData(PairedOrder(), (zeros(3, 3), g))
     @test new1B[1, 1] == -0.5
     @test new1B[2, 2] == -0.5 #> Control entry: independent of the accumulation order

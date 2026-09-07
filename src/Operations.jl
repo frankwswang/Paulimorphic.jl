@@ -270,11 +270,11 @@ mul(T, h, s, simplification)
 Multiply `h1` by `h2`, returning their product. If `simplification=true`, the same 
 simplification procedure used by the `PauliSum` constructor (when the same-named argument 
 is set to `true`) is applied to the result. The result does not reference any data in 
-either `h1` or `h2`. 
+either `h1` or `h2`.
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated at accuracy level of 
+    `PauliSum`, each intermediate coefficient product is evaluated at the accuracy level of 
     `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
@@ -320,7 +320,7 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated at accuracy level of 
+    `PauliSum`, each intermediate coefficient product is evaluated at the accuracy level of 
     `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 

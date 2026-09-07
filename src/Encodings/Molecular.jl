@@ -408,8 +408,8 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
         modeCount = length(oneSecEnc.first)
         windowSize = modeCount - Int(iModeStart) + 1
         if windowSize < 1
-                throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
-                                    "`oneSecEnc`: $modeCount."))
+            throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
+                                "`oneSecEnc`: $modeCount."))
         elseif nOrb > windowSize
             throw(ArgumentError("The window size (bounded by `iModeStart`) for "*
                                 "`oneSecEnc` is $windowSize. It is not large enough to be "*

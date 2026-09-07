@@ -274,8 +274,8 @@ either `h1` or `h2`.
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated first at accuracy level 
-    of `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
+    `PauliSum`, each intermediate coefficient product is evaluated at accuracy level of 
+    `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
@@ -303,8 +303,8 @@ mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where
 mul(promote_type(T1, T2), h1, h2, simplification)
 
 """
-    mul(::Type{T}, h::PauliSum, coeff::Union{Real, Complex}, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    mul(::Type{T}, h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
 
     mul(h::PauliSum{T}, coeff::C, 
         simplification::Bool=true) where {T<:Real, C<:Union{Real, Complex}} -> 
@@ -320,15 +320,15 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated first at accuracy level 
-    of `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
+    `PauliSum`, each intermediate coefficient product is evaluated at accuracy level of 
+    `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
     tempC = Complex{promote_type(T, T1, T2)}
-    losslessCoeff = tempC(coeff)
-    coeffs = map(x->Complex{T}(tempC(x) * losslessCoeff), h.coeff)
+    tempCoeff = tempC(coeff)
+    coeffs = map(x->Complex{T}(tempC(x) * tempCoeff), h.coeff)
     PauliSum(h.str, coeffs, simplification)
 end
 

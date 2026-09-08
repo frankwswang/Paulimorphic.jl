@@ -1,6 +1,6 @@
 # Paulimorphic.jl
 
-**Paulimorphic** is a [Julia](https://julialang.org/) software package for **constructing**, **transforming**, and **analyzing** Pauli operators. In particular, Pauli strings are stored in a bit-packed symplectic representation together with their group phases, and their linear combinations are kept in a canonical form. Based on this core design, **Paulimorphic** aims to serve as a robust and performant toolkit for algebraic manipulation and structural analysis on linear operators in the qubit basis.
+**Paulimorphic** is a Julia software package for **constructing**, **transforming**, and **analyzing** Pauli operators. In particular, Pauli strings are stored in a bit-packed symplectic representation together with their group phases, and their linear combinations are kept in a canonical form. Based on this core design, **Paulimorphic** aims to serve as a robust and performant toolkit for algebraic manipulation and structural analysis on linear operators in the qubit basis.
 
 <div align="center">
 

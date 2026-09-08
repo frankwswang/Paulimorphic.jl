@@ -1,5 +1,5 @@
 using Test
-using Paulimorphic: isIndexLabel
+using Paulimorphic: isIndexLabel, dumpTo!, PauliSum, @pauli_str
 
 @testset "Tensors.jl" begin
 
@@ -30,6 +30,32 @@ using Paulimorphic: isIndexLabel
     @test  isIndexLabel((false, true))
     @test  isIndexLabel(( true, true), 1)
     @test !isIndexLabel((false, true), 1)
+end
+
+@testset "dumpTo!" begin
+    #> Minimal zero-based vector (axes start at 0) for testing the axis-mismatch tolerance
+    struct ZeroBasedVector{T} <: AbstractVector{T}
+        data::Vector{T}
+    end
+
+    Base.size(v::ZeroBasedVector) = size(v.data)
+    Base.axes(v::ZeroBasedVector) = (Base.IdentityUnitRange(0:(length(v.data) - 1)),)
+    Base.getindex(v::ZeroBasedVector, i::Int) = v.data[begin+i]
+
+    src = ZeroBasedVector([1.0, 2.0])
+    @test firstindex(src) == 0 #> Sanity check: `src` is genuinely offset-indexed
+
+    dst = zeros(3)
+    @test_throws DimensionMismatch dst .= src #> When `length(src) > 1`, `dst .= src` fails
+    @test dumpTo!(dst, src) === dst
+    @test dst == [src..., 0.0]
+    @test dumpTo!(dst, src, 2) == [1.0, 1.0, 2.0] #> Destination offset via `iStart`
+    @test dumpTo!(dst, 7.0) == fill(7.0, 3)       #> Scalar source fills the whole array
+
+    #> Offset coefficient vectors flow through both `PauliSum` constructor branches
+    refSum = PauliSum([pauli"X", pauli"Y"], [0.5, 0.25])
+    @test PauliSum(Float64, [pauli"X", pauli"Y"], ZeroBasedVector([0.5, 0.25])) == refSum
+    @test PauliSum([pauli"X", pauli"Y"], ZeroBasedVector([0.5, 0.25]), false) == refSum
 end
 
 end

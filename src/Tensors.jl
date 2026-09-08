@@ -105,6 +105,7 @@ function findAxisPermViolation(tensor::AbstractArray{<:RealOrComplex, D},
 end
 
 
+#> Can be used for array copying when `a .= b` fails for two arrays with mismatched axes
 function dumpTo!(dst::AbstractArray, src, iStart::Integer=firstindex(dst))
     if src isa AbstractArray
         copyto!(dst, iStart, src, firstindex(src), length(src))

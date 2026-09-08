@@ -579,13 +579,13 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 
         if !simplification || iszero(inputSize) #> No merging subroutine
             c = Memory{Complex{T}}(undef, inputSize)
-            c .= coeffs
+            dumpTo!(c, coeffs)
             s = sInput
             absorbPhases!(s, c)
             sortStrings!(s, c, true)
         else
             cInput = Memory{extendType(T, complex(C))}(undef, inputSize)
-            cInput .= coeffs
+            dumpTo!(cInput, coeffs)
             absorbPhases!(sInput, cInput)
 
             perm = sortperm(sInput)     #> Only carries `sInput`-native indices

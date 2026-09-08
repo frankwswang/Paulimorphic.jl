@@ -103,3 +103,12 @@ function findAxisPermViolation(tensor::AbstractArray{<:RealOrComplex, D},
 
     nothing
 end
+
+
+function dumpTo!(dst::AbstractArray, src, iStart::Integer=firstindex(dst))
+    if src isa AbstractArray
+        copyto!(dst, iStart, src, firstindex(src), length(src))
+    else
+        fill!(dst, src)
+    end
+end

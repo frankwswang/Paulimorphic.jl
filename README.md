@@ -6,7 +6,7 @@
 
 | Documentation | License | Development Status |
 | :---: | :---: | :---: |
-| [![][Doc-stable-img]][Doc-stable] | [![License: MIT][License-img]][License-url] | [![CI][GA-CI-img]][GA-CI-url] [![codecov][codecov-img]][codecov-url] [![AquaQA][Aqua-img]][Aqua-url] |
+| [![][Doc-latest-img]][Doc-latest] | [![License: MIT][License-img]][License-url] | [![CI][GA-CI-img]][GA-CI-url] [![codecov][codecov-img]][codecov-url] [![AquaQA][Aqua-img]][Aqua-url] |
 
 </div>
 
@@ -91,12 +91,12 @@ julia> using Paulimorphic
 
 ## Documentation
 
-Objects defined by Paulimorphic that are exported or declared [`public`](https://docs.julialang.org/en/v1/base/base/#public) have the corresponding docstring, which can be accessed through the [Help mode](https://docs.julialang.org/en/v1/stdlib/REPL/#Help-mode) in the Julia REPL. The [latest release's documentation][Doc-stable] contains all the docstrings of the package. For unreleased/experimental features, please refer to the [developer documentation][Doc-dev], which tracks the `dev` branch.
+Objects defined by Paulimorphic that are exported or declared [`public`](https://docs.julialang.org/en/v1/base/base/#public) have the corresponding docstring, which can be accessed through the [Help mode](https://docs.julialang.org/en/v1/stdlib/REPL/#Help-mode) in the Julia REPL. The [latest release's documentation][Doc-latest] contains all the docstrings of the package. For unreleased/experimental features, please refer to the [developer documentation][Doc-dev], which tracks the `dev` branch.
 
 <br />
 
-[Doc-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[Doc-stable]:     https://frankwswang.github.io/Paulimorphic.jl/stable
+[Doc-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[Doc-latest]:     https://frankwswang.github.io/Paulimorphic.jl/
 
 [Doc-dev]:        https://frankwswang.github.io/Paulimorphic.jl/dev
 

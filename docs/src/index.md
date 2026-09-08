@@ -1,6 +1,6 @@
 # Paulimorphic.jl
 
-[**Paulimorphic**][P-GH-url] is a Julia software package for **constructing**, **transforming**, and **analyzing** Pauli operators. In particular, Pauli strings are stored in a bit-packed symplectic representation together with their group phases, and their linear combinations are kept in a canonical form. Based on this core design, **Paulimorphic** aims to serve as a robust and performant toolkit for algebraic manipulation and structural analysis on linear operators in the qubit basis.
+[**Paulimorphic**](https://github.com/frankwswang/Paulimorphic.jl) is a Julia software package for **constructing**, **transforming**, and **analyzing** Pauli operators. In particular, Pauli strings are stored in a bit-packed symplectic representation together with their group phases, and their linear combinations are kept in a canonical form. Based on this core design, **Paulimorphic** aims to serve as a robust and performant toolkit for algebraic manipulation and structural analysis on linear operators in the qubit basis.
 
 ## Features
 
@@ -61,7 +61,7 @@ length(edges)                         # `6`
 
 ### Julia (64-bit) compatibility
 
-Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The earliest supported release, the current stable release, and the latest prerelease are continuously tested; the results can be found [here][GA-CI-url].
+Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The earliest supported release, the current stable release, and the latest prerelease are continuously tested; the results can be found [here](https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml).
 
 ### Installation in the Julia [REPL](https://docs.julialang.org/en/v1/stdlib/REPL/)
 
@@ -86,13 +86,6 @@ julia> using Paulimorphic
 ## Documentation Contents
 
 ```@contents
-Pages = ["types.md"]
-Pages = ["functions.md"]
+Pages = ["types.md", "functions.md"]
 Depth = 2
 ```
-
-<br />
-
-[P-GH-url]:  https://github.com/frankwswang/Paulimorphic.jl
-
-[GA-CI-url]: https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml

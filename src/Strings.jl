@@ -479,6 +479,11 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
+    PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
+             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true) where 
+            {T<:Real, C<:Union{Complex, Real}} -> 
+    PauliSum{T}
+
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
              simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
@@ -497,10 +502,10 @@ coefficient, so even with a `coeffs::C`, the stored coefficients may differ term
 When `simplification=true` (by default), equal strings — including strings that 
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
 term whose coefficient is exactly zero is removed; for `T<:AbstractFloat`, for each group 
-of equal strings, their corresponding coefficients are accumulated via Neumaier-compensated 
-summation. When `simplification=false`, such equal strings are retained. In both cases the 
-terms in `res` are stored in a deterministic canonical order such that for 
-`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+of equal strings, their corresponding coefficients are accumulated via [Neumaier 
+summation](https://doi.org/10.1002/zamm.19740540106). When `simplification=false`, such 
+equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
+canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 
     res2.str == res.str && res2.coeff == res.coeff
 
@@ -556,10 +561,9 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         new{T}(strs[indices], coeffs[indices])
     end
 
-    function PauliSum(strs::AbstractVector{PauliStr}, 
+    function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
                       coeffs::Union{AbstractVector{C}, C}, 
-                      simplification::Bool=true) where {C<:RealOrComplex}
-        T = real(C)
+                      simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
         inputSize = length(strs)
         coeffsAsVec = coeffs isa AbstractVector
         (T <: Bool) && throwBoolPauliSumErr("T = real(coeffs|>eltype)")
@@ -583,19 +587,19 @@ struct PauliSum{T<:Real} <: DiscreteOperator
             s = sInput
             sortStrings!(s, c, true)
         else
+            extendedT = extendType(T, complex(C))
             perm = sortperm(sInput)     #> Only carries `sInput`-native indices
             shift = -firstindex(sInput) #> Shifts `sInput`-native indices to index offsets
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
-            cBuffer = Memory{Complex{T}}(undef, inputSize)
+            cBuffer = Memory{extendedT}(undef, inputSize)
             sBuffer = Memory{PauliStr}(undef, inputSize)
             mergedSize = 0
             k = 1
 
             @inbounds while k <= inputSize
                 p = perm[begin+k-1]
-                cOffset = p + shift
-                acc = cInput[begin+cOffset]
+                acc = extendedT(cInput[begin+p+shift])
                 accResidue = zero(acc)
                 str = sInput[p]
 
@@ -603,8 +607,8 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 while k <= inputSize
                     sIdx = perm[begin+k-1]
                     sInput[sIdx] == str || break
-                    cOffset = sIdx + shift
-                    acc, accResidue = neumaierAdd(acc, cInput[begin+cOffset], accResidue)
+                    val = extendedT(cInput[begin+sIdx+shift])
+                    acc, accResidue = neumaierAdd(acc, val, accResidue)
                     k += 1
                 end
 
@@ -639,9 +643,13 @@ function throwBoolPauliSumErr(typeStr::AbstractString="T")
                         "`PauliSum{Bool}` cannot be realized."))
 end
 
+function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
+                  simplification::Bool=true) where {C<:RealOrComplex}
+    PauliSum(real(C), strs, coeffs, simplification)
+end
+
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-         simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+                  simplification::Bool=true) where {T<:Real}
     PauliSum(strs, one(Complex{T}), simplification)
 end
 

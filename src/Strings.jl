@@ -565,41 +565,38 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                       coeffs::Union{AbstractVector{C}, C}, 
                       simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
         inputSize = length(strs)
-        coeffsAsVec = coeffs isa AbstractVector
-        (T <: Bool) && throwBoolPauliSumErr("T = real(coeffs|>eltype)")
-        if coeffsAsVec && inputSize != length(coeffs)
+        (T <: Bool) && throwBoolPauliSumErr()
+        if (coeffs isa AbstractVector) && inputSize != length(coeffs)
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
 
-        cInput = Memory{Complex{T}}(undef, inputSize)
         sInput = Memory{PauliStr}(undef, inputSize)
-        if coeffsAsVec
-            copyto!(cInput, firstindex(cInput), coeffs, firstindex(coeffs), inputSize)
-        else
-            fill!(cInput, coeffs)
-        end
         nSite = iszero(inputSize) ? 0 : maximum(countSites, strs)
         for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
-        absorbPhases!(sInput, cInput)
 
-        if !simplification || iszero(inputSize)
-            c = cInput
+        if !simplification || iszero(inputSize) #> No merging subroutine
+            c = Memory{Complex{T}}(undef, inputSize)
+            c .= coeffs
             s = sInput
+            absorbPhases!(s, c)
             sortStrings!(s, c, true)
         else
-            extendedT = extendType(T, complex(C))
+            cInput = Memory{extendType(T, complex(C))}(undef, inputSize)
+            cInput .= coeffs
+            absorbPhases!(sInput, cInput)
+
             perm = sortperm(sInput)     #> Only carries `sInput`-native indices
             shift = -firstindex(sInput) #> Shifts `sInput`-native indices to index offsets
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
-            cBuffer = Memory{extendedT}(undef, inputSize)
+            cBuffer = Memory{Complex{T}}(undef, inputSize)
             sBuffer = Memory{PauliStr}(undef, inputSize)
             mergedSize = 0
             k = 1
 
             @inbounds while k <= inputSize
                 p = perm[begin+k-1]
-                acc = extendedT(cInput[begin+p+shift])
+                acc = cInput[begin+p+shift]
                 accResidue = zero(acc)
                 str = sInput[p]
 
@@ -607,7 +604,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 while k <= inputSize
                     sIdx = perm[begin+k-1]
                     sInput[sIdx] == str || break
-                    val = extendedT(cInput[begin+sIdx+shift])
+                    val = cInput[begin+sIdx+shift]
                     acc, accResidue = neumaierAdd(acc, val, accResidue)
                     k += 1
                 end

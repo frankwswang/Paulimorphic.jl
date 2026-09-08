@@ -42,20 +42,18 @@ Add two `PauliSum`, returning their sum with the coefficient type automatically 
 If `simplification=true`, the same simplification procedure used by the [`PauliSum`](@ref) 
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h1` or `h2`.
+
+!!! info
+    For the first method signature where `T` specifies the core type of the returned 
+    `PauliSum`, when `simplification=true`, the merging (by Neumaier summation) of 
+    coefficients associated equal terms is performed at the precision level of 
+    `$extendType(T, complex( promote_type(T1, T2) ))` and then the sum is converted to 
+    `Complex{T}`.
 """
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
              simplification::Bool=true) where {T<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
-
-    nTerm1 = countTerms(h1)
-    coeffs = Memory{Complex{T}}(undef, nTerm1+countTerms(h2))
-    @inbounds for (i, c) in enumerate(h1.coeff)
-        coeffs[begin+i-1] = c
-    end
-    @inbounds for (i, c) in enumerate(h2.coeff)
-        coeffs[begin+nTerm1+i-1] = c
-    end
-    PauliSum(vcat(h1.str, h2.str), coeffs, simplification)
+    PauliSum(T, vcat(h1.str, h2.str), vcat(h1.coeff, h2.coeff), simplification)
 end
 
 add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
@@ -80,17 +78,18 @@ returning the sum with the coefficient type automatically promoted. The added st
 `PauliSum` constructor. If `simplification=true`, the same simplification procedure used by 
 the [`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is 
 applied to the result. The result does not reference any data in either `h` or `term`.
+
+!!! info
+    For the first method signature where `T` specifies the core type of the returned 
+    `PauliSum`, when `simplification=true`, the merging (by Neumaier summation) of 
+    coefficients associated equal terms is performed at the precision level of 
+    `$extendType(T, complex( promote_type(T1, T2) ))` and then the sum is converted to 
+    `Complex{T}`.
 """
 function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
              simplification::Bool=true) where {T<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
-
-    coeffs = Memory{Complex{T}}(undef, countTerms(h)+1)
-    @inbounds for (i, c) in enumerate(h.coeff)
-        coeffs[begin+i-1] = c
-    end
-    coeffs[end] = term.second
-    PauliSum(vcat(h.str, term.first), coeffs, simplification)
+    PauliSum(T, vcat(h.str, term.first), vcat(h.coeff, term.second), simplification)
 end
 
 add(h::PauliSum{T1}, term::PauliStrToVal{T2}, simplification::Bool=true) where 
@@ -274,8 +273,8 @@ either `h1` or `h2`.
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated at the accuracy level of 
-    `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
+    `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
+    of `$extendType(T, complex( promote_type(T1, T2) ))` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
@@ -284,7 +283,7 @@ function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2},
     cL, sL = h1.coeff, h1.str
     cR, sR = h2.coeff, h2.str
     m, n = length(cL), length(cR)
-    tempC = Complex{promote_type(T, T1, T2)}
+    tempC = extendType(T, complex( promote_type(T1, T2) ))
 
     cs = Memory{Complex{T}}(undef, m * n)
     ss = Memory{PauliStr}(undef, m * n)
@@ -320,13 +319,13 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
-    `PauliSum`, each intermediate coefficient product is evaluated at the accuracy level of 
-    `Complex{promote_type(T, T1, T2)}` and then converted to `Complex{T}`.
+    `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
+    of `$extendType(T, complex( promote_type(T1, T2) ))` and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
     (T <: Bool) && throwBoolPauliSumErr()
-    tempC = Complex{promote_type(T, T1, T2)}
+    tempC = extendType(T, complex( promote_type(T1, T2) ))
     tempCoeff = tempC(coeff)
     coeffs = map(x->Complex{T}(tempC(x) * tempCoeff), h.coeff)
     PauliSum(h.str, coeffs, simplification)

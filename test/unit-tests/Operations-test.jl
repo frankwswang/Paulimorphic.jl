@@ -360,8 +360,9 @@ end
     h3 = PauliSum([pauli"X"], [5.952419006512908])
     @test mul(Float32, h3, 3).coeff[] == 17.857258f0 #> Less-accurate type imposes lastly
     h4 = PauliSum([pauli"X"], [2^40])
-    @test mul(Float64, h4, h4)   == PauliSum([PauliStr(1)], [2.0^80])
-    @test mul(Float64, h4, 2^40) == PauliSum([pauli"X"],    [2.0^80])
+    @test mul(Float64, h4, h4) == mul(Float64, h4, 2^40) == PauliSum(Float64)
+    @test mul(PauliSum(Float64, h4), h4) == PauliSum([PauliStr(1)], [2.0^80])
+    @test mul(h4, 2.0^40) == PauliSum([pauli"X"],    [2.0^80])
     @test_throws InexactError mul(Int32, PauliSum([pauli"X"], [2^20]), 
                                          PauliSum([pauli"X"], [2^20]))
 end

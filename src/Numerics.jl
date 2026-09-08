@@ -41,6 +41,8 @@ function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrCompl
     naiveSum + sumResidue
 end
 
-neumaierSum(::Type{T}, iterable) where {T} = neumaierSum(Base.identity, T, iterable)
+neumaierSum(::Type{T}, iterable) where {T<:RealOrComplex} = 
+neumaierSum(Base.identity, T, iterable)
 
-neumaierSum(arr::AbstractArray{T}) where {T} = neumaierSum(T, arr)
+neumaierSum(arr::AbstractArray{T}) where {T<:RealOrComplex} = 
+neumaierSum(T, arr)

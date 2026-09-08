@@ -144,36 +144,107 @@ specifies its spin `sector` (`false` for the first element of `enc`, `true` for 
 second), and `(iCre, iAnn) = modeIdxConfig[begin+p-1]` specifies the modes associated with 
 its creation and annihilation operators within that `sector`: 
 
-    c_p' = sector.second[begin+iCre-1];     a_p = sector.first[begin+iAnn-1]
+    c_p = sector.second[begin+iCre-1];    a_p = sector.first[begin+iAnn-1];    c_p == (a_p)'
 
 Additionally, `format` specifies the operator ordering of the monomial: 
 [`PairedOrder`](@ref) produces pairwise ordering (similar to the Chemist notation for the 
 indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces the normal 
-ordering: `c_1' c_2' ... c_N' a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, 
-`enc` is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
+ordering: `c_1 c_2 ... c_N a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, `enc` 
+is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
 """
 function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                           spinSecConfig::NonEmptyTuple{Bool, M}, 
                           modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
                           checkEncoding::Bool=true)::PauliSum where {M}
     checkEncoding && checkSpinSectoredEnc(enc, true)
+    sec1, sec2 = enc
+    T = promote_type((getCoreDataType∘eltype)(sec1.first), 
+                     (getCoreDataType∘eltype)(sec2.first), 
+                     (getCoreDataType∘eltype)(sec1.second), 
+                     (getCoreDataType∘eltype)(sec2.second))
+    cache = genNBodyOperatorCache(format, T)
+    genNBodyOperatorCore!(format, cache, enc, spinSecConfig, modeIdxConfig, false)
+end
 
-    if format isa PairedOrder
-        mapreduce(*, spinSecConfig, modeIdxConfig) do isSec2, idxPair
-            iCre, iAnn = idxPair #> `iCre` and `iAnn` belong to the same particle
-            spinSec = enc[begin+isSec2]
-            spinSec.second[begin+iCre-1] * spinSec.first[begin+iAnn-1]
-        end
-    else #> `format isa NormalOrder`
-        mapreduce(*, (true, false), (0:(+1):M, M:(-1):0)) do isCreOp, particlePtr
-            mapfoldl(*, particlePtr) do offset
-                isSec2 = spinSecConfig[begin+offset]
-                iOpPair = modeIdxConfig[begin+offset]
-                ops = enc[begin+isSec2][begin+isCreOp]
-                ops[begin+iOpPair[end-isCreOp]-1]
+const NormalOrderOpCacheKey = Pair{Bool, NTuple{ 2, Pair{Bool, Int} }}
+
+
+#> Computation grouping: (c_1*c_2)*(c_3*c_4)*...*(c_N*a_N)*...*(a_4*a_3)*(a_2*a_1);
+#> Center pair (c_N*a_N) only appears when N is odd
+function genNBodyOperatorCore!(::NormalOrder, 
+                               poCache::AbstractDict{NormalOrderOpCacheKey, PauliSum{T}}, 
+                               enc::NTuple{2, PairwiseSumEnc}, 
+                               spinSecConfig::NonEmptyTuple{Bool, M}, 
+                               modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
+                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+    checkEncoding && checkSpinSectoredEnc(enc, true)
+    oddParticleNum = iseven(M)
+    boundM = M - oddParticleNum
+
+    if oddParticleNum || boundM < 0 #> The secondary check is technically decorative
+        cenPInSec2 = last(spinSecConfig)
+        iCreCenPar, iAnnCenPar = last(modeIdxConfig)
+        secEnc = enc[begin+cenPInSec2]
+        cenOpL = secEnc.second[begin+iCreCenPar-1]
+        cenOpR = secEnc.first[begin+iAnnCenPar-1]
+        centerProd = mul(T, cenOpL, cenOpR)
+    end
+
+    if boundM < 0
+        centerProd
+    else
+        idsPair = (0:(+2):boundM, boundM:(-2):0)
+        prodL, prodR = map((true, false), idsPair) do isCreOp, particleSeq
+            mapfoldl((lOp, rOp)->mul(T, lOp, rOp), particleSeq) do p1Offset
+                p2Offset = p1Offset + ifelse(isCreOp, +1, -1)
+                p1InSec2 = spinSecConfig[begin+p1Offset]
+                p2InSec2 = spinSecConfig[begin+p2Offset]
+                 p1opIdx = modeIdxConfig[begin+p1Offset][end-isCreOp]
+                 p2opIdx = modeIdxConfig[begin+p2Offset][end-isCreOp]
+                get!(poCache, isCreOp=>(p1InSec2=>p1opIdx, p2InSec2=>p2opIdx)) do
+                    p1Op = enc[begin+p1InSec2][begin+isCreOp][begin+p1opIdx-1]
+                    p2Op = enc[begin+p2InSec2][begin+isCreOp][begin+p2opIdx-1]
+                    mul(T, p1Op, p2Op)
+                end
             end
         end
+
+        if oddParticleNum
+            mul(T, mul(T, prodL, centerProd), prodR)
+        else
+            mul(T, prodL, prodR)
+        end
     end
+end
+
+
+const PairedOrderOpCacheKey = Pair{Bool, NTuple{2, Int}}
+
+
+#> Computation grouping: (c_1*a_1)*(c_2*a_2)*...*(c_N*a_N)
+function genNBodyOperatorCore!(::PairedOrder, 
+                               poCache::AbstractDict{PairedOrderOpCacheKey, PauliSum{T}}, 
+                               enc::NTuple{2, PairwiseSumEnc}, 
+                               spinSecConfig::NonEmptyTuple{Bool, M}, 
+                               modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
+                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+    checkEncoding && checkSpinSectoredEnc(enc, true)
+
+    mapreduce((lOp, rOp)->mul(T, lOp, rOp), spinSecConfig, modeIdxConfig) do isSec2, idxPair
+        spinSec = enc[begin+isSec2]
+        get!(poCache, isSec2=>idxPair) do
+            iCre, iAnn = idxPair #> `iCre` and `iAnn` belong to the same particle
+            mul(T, spinSec.second[begin+iCre-1], spinSec.first[begin+iAnn-1])
+        end
+    end
+end
+
+function genNBodyOperatorCache(::PairedOrder, ::Type{T}) where {T<:Real}
+    Dict{PairedOrderOpCacheKey, PauliSum{T}}()
+end
+
+function genNBodyOperatorCache(::NormalOrder, ::Type{T}) where {T<:Real}
+    Dict{NormalOrderOpCacheKey, PauliSum{T}}()
 end
 
 
@@ -341,7 +412,8 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
     realT = (typeof∘inv∘one∘real)(T)
     coreT = Complex{realT}
-    cache = Dict{PauliStr, coreT}()
+    coeffCache = Dict{PauliStr, NTuple{2, coreT}}() #> Value: (coeffSum, sumResidue)
+    encOpCache = genNBodyOperatorCache(format, realT)
 
     prefactor = one(realT)
     if particleExch
@@ -360,15 +432,19 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
             (iStart, iStart) .+ (offsetTuple[begin+2i-2], offsetTuple[begin+2i-1])
         end
 
-        op = genNBodyOperator(format, enc, spinSecConfig, iPairs, false)
+        op = genNBodyOperatorCore!(format, encOpCache, enc, spinSecConfig, iPairs, false)
 
         for (str, encCoeff) in zip(op.str, op.coeff)
             opCoeff = prefactor * encCoeff * inteCoeff
-            cache[str] = get(cache, str, zero(coreT)) + coreT(opCoeff)
+            coeffSum, sumResidue = get(coeffCache, str, (zero(coreT), zero(coreT)))
+            coeffCache[str] = neumaierAdd(coeffSum, coreT(opCoeff), sumResidue)
         end
     end
 
-    PauliSum((collect∘keys)(cache), (collect∘values)(cache))
+    coeffs = map((collect∘values)(coeffCache)) do (coeffSum, sumResidue)
+        coeffSum + sumResidue
+    end
+    PauliSum((collect∘keys)(coeffCache), coeffs)
 end
 
 """
@@ -408,8 +484,8 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
         modeCount = length(oneSecEnc.first)
         windowSize = modeCount - Int(iModeStart) + 1
         if windowSize < 1
-                throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
-                                    "`oneSecEnc`: $modeCount."))
+            throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
+                                "`oneSecEnc`: $modeCount."))
         elseif nOrb > windowSize
             throw(ArgumentError("The window size (bounded by `iModeStart`) for "*
                                 "`oneSecEnc` is $windowSize. It is not large enough to be "*
@@ -475,14 +551,16 @@ two-body term in the form (associated with the same two-body tensor)
 
 Consequently, for the resulting encoding to represent the same electronic Hamiltonian, the 
 coefficient matrix for the one-body terms (`c_{i,s} a_{j,s}`) can no longer directly be the 
-one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `residue`:
+one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `correction`
+matrix
 
-        residue[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
+        correction[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
 
-This compensation is carried out automatically (via [`formatMolecularInteData`](@ref)) 
-when `format = PairedOrder()`, hence `encodeElecHam` always returns an equivalent encoding 
-for the same input molecular integral tensors (i.e., preserving the eigenspectrum of the 
-underlying electronic Hamiltonian) regardless of the value of `format`.
+from the one-body tensor. This correction is carried out automatically 
+(via [`formatMolecularInteData`](@ref)) when `format = PairedOrder()`, hence 
+`encodeElecHam` always returns an equivalent encoding for the same input molecular integral 
+tensors (i.e., preserving the eigenspectrum of the underlying electronic Hamiltonian) 
+regardless of the value of `format`.
 
 ## Simplified method
 
@@ -626,12 +704,12 @@ the symmetry of real spatial orbitals under the Coulomb interaction.
 
 ## Reformatted one-body integrals
 The first element of the returned integral data, `newInte1B`, is the result of subtracting 
-the coefficient matrix for the residue of the two-body term in the Hamiltonian under the 
+the coefficient matrix of a specific two-index two-body term in the Hamiltonian under the 
 `PairedOrder` format from `first(inteData)`:
 
     newInte1B[i, j] == inte1B[i, j] - (1/2) * sum(inte2B[i, k, k, j] for k in 1:nOrbital)
 
-This correction on the one-body matrix follows from the two-body operator monomial identity 
+This correction on the one-body matrix derives from the two-body operator monomial identity 
 
     c_i a_j c_k a_l == c_i c_k a_l a_j + (j == k) * c_i a_l
 
@@ -658,11 +736,14 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
     prefactor = inv(2|>eleT)
 
     for j in 0:offset, i in 0:offset
-        residue = zero(eleT)
-        for k in 0:offset #> No residue contribution from cross-spin two-body integrals
-            residue += inte2B[begin+i, begin+k, begin+k, begin+j]
+        correction = zero(eleT)
+        sumResidue = zero(eleT)
+        for k in 0:offset #> No correction contribution from cross-spin two-body integrals
+            val = eleT(inte2B[begin+i, begin+k, begin+k, begin+j])
+            correction, sumResidue = neumaierAdd(correction, val, sumResidue)
         end
-        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * residue
+        correction += sumResidue
+        newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * correction
     end
 
     (newInte1B, inte2B)

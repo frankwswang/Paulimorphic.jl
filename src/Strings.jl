@@ -1,6 +1,6 @@
 export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr
+       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
 
@@ -479,6 +479,11 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
+    PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
+             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true) where 
+            {T<:Real, C<:Union{Complex, Real}} -> 
+    PauliSum{T}
+
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
              simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
@@ -486,18 +491,23 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
 Construct a `res::PauliSum{T}` with `T=real(C)` from `strs` and `coeffs`. When `coeffs` is 
 an `AbstractVector`, it must have the same length as `strs`, and each `coeffs[i]` is the 
 coefficient initially associated with `strs[i]`; when `coeffs` is a `C` (scalar), it is the 
-coefficient initially associated with every string in `strs`. `T=Bool` is specifically 
-disallowed because phase absorption must be able to scale a coefficient by `±1` and `±im`, 
-which `Complex{Bool}` cannot represent.
+coefficient initially associated with every string in `strs`. The core data type `T=Bool` 
+is specifically disallowed because phase absorption must be able to scale a coefficient by 
+`±1` and `±im`, which `Complex{Bool}` cannot represent.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
 (equal to [`countSites`](@ref)`(res)`). Each string's phase is absorbed into its matching 
 coefficient, so even with a `coeffs::C`, the stored coefficients may differ term by term. 
 When `simplification=true` (by default), equal strings — including strings that 
-become equal only after the rebuild (e.g., `X` and `XI`) — are combined into one term and 
-any term whose coefficient is exactly zero is removed; when `simplification=false`, such 
-equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
+become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
+term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
+accumulated on the precision level of `extendType(T, complex(C))`. For floating-point 
+precisions, the accumulation is realized by [Neumaier 
+summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
+For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
+addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
+strings are retained. In both cases the terms in `res` are stored in a deterministic 
 canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 
     res2.str == res.str && res2.coeff == res.coeff
@@ -511,11 +521,18 @@ Construct a `PauliSum` with the coefficient of every Pauli string initialized to
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
 `T=Bool` is disallowed for the same reason as the first Initialization method.
 
+    PauliSum(::Type{T}, ham::PauliSum, 
+             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+
     PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
-and does not reference any data in `ham`. This constructor method can be used to obtain a 
-restored canonical form of a `ham`.
+and does not reference any data in `ham`. These two constructor signatures can be used to 
+obtain a restored canonical form of a `ham`. Particularly, when `T` is specified as the 
+first argument, the coefficients of `ham` are represented as `Complex{T}` if possible, 
+otherwise an `InexactError` is thrown upon construction. Thus, narrowing floating-point `T` 
+may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
+`T=Bool` is disallowed for the same reason as the first Initialization method.
 
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
 
@@ -547,35 +564,32 @@ struct PauliSum{T<:Real} <: DiscreteOperator
         new{T}(strs[indices], coeffs[indices])
     end
 
-    function PauliSum(strs::AbstractVector{PauliStr}, 
+    function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
                       coeffs::Union{AbstractVector{C}, C}, 
-                      simplification::Bool=true) where {C<:RealOrComplex}
-        T = real(C)
+                      simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
         inputSize = length(strs)
-        coeffsAsVec = coeffs isa AbstractVector
-        (T <: Bool) && throw(ArgumentError("`coeffs::$(typeof(coeffs))` is disallowed "*
-                                           "because phase absorption cannot be supported."))
-        if coeffsAsVec && inputSize != length(coeffs)
+        checkCoreDataTypeForPauliSum(T)
+        if (coeffs isa AbstractVector) && inputSize != length(coeffs)
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
 
-        cInput = Memory{Complex{T}}(undef, inputSize)
         sInput = Memory{PauliStr}(undef, inputSize)
-        if coeffsAsVec
-            copyto!(cInput, firstindex(cInput), coeffs, firstindex(coeffs), inputSize)
-        else
-            fill!(cInput, coeffs)
-        end
         nSite = iszero(inputSize) ? 0 : maximum(countSites, strs)
         for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
-        absorbPhases!(sInput, cInput)
 
-        if !simplification || iszero(inputSize)
-            c = cInput
+        if !simplification || iszero(inputSize) #> No merging subroutine
+            c = Memory{Complex{T}}(undef, inputSize)
+            dumpTo!(c, coeffs)
             s = sInput
+            absorbPhases!(s, c)
             sortStrings!(s, c, true)
         else
-            perm = sortperm(sInput)
+            cInput = Memory{extendType(T, complex(C))}(undef, inputSize)
+            dumpTo!(cInput, coeffs)
+            absorbPhases!(sInput, cInput)
+
+            perm = sortperm(sInput)     #> Only carries `sInput`-native indices
+            shift = -firstindex(sInput) #> Shifts `sInput`-native indices to index offsets
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
             cBuffer = Memory{Complex{T}}(undef, inputSize)
@@ -585,16 +599,24 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 
             @inbounds while k <= inputSize
                 p = perm[begin+k-1]
+                acc = cInput[begin+p+shift]
+                accResidue = zero(acc)
                 str = sInput[p]
-                acc = cInput[p]
 
                 k += 1
-                while k <= inputSize && sInput[perm[begin+k-1]] == str
-                    acc += cInput[perm[begin+k-1]]
+                while k <= inputSize
+                    sIdx = perm[begin+k-1]
+                    sInput[sIdx] == str || break
+                    val = cInput[begin+sIdx+shift]
+                    acc, accResidue = neumaierAdd(acc, val, accResidue)
                     k += 1
                 end
 
-                if !iszero(acc) #>> Drop terms with coefficients exactly equal zero
+                #> Skipped when no rounding residue was collected to keep signed zero 
+                #> intact: `Complex{T}` with `!(T<:AbstractFloat)`, one-term construction
+                iszero(accResidue) || (acc += accResidue)
+
+                if Complex{T}(acc) != 0 #>> Drop terms with coefficients exactly equal zero
                     mergedSize += 1
                     sBuffer[begin+mergedSize-1] = str
                     cBuffer[begin+mergedSize-1] = acc
@@ -616,15 +638,33 @@ struct PauliSum{T<:Real} <: DiscreteOperator
     end
 end
 
+function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
+    if T <: Union{} || !(T <: Real)
+        throw(ArgumentError("`$typeStr = $T` is not a valid core data type."))
+    elseif T <: Bool
+        throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
+                            "`PauliSum{Bool}` cannot be realized."))
+    end
+
+    nothing
+end
+
+function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
+                  simplification::Bool=true) where {C<:RealOrComplex}
+    PauliSum(real(C), strs, coeffs, simplification)
+end
+
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-         simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throw(ArgumentError("T = $T is disallowed because phase absorption "*
-                                       "cannot be supported."))
+                  simplification::Bool=true) where {T<:Real}
     PauliSum(strs, one(Complex{T}), simplification)
 end
 
+function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
+    PauliSum(T, ham.str, ham.coeff, simplification)
+end
+
 function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}
-    PauliSum(ham.str, ham.coeff, simplification)
+    PauliSum(T, ham, simplification)
 end
 
 function Base.hash(pSum::PauliSum, hashCode::UInt)
@@ -689,7 +729,7 @@ end
 
 """
     collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:Real} -> 
-    Vector{Pair{PauliStr, Complex{T}}}
+    Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
 `i`th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
@@ -1463,3 +1503,40 @@ function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
 
     mul(str, phase)
 end
+
+
+"""
+    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+
+Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
+string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
+a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
+selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
+
+The accumulation is performed at the precision level of `complex($extendType(R, T))` and 
+converted to `Complex{R}` only once at the end. For floating-point precisions, the 
+selected coefficients are accumulated with Neumaier summation, following the term order of 
+`h`. For exact coefficient types (e.g., `Rational`), the accumulation is carried out by 
+exact addition (no overflow protection for `Integer`).
+
+# Example
+```jldoctest
+julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16]);
+
+julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
+6.0 + 0.0im
+
+julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
+1.0 + 0.0im
+```
+"""
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T) where {F, T<:Real, R<:Real}
+    accuT = (complex∘extendType)(R, T)
+    nTerm = countTerms(h)
+    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
+    neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
+end
+
+sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} = sumCoeffs(_->true, h, R)

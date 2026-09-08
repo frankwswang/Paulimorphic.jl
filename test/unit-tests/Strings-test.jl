@@ -56,7 +56,7 @@ m = "X"
     end
 end
 
-@testset "PauliStr printing" begin
+@testset "`PauliStr` printing" begin
     ctx = (:limit=>true)
 
     #> Non-limited IO stays faithful regardless of length (`repr`/`string`/`print` path)
@@ -212,6 +212,37 @@ end
     @test_throws DomainError indexSite(PauliStr(0), 1)
 end
 
+@testset "PauliSum" begin
+    h = PauliSum([pauli"X", PauliStr([symZ], posImg)], [1e-50, 2.0])
+    r = PauliSum(Float32, h)
+
+    @test r isa PauliSum{Float32}
+    @test 1 == countTerms(r)        #> `1e-50` rounds to `0f0` and is dropped
+    @test r.coeff == [0f0 + 2f0im]
+    @test r == PauliSum(r, true)    #> Canonicalization
+    @test r.str[1] !== h.str[2]     #> Strings are rebuilt
+    @test PauliSum(Float64, h) == h #> Equal result for the same `T`
+    @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
+    @test_throws ArgumentError PauliSum(Bool, h)
+
+    #> Coefficient summation accuracy check
+    res1 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16])
+    @test countTerms(res1) == 1
+    @test res1.coeff == Complex{Float64}[1.0]
+
+    res2 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0])
+    @test countTerms(res2) == 0
+
+    #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
+    @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
+          Complex{Float32}[1.4901161f-8]
+    #> Extended-precision merge defers conversion failures to the single final rounding
+    @test PauliSum(Rational{Int16}, fill(pauli"X", 2), [0.1, 0.4]).coeff == 
+          Complex{Rational{Int16}}[1//2]
+    #> Terms whose `Complex{T}`-converted coefficients are zero are dropped
+    @test countTerms(PauliSum(Float32, fill(pauli"X", 2), [1e-50, 1e-50])) == 0
+end
+
 @testset "indexTerm" begin
     ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
     #> Canonical order (weight, then highest differing site): ZI, IZ, XX
@@ -291,6 +322,14 @@ end
     @test_throws "must carry a coefficient" toPauliStr(badCoeff)
     @test (@inferred toPauliStr(PauliSum(Int, [pauli"X"]))) isa PauliStr
     @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
+end
+
+@testset "sumCoeffs" begin
+    h = PauliSum([pauli"XI", pauli"YI", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
+    @test sumCoeffs(h) == Complex(6.0)                      #> Naive accumulation gives 4.0
+    @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
+    @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
+    @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
 end
 
 end

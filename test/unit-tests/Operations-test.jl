@@ -124,6 +124,12 @@ end
     #>> Intentionally unsupported combinations stay unsupported
     @test_throws MethodError +(pauli"X")            #>> No unary `+`
     @test_throws MethodError pauli"X" + (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+
+    #> Type-conversion methods
+    h1 = PauliSum([pauli"X"], [3])
+    h2 = PauliSum([pauli"Z"], [0.5])
+    @test add(Float32, h1, h2) isa PauliSum{Float32}
+    @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
 end
 
 @testset "mul" begin
@@ -341,6 +347,25 @@ end
 
     #> Family consistency: string-scalar and sum-scalar products agree
     @test mul(pauli"X", 2.0) == mul(PauliSum([pauli"X"], 1), 2.0)
+
+    #> Type-conversion methods
+    h1 = PauliSum([pauli"X"], [4])
+    h2 = PauliSum([pauli"Z"], [0.6])
+    @test mul(Float32, h1, h2)         isa PauliSum{Float32}
+    @test mul(Float32, pauli"X", h2)   isa PauliSum{Float32}
+    @test mul(Float32, h2, pauli"X")   isa PauliSum{Float32}
+    @test mul(Float32, h2, posImg)     isa PauliSum{Float32}
+    @test_throws InexactError mul(Int, h2, 2) #> 0.6 not representable in Int
+    @test mul(h1, h2)                  isa PauliSum{Float64}
+    h3 = PauliSum([pauli"X"], [5.952419006512908])
+    @test mul(Float32, h3, 3).coeff[] == 17.857258f0 #> Less-accurate type imposes lastly
+    h4 = PauliSum([pauli"X"], [2^40])
+    @test mul(PauliSum(Float64, h4), h4) == PauliSum([PauliStr(1)], [2.0^80])
+    @test mul(h4, 2.0^40) == PauliSum([pauli"X"],    [2.0^80])
+    @test_throws InexactError mul(Int32, PauliSum([pauli"X"], [2^20]), 
+                                         PauliSum([pauli"X"], [2^20]))
+    #> Limitation: does not prevent integer overflow
+    @test mul(Float64, h4, h4) == mul(Float64, h4, 2^40) == PauliSum(Float64)
 end
 
 #> `checkCommute` and `checkAntiCom`

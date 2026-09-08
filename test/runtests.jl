@@ -9,6 +9,7 @@ using Test
     println("Testing $(unit1)...")
     t1 = @elapsed @testset "$(unit1)" begin
         include("unit-tests/Constants-test.jl")
+        include("unit-tests/Numerics-test.jl")
         include("unit-tests/Tensors-test.jl")
     end
     println("$(unit1) test finished in $t1 seconds.\n")

@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
     tags: ['*']
   pull_request:
   workflow_dispatch:
@@ -13,22 +13,36 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
+    # A failing prerelease build is reported as an annotation instead of failing the
+    # workflow.
+    continue-on-error: ${{ matrix.version == 'pre' }}
+    permissions: # needed to allow julia-actions/cache to delete old caches it has created
       actions: write
       contents: read
     strategy:
       fail-fast: false
       matrix:
         version:
-          - '1.12'
-          - 'pre'
+          - 'min' # earliest supported minor release (from `[compat]` in Project.toml)
+          - '1'   # latest stable release
+          - 'pre' # latest prerelease
         os:
           - ubuntu-latest
+          - macOS-latest
+          - windows-latest
         arch:
           - x64
+          - aarch64
+        exclude:
+          - os: ubuntu-latest
+            arch: aarch64
+          - os: macOS-latest
+            arch: x64
+          - os: windows-latest
+            arch: aarch64
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -36,5 +50,16 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-buildpkg@latest
+      - name: "Code test"
+        uses: julia-actions/julia-runtest@latest
+        env:
+          JULIA_NUM_THREADS: 2
+      - uses: julia-actions/julia-processcoverage@latest
+      - name: "Coverage evaluation"
+        uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          verbose: true

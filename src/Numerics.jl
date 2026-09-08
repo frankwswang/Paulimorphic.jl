@@ -1,3 +1,5 @@
+public extendType
+
 #>-- Reference(s) --<#
 #> [DOI] 10.1002/zamm.19740540106 (Improved Kahan--Babuska algorithm proposed by Neumaier)
 @inline function neumaierStep(x1::T, x2::T) where {T<:AbstractFloat}
@@ -12,6 +14,7 @@ function neumaierStep(x1::FloatOrComplex{T}, x2::FloatOrComplex{T}) where {T<:Ab
     (Complex(rTotal, iTotal), Complex(rResidue, iResidue))
 end
 
+
 function neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:FloatOrComplex}
     total, localResidue = neumaierStep(total, val)
     (total, residue + localResidue)
@@ -19,6 +22,7 @@ end
 
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
 (total + val, residue)
+
 
 function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
     eleT = T <: Real ? T : typeintersect(T, Complex)
@@ -46,3 +50,35 @@ neumaierSum(Base.identity, T, iterable)
 
 neumaierSum(arr::AbstractArray{T}) where {T<:RealOrComplex} = 
 neumaierSum(T, arr)
+
+
+"""
+    extendType(::Type{C}, ::Type{T}) where {C<:Real, T<:Union{Real, Complex}} -> Type
+
+Return a new data type `E::Type` that is always at least as accurate as `T` (hence can 
+losslessly represent `T`) based on a core type `C`.
+
+# Example
+```jldoctest
+julia> $extendType(Int, Float64)
+Float64
+
+julia> $extendType(Int16, Complex{Rational{Int8}})
+Complex{Rational{Int16}}
+
+julia> $extendType(Float64, Rational{Int16})
+Rational{Int16}
+```
+"""
+function extendType(::Type{C}, ::Type{T}) where {C<:Real, T<:Real}
+    bl1 = C <: AbstractFloat
+    bl2 = T <: AbstractFloat
+    if (bl1 && bl2) || (!bl1 && !bl2)
+        promote_type(C, T)
+    else
+        T
+    end
+end
+
+extendType(::Type{C}, ::Type{Complex{T}}) where {C<:Real, T<:Real} = 
+(complex∘extendType)(C, T)

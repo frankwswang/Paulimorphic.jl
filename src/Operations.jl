@@ -50,7 +50,7 @@ result does not reference any data in either `h1` or `h2`.
 """
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
              simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     PauliSum(T, vcat(h1.str, h2.str), vcat(h1.coeff, h2.coeff), simplification)
 end
 
@@ -84,7 +84,7 @@ applied to the result. The result does not reference any data in either `h` or `
 """
 function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
              simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     PauliSum(T, vcat(h.str, term.first), vcat(h.coeff, term.second), simplification)
 end
 
@@ -205,7 +205,7 @@ the result. The result does not reference any data in `str`.
 """
 function mul(::Type{T}, str::PauliStr, coeff::RealOrComplex, 
              simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     PauliSum([str], Complex{T}(coeff), simplification)
 end
 
@@ -235,13 +235,13 @@ is multiplied by `s` on the matching side while the coefficients are carried ove
 not reference any data in either `s` or `h`.
 """
 function mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     newStrs = map(ele->mul(s, ele), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
 
 function mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     newStrs = map(ele->mul(ele, s), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
@@ -275,7 +275,7 @@ either `h1` or `h2`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
 
     cL, sL = h1.coeff, h1.str
     cR, sR = h2.coeff, h2.str
@@ -322,7 +322,7 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     tempC = extendType(T, complex( promote_type(T1, T2) ))
     tempCoeff = tempC(coeff)
     coeffs = map(x->Complex{T}(tempC(x) * tempCoeff), h.coeff)

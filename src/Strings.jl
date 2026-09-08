@@ -568,7 +568,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                       coeffs::Union{AbstractVector{C}, C}, 
                       simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
         inputSize = length(strs)
-        (T <: Bool) && throwBoolPauliSumErr()
+        checkCoreDataTypeForPauliSum(T)
         if (coeffs isa AbstractVector) && inputSize != length(coeffs)
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
@@ -638,9 +638,15 @@ struct PauliSum{T<:Real} <: DiscreteOperator
     end
 end
 
-function throwBoolPauliSumErr(typeStr::AbstractString="T")
-    throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
-                        "`PauliSum{Bool}` cannot be realized."))
+function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
+    if T <: Union{} || !(T <: Real)
+        throw(ArgumentError("`$typeStr = $T` is not a valid core data type."))
+    elseif T <: Bool
+        throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
+                            "`PauliSum{Bool}` cannot be realized."))
+    end
+
+    nothing
 end
 
 function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
@@ -654,7 +660,7 @@ function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[],
 end
 
 function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
-    (T <: Bool) && throwBoolPauliSumErr()
+    checkCoreDataTypeForPauliSum(T)
     PauliSum(ham.str, convert(Memory{Complex{T}}, ham.coeff), simplification)
 end
 

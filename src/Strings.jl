@@ -501,11 +501,14 @@ over `strs`. Therefore, every string in `res` explicitly acts on the same number
 coefficient, so even with a `coeffs::C`, the stored coefficients may differ term by term. 
 When `simplification=true` (by default), equal strings — including strings that 
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
-term whose coefficient is exactly zero is removed; for `T<:AbstractFloat`, for each group 
-of equal strings, their corresponding coefficients are accumulated via [Neumaier 
-summation](https://doi.org/10.1002/zamm.19740540106). When `simplification=false`, such 
-equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
-canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
+accumulated on the precision level of `extendType(T, complex(C))`. For floating-point 
+precisions, the accumulation is realized by [Neumaier 
+summation](https://doi.org/10.1002/zamm.19740540106). For exact coefficient types 
+(e.g., `Rational`), the accumulation is carried out by exact addition (no overflow 
+protection for `Integer`). When `simplification=false`, such equal strings are retained. In 
+both cases the terms in `res` are stored in a deterministic canonical order such that for 
+`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 
     res2.str == res.str && res2.coeff == res.coeff
 
@@ -1511,7 +1514,7 @@ The accumulation is performed at the precision level of `complex($extendType(R, 
 converted to `Complex{R}` only once at the end. For floating-point precisions, the 
 selected coefficients are accumulated with Neumaier summation, following the term order of 
 `h`. For exact coefficient types (e.g., `Rational`), the accumulation is carried out by 
-exact addition.
+exact addition (no overflow protection for `Integer`).
 
 # Example
 ```jldoctest

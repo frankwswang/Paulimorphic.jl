@@ -60,13 +60,13 @@ losslessly represent `T`) based on a core type `C`.
 
 # Example
 ```jldoctest
-julia> $extendType(Int, Float64)
+julia> Paulimorphic.extendType(Int, Float64)
 Float64
 
-julia> $extendType(Int16, Complex{Rational{Int8}})
+julia> Paulimorphic.extendType(Int16, Complex{Rational{Int8}})
 Complex{Rational{Int16}}
 
-julia> $extendType(Float64, Rational{Int16})
+julia> Paulimorphic.extendType(Float64, Rational{Int16})
 Rational{Int16}
 ```
 """

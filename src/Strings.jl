@@ -504,11 +504,11 @@ become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one
 term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
 accumulated on the precision level of `extendType(T, complex(C))`. For floating-point 
 precisions, the accumulation is realized by [Neumaier 
-summation](https://doi.org/10.1002/zamm.19740540106). For exact coefficient types 
-(e.g., `Rational`), the accumulation is carried out by exact addition (no overflow 
-protection for `Integer`). When `simplification=false`, such equal strings are retained. In 
-both cases the terms in `res` are stored in a deterministic canonical order such that for 
-`res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
+For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
+addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
+strings are retained. In both cases the terms in `res` are stored in a deterministic 
+canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
 
     res2.str == res.str && res2.coeff == res.coeff
 
@@ -616,7 +616,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
                 #> intact: `Complex{T}` with `!(T<:AbstractFloat)`, one-term construction
                 iszero(accResidue) || (acc += accResidue)
 
-                if !iszero(acc) #>> Drop terms with coefficients exactly equal zero
+                if Complex{T}(acc) != 0 #>> Drop terms with coefficients exactly equal zero
                     mergedSize += 1
                     sBuffer[begin+mergedSize-1] = str
                     cBuffer[begin+mergedSize-1] = acc
@@ -660,8 +660,7 @@ function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[],
 end
 
 function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
-    checkCoreDataTypeForPauliSum(T)
-    PauliSum(ham.str, convert(Memory{Complex{T}}, ham.coeff), simplification)
+    PauliSum(T, ham.str, ham.coeff, simplification)
 end
 
 function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}

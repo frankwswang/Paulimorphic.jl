@@ -232,6 +232,15 @@ end
 
     res2 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0])
     @test countTerms(res2) == 0
+
+    #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
+    @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
+          Complex{Float32}[1.4901161f-8]
+    #> Extended-precision merge defers conversion failures to the single final rounding
+    @test PauliSum(Rational{Int16}, fill(pauli"X", 2), [0.1, 0.4]).coeff == 
+          Complex{Rational{Int16}}[1//2]
+    #> Terms whose `Complex{T}`-converted coefficients are zero are dropped
+    @test countTerms(PauliSum(Float32, fill(pauli"X", 2), [1e-50, 1e-50])) == 0
 end
 
 @testset "indexTerm" begin

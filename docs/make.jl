@@ -1,18 +1,25 @@
-using Documenter: DocMeta, makedocs
+using Documenter: DocMeta, HTML, makedocs, deploydocs
 using Paulimorphic
 
 DocMeta.setdocmeta!(Paulimorphic, :DocTestSetup, :(using Paulimorphic); recursive=true)
 
 makedocs(
-    sitename = "Paulimorphic",
-    format = Documenter.HTML(),
+    sitename = "Paulimorphic", 
+    authors = "Weishi Wang and contributors", 
     modules = [Paulimorphic], 
-    checkdocs = :all,
+    format = HTML(
+        canonical = "https://frankwswang.github.io/Paulimorphic.jl", 
+        edit_link = "dev", 
+    ), 
+    pages = [
+        "Home" => "index.md", 
+        "Core Types" => "types.md", 
+        "Core Functions" => "functions.md", 
+    ], 
+    checkdocs = :all, 
 )
 
-# Documenter can also automatically deploy documentation to gh-pages.
-# See "Hosting Documentation" and deploydocs() in the Documenter manual
-# for more information.
-#=deploydocs(
-    repo = "<repository url>"
-)=#
+deploydocs(
+    repo = "github.com/frankwswang/Paulimorphic.jl.git", 
+    devbranch = "dev", 
+)

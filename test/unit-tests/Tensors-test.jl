@@ -44,9 +44,9 @@ end
 
     src = ZeroBasedVector([1.0, 2.0])
     @test firstindex(src) == 0 #> Sanity check: `src` is genuinely offset-indexed
+    @test_throws DimensionMismatch [0, 0] .= src #> `dst .= src` fails when `length(src)>1`
 
     dst = zeros(3)
-    @test_throws DimensionMismatch dst .= src #> When `length(src) > 1`, `dst .= src` fails
     @test dumpTo!(dst, src) === dst
     @test dst == [src..., 0.0]
     @test dumpTo!(dst, src, 2) == [1.0, 1.0, 2.0] #> Destination offset via `iStart`

@@ -1502,17 +1502,11 @@ string `str` satisfies `selector(str) == true`. `selector` must be a callable th
 a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
 selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
 
-The accumulation is performed at the promoted precision `Complex{promote_type(T, R)}` and 
+The accumulation is performed at the precision level of `complex($extendType(R, T))` and 
 converted to `Complex{R}` only once at the end. For floating-point precisions, the 
-selected coefficients are accumulated with Neumaier-compensated summation, following the 
-term order of `h`. For exact coefficient types (e.g., `Rational`), the accumulation is 
-carried out by exact addition.
-
-!!! info
-    When `T` is an exact type but `R` is a floating-point type, `promote_type(T, R)` is 
-    the floating-point type, so each selected coefficient is rounded before the 
-    accumulation. To round only once — after an exact accumulation — sum at the native 
-    precision first: `sumCoeffs(selector, h) |> Complex{R}`.
+selected coefficients are accumulated with Neumaier summation, following the term order of 
+`h`. For exact coefficient types (e.g., `Rational`), the accumulation is carried out by 
+exact addition.
 
 # Example
 ```jldoctest
@@ -1526,7 +1520,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 ```
 """
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T) where {F, T<:Real, R<:Real}
-    accuT = Complex{promote_type(T, R)}
+    accuT = (complex∘extendType)(R, T)
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}

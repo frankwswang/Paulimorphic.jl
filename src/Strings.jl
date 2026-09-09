@@ -7,7 +7,7 @@ public sortStrings!, setCoeff!
 using LinearAlgebra: dot
 
 """
-    PauliStr <: $DiscreteOperator
+    PauliStr <: $(DiscreteOperator|>repr)
 
 An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
@@ -77,7 +77,7 @@ input are taken — any surplus words are ignored; when it is larger, every site
 carries the identity. The components are copied into freshly allocated buffers, so the 
 returned `PauliStr` does not reference `xWords` or `zWords`.
 
-    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$posRea) -> PauliStr
+    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$(posRea|>repr)) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symZ`, `symX`, `symY`) per site, with `list[i]` acting on site `i`. The resulting string 
@@ -456,7 +456,7 @@ end
 
 
 """
-    PauliSum{T<:Real} <: $DiscreteOperator
+    PauliSum{T<:Real} <: $(DiscreteOperator|>repr)
 
 A linear combination of Pauli strings, i.e. a general operator
 
@@ -1515,8 +1515,8 @@ string `str` satisfies `selector(str) == true`. `selector` must be a callable th
 a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
 selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
 
-The accumulation is performed at the precision level of `complex($extendType(R, T))` and 
-converted to `Complex{R}` only once at the end. For floating-point precisions, the 
+The accumulation is performed at the precision level of `complex($(extendType|>repr)(R, T))` 
+and converted to `Complex{R}` only once at the end. For floating-point precisions, the 
 selected coefficients are accumulated with Neumaier summation, following the term order of 
 `h`. For exact coefficient types (e.g., `Rational`), the accumulation is carried out by 
 exact addition (no overflow protection for `Integer`).

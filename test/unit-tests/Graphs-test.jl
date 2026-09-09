@@ -139,7 +139,9 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
     @testset "Graph order bound with respect to graph-label type" begin
         @test_throws DomainError StrictGraph(BigInt(10)^50)
         @test_throws DomainError StrictGraph(200, Int8)
-        @test_throws DomainError g = StrictGraph(200, Int8)
+        @test_throws DomainError StrictGraph(2, Bool)
+        @test_throws DomainError StrictGraph(-1, UInt8)
+        @test StrictGraph(5, BigInt) isa StrictGraph{BigInt}
         g = StrictGraph(127, Int8)  #> boundary case must keep working
         @test attachEdge!(g, (1, 127))
         @test containEdge(g, (127, 1))

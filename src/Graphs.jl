@@ -9,7 +9,7 @@ export StrictGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
 A strict graph (also known as a simple graph) represented by a graph order 
 (`0 <= .order::Int <= typemax(Int)`) and adjacency sets (`.adjacency`). The graph is 
 undirected and contains no self-loops or parallel edges. Vertices (if they exist) are 
-labeled by positive integers of type `T` (ranging from from `1` to `.order`).
+labeled by positive integers of type `T` (ranging from `1` to `.order`).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 

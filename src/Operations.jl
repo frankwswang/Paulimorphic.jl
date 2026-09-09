@@ -48,7 +48,7 @@ result does not reference any data in either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
-    procedure is determined by `$extendType(T, complex( promote_type(T1, T2) ))`.
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
              simplification::Bool=true) where {T<:Real}
@@ -82,7 +82,7 @@ applied to the result. The result does not reference any data in either `h` or `
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
-    procedure is determined by `$extendType(T, complex( promote_type(T1, T2) ))`.
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
 function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
              simplification::Bool=true) where {T<:Real}
@@ -272,7 +272,7 @@ either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$extendType(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
     `Integer`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
@@ -319,8 +319,8 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$extendType(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
-    `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
+    for `Integer`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}

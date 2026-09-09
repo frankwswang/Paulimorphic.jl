@@ -105,7 +105,7 @@ end
 
 
 """
-    PairedOrder <: $StructuredType
+    PairedOrder <: $(StructuredType|>repr)
 
 The singleton format tag for the operator string ordering in which each particle's 
 creation-annihilation operator pair stays adjacent: 
@@ -117,7 +117,7 @@ where `c_n == (a_n)'` (`1 <= n <= N`).
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 
 """
-    NormalOrder <: $StructuredType
+    NormalOrder <: $(StructuredType|>repr)
 
 The singleton format tag for the normal ordering of a given operator string, which places 
 every creation operator to the left of every annihilation operator: 
@@ -132,7 +132,7 @@ const NBodyOrdering = Union{PairedOrder, NormalOrder}
 
 
 """
-    genNBodyOperator(format::$NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
+    genNBodyOperator(format::$(NBodyOrdering|>repr), enc::NTuple{2, PairwiseSumEnc}, 
                      spinSecConfig::NTuple{N, Bool}, 
                      modeIdxConfig::NTuple{N, NTuple{2, Integer}}, 
                      checkEncoding::Bool=true) -> 
@@ -285,7 +285,7 @@ end
 
 
 """
-    genNBodyOperatorSum(format::$NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
+    genNBodyOperatorSum(format::$(NBodyOrdering|>repr), enc::NTuple{2, PairwiseSumEnc}, 
                         orbInte::AbstractArray{C, D}, spinSecConfig::NTuple{N, Bool}, 
                         iModeStart::NTuple{N, Integer}=ntuple(_->1, Val(N)); 
                         particleExch::Bool=true, 
@@ -505,7 +505,7 @@ const MolInteTensor1B2B{T<:RealOrComplex, T1<:AbstractMatrix{T}, T2<:AbstractArr
 const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 """
-    encodeElecHam(format::$NBodyOrdering, 
+    encodeElecHam(format::$(NBodyOrdering|>repr), 
                   enc::Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}, 
                   inte1B2BSpin1::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   inte1B2BSpin2::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
@@ -564,7 +564,7 @@ regardless of the value of `format`.
 
 ## Simplified method
 
-    encodeElecHam(format::$NBodyOrdering, enc::OptSpinSectoredEnc, 
+    encodeElecHam(format::$(NBodyOrdering|>repr), enc::OptSpinSectoredEnc, 
                   orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 

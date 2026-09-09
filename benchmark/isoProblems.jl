@@ -31,12 +31,12 @@ function exampleGraph1(k::Int) #> Higher-degree hubs connected by low-degree ver
         push!(edges, (prev, hubs[i+1]))
     end
     
-    SimpleGraph(nxt, edges)
+    StrictGraph(nxt, edges)
 end
 
-function relabelGraph(g::SimpleGraph, perm::AbstractVector{Int})
+function relabelGraph(g::StrictGraph, perm::AbstractVector{Int})
     reorderedEdges = [(perm[i], perm[j]) for (i, j) in listEdges(g)]
-    SimpleGraph(countVertices(g), reorderedEdges)
+    StrictGraph(countVertices(g), reorderedEdges)
 end
 
 g1 = exampleGraph1(8)

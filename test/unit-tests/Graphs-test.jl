@@ -4,14 +4,14 @@ using Paulimorphic
 
 #> Undirected path Pn on `n` vertices: 1-2-3-…-n.
 function makePath(n::Int)
-    g = SimpleGraph(n)
+    g = StrictGraph(n)
     for i in 1:(n-1); attachEdge!(g, (i, i+1)) end
     g
 end
 
 #> Complete graph Kn.
 function makeKn(n::Int)
-    g = SimpleGraph(n)
+    g = StrictGraph(n)
     for i in 1:n, j in (i+1):n; attachEdge!(g, (i, j)) end
     g
 end
@@ -25,39 +25,39 @@ end
 
 #> Star K_{1,n}: centre vertex 1 connected to leaves 2:(n+1).
 function makeK1n(n::Int)
-    g = SimpleGraph(n + 1)
+    g = StrictGraph(n + 1)
     for i in 2:(n+1); attachEdge!(g, (1, i)) end
     g
 end
 
 #> Complete bipartite K_{m,n}: left vertices 1:m, right vertices (m+1):(m+n).
 function makeKmn(m::Int, n::Int)
-    g = SimpleGraph(m + n)
+    g = StrictGraph(m + n)
     for i in 1:m, j in (m+1):(m+n); attachEdge!(g, (i, j)) end
     g
 end
 
 #> Two disjoint triangles on 6 vertices (2-regular, disconnected).
-makeTwoTriangles() = SimpleGraph(6, [(1, 2), (2, 3), (1, 3), (4, 5), (5, 6), (4, 6)])
+makeTwoTriangles() = StrictGraph(6, [(1, 2), (2, 3), (1, 3), (4, 5), (5, 6), (4, 6)])
 
 #> Sorted degree sequence of `g`.
-sortedDegrees(g::SimpleGraph) = sort(listDegrees(g))
+sortedDegrees(g::StrictGraph) = sort(listDegrees(g))
 
 #> Return a copy of `g` with every vertex `v` renamed to `perm[v]`. If `perm` is a
 #> permutation of `1:countVertices(g)`, the result is isomorphic to `g` by construction.
-function relabel(g::SimpleGraph{T}, perm::AbstractVector{<:Integer}) where {T<:Integer}
+function relabel(g::StrictGraph{T}, perm::AbstractVector{<:Integer}) where {T<:Integer}
     n = countVertices(g)
     @assert length(perm) == n
     @assert sort!(collect(perm)) == 1:n
-    h = SimpleGraph(countVertices(g), T)
+    h = StrictGraph(countVertices(g), T)
     for (i, j) in listEdges(g); attachEdge!(h, (perm[i], perm[j])) end
     h
 end
 
-#> An Erdos-Renyi-style random simple graph on `n` vertices, each possible edge included
+#> An Erdos-Renyi-style random strict graph on `n` vertices, each possible edge included
 #> independently with probability `p`.
 function randGraph(rng::AbstractRNG, n::Integer, p::Real)
-    g = SimpleGraph(n, Int)
+    g = StrictGraph(n, Int)
     for i in 1:n, j in (i+1):n
         rand(rng) < p && attachEdge!(g, (i, j))
     end
@@ -78,7 +78,7 @@ end
 
 #> Brute-force isomorphism oracle for small graphs: try every vertex permutation and check
 #> whether any one preserves all edges. Exponential; only for tiny `n`.
-function bruteIso(g1::SimpleGraph, g2::SimpleGraph)
+function bruteIso(g1::StrictGraph, g2::StrictGraph)
     n = countVertices(g1)
     countVertices(g2) == n || return false
     countEdges(g1) == countEdges(g2) || return false
@@ -92,7 +92,7 @@ end
 #> Independently verify that `m`, a vector of `g1Vertex => g2Vertex` pairs, is a genuine
 #> isomorphism from `g1` onto `g2`: a bijection on the vertex sets that preserves
 #> adjacency in both directions.
-function isValidIso(g1::SimpleGraph, g2::SimpleGraph, m::AbstractVector{<:Pair})
+function isValidIso(g1::StrictGraph, g2::StrictGraph, m::AbstractVector{<:Pair})
     n = countVertices(g1)
     countVertices(g2) == n || return false
     length(m) == n || return false
@@ -120,31 +120,31 @@ end
 #> Check that `root` is genuinely a root graph of `g`, i.e., L(root) ≅ g. (This subsumes
 #> vertex-count, edge-count, and degree-sequence agreement; `isIsomorphic` itself is
 #> independently validated in its own test set below.)
-isValidRoot(g::SimpleGraph, root::SimpleGraph) = isIsomorphic(genLineGraph(root), g)
+isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root), g)
 
 
 @testset "Graphs.jl" begin
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 1. SimpleGraph construction
+# 1. StrictGraph construction
 # ──────────────────────────────────────────────────────────────────────────────
-@testset "SimpleGraph construction" begin
+@testset "StrictGraph construction" begin
     @testset "order-0 graph" begin
-        g = SimpleGraph(0)
+        g = StrictGraph(0)
         @test countVertices(g) == 0
         @test countEdges(g) == 0
         @test isempty(listEdges(g))
     end
 
     @testset "edgeless graph" begin
-        g = SimpleGraph(5)
+        g = StrictGraph(5)
         @test countVertices(g) == 5
         @test countEdges(g) == 0
         @test listDegrees(g) == zeros(Int, 5)
     end
 
     @testset "construction from an edge list" begin
-        g = SimpleGraph(3, [(2, 3), (1, 2), (1, 3)])
+        g = StrictGraph(3, [(2, 3), (1, 2), (1, 3)])
         @test countVertices(g) == 3
         @test countEdges(g) == 3
         @test listEdges(g) == [(1, 2), (1, 3), (2, 3)]
@@ -152,31 +152,31 @@ isValidRoot(g::SimpleGraph, root::SimpleGraph) = isIsomorphic(genLineGraph(root)
 
     @testset "invalid or duplicate edges silently ignored by default" begin
         #> Self-loop, out-of-bounds (×2), valid, duplicate of the valid edge
-        g = SimpleGraph(3, [(1, 1), (0, 2), (1, 4), (1, 2), (1, 2), (2, 1)])
+        g = StrictGraph(3, [(1, 1), (0, 2), (1, 4), (1, 2), (1, 2), (2, 1)])
         @test countEdges(g) == 1
         @test listEdges(g) == [(1, 2)]
     end
 
     @testset "explicitError=true throws on an invalid or duplicate edge" begin
-        @test_throws DomainError SimpleGraph(3, [(1, 1)], true)         #> self-loop
-        @test_throws DomainError SimpleGraph(3, [(0, 1)], true)         #> out of bounds
-        @test_throws DomainError SimpleGraph(3, [(1, 4)], true)         #> out of bounds
-        @test_throws DomainError SimpleGraph(3, [(1, 2), (2, 1)], true) #> duplicate
+        @test_throws DomainError StrictGraph(3, [(1, 1)], true)         #> self-loop
+        @test_throws DomainError StrictGraph(3, [(0, 1)], true)         #> out of bounds
+        @test_throws DomainError StrictGraph(3, [(1, 4)], true)         #> out of bounds
+        @test_throws DomainError StrictGraph(3, [(1, 2), (2, 1)], true) #> duplicate
     end
 
     @testset "negative order throws" begin
-        @test_throws DomainError SimpleGraph(-1)
-        @test_throws DomainError SimpleGraph(-1, Int)
+        @test_throws DomainError StrictGraph(-1)
+        @test_throws DomainError StrictGraph(-1, Int)
     end
 
     @testset "vertex-label type parameter" begin
-        @test SimpleGraph(3) isa SimpleGraph{Int}
-        @test SimpleGraph(Int8(3)) isa SimpleGraph{Int8} #> `T` defaults to `typeof(order)`
-        @test SimpleGraph(3, Int16) isa SimpleGraph{Int16}
+        @test StrictGraph(3) isa StrictGraph{Int}
+        @test StrictGraph(Int8(3)) isa StrictGraph{Int8} #> `T` defaults to `typeof(order)`
+        @test StrictGraph(3, Int16) isa StrictGraph{Int16}
 
         #> `T` is inferred from the edge-list element type
-        g = SimpleGraph(3, NTuple{2, Int16}[(1, 2), (2, 3)])
-        @test g isa SimpleGraph{Int16}
+        g = StrictGraph(3, NTuple{2, Int16}[(1, 2), (2, 3)])
+        @test g isa StrictGraph{Int16}
         @test listEdges(g) isa Vector{NTuple{2, Int16}}
     end
 end
@@ -185,7 +185,7 @@ end
 # 2. Edge operations: attachEdge! / removeEdge! / containEdge
 # ──────────────────────────────────────────────────────────────────────────────
 @testset "attachEdge! / removeEdge! / containEdge" begin
-    g = SimpleGraph(4)
+    g = StrictGraph(4)
 
     @test  attachEdge!(g, (1, 2)) #> new edge
     @test  attachEdge!(g, (2, 3)) #> new edge
@@ -209,7 +209,7 @@ end
     @test listEdges(g) == [(2, 3)] #> removal reflected in the edge list
 
     @testset "adjacency symmetry" begin
-        g2 = SimpleGraph(5, [(1, 2), (2, 3), (3, 4), (4, 5), (1, 5)])
+        g2 = StrictGraph(5, [(1, 2), (2, 3), (3, 4), (4, 5), (1, 5)])
         for (a, b) in listEdges(g2) #> every edge should be visible from both ends
             @test containEdge(g2, (a, b))
             @test containEdge(g2, (b, a))
@@ -223,7 +223,7 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 @testset "countVertices / getDegree / countEdges / listEdges / listDegrees" begin
     @testset "edgeless graph" begin
-        g = SimpleGraph(3)
+        g = StrictGraph(3)
         @test countVertices(g) == 3
         @test countEdges(g) == 0
         @test isempty(listEdges(g))
@@ -254,7 +254,7 @@ end
     end
 
     @testset "listEdges is lexicographically sorted" begin
-        g = SimpleGraph(4, [(3, 4), (1, 2), (2, 4), (1, 3)])
+        g = StrictGraph(4, [(3, 4), (1, 2), (2, 4), (1, 3)])
         @test issorted(listEdges(g))
     end
 
@@ -265,7 +265,7 @@ end
     end
 
     @testset "countEdges detects corrupted adjacency data" begin
-        g = SimpleGraph(2)
+        g = StrictGraph(2)
         push!(g.adjacency[begin], 2) #> One-sided insertion breaks adjacency symmetry
         @test_throws ArgumentError countEdges(g)
     end
@@ -276,7 +276,7 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 @testset "genLineGraph" begin
     @testset "graphs without edges have empty line graphs" begin
-        for g in (SimpleGraph(0), SimpleGraph(5)) #> order-0 and 5 isolated vertices
+        for g in (StrictGraph(0), StrictGraph(5)) #> order-0 and 5 isolated vertices
             lg = genLineGraph(g)
             @test countVertices(lg) == 0
             @test countEdges(lg) == 0
@@ -326,13 +326,13 @@ end
     end
 
     @testset "two disjoint edges: line graph is two isolated vertices" begin
-        lg = genLineGraph(SimpleGraph(4, [(1, 2), (3, 4)]))
+        lg = genLineGraph(StrictGraph(4, [(1, 2), (3, 4)]))
         @test countVertices(lg) == 2
         @test countEdges(lg) == 0
     end
 
     @testset "vertex i of L(g) corresponds to listEdges(g)[i]" begin
-        g = SimpleGraph(5, [(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)])
+        g = StrictGraph(5, [(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)])
         edges = listEdges(g)
         lg = genLineGraph(g)
         for i in eachindex(edges), j in (i+1):length(edges)
@@ -379,11 +379,11 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 @testset "listComponents" begin
     @testset "order-0 graph" begin
-        @test isempty(listComponents(SimpleGraph(0)))
+        @test isempty(listComponents(StrictGraph(0)))
     end
 
     @testset "single vertex" begin
-        @test listComponents(SimpleGraph(1)) == [[1]]
+        @test listComponents(StrictGraph(1)) == [[1]]
     end
 
     @testset "connected graph → one component" begin
@@ -391,16 +391,16 @@ end
     end
 
     @testset "isolated vertices → singleton components" begin
-        @test listComponents(SimpleGraph(3)) == [[1], [2], [3]]
+        @test listComponents(StrictGraph(3)) == [[1], [2], [3]]
     end
 
     @testset "two disjoint K2s" begin
-        comps = listComponents(SimpleGraph(4, [(1, 2), (3, 4)]))
+        comps = listComponents(StrictGraph(4, [(1, 2), (3, 4)]))
         @test comps == [[1, 2], [3, 4]]
     end
 
     @testset "components sorted internally and by first vertex" begin
-        comps = listComponents(SimpleGraph(6, [(5, 6), (1, 3)]))
+        comps = listComponents(StrictGraph(6, [(5, 6), (1, 3)]))
         @test all(issorted, comps)
         @test issorted(first.(comps))
     end
@@ -408,13 +408,13 @@ end
 
 @testset "decompose" begin
     @testset "order-0 graph" begin
-        comps, subgraphs = decompose(SimpleGraph(0))
+        comps, subgraphs = decompose(StrictGraph(0))
         @test isempty(comps)
         @test isempty(subgraphs)
     end
 
     @testset "agrees with listComponents; exact relabelling" begin
-        g = SimpleGraph(6, [(1, 2), (2, 3), (4, 5)])
+        g = StrictGraph(6, [(1, 2), (2, 3), (4, 5)])
         res = decompose(g)
         @test res isa Pair
         comps, subgraphs = res
@@ -445,7 +445,7 @@ end
 
     @testset "vertices relabelled 1:length(component)" begin
         #> A K3 on vertices {4, 5, 6} should appear as a subgraph on vertices {1, 2, 3}
-        g = SimpleGraph(6, [(4, 5), (5, 6), (4, 6)])
+        g = StrictGraph(6, [(4, 5), (5, 6), (4, 6)])
         comps, subgraphs = decompose(g)
         triIdx = findfirst(c -> length(c) == 3, comps)
         @test comps[triIdx] == [4, 5, 6]
@@ -453,7 +453,7 @@ end
     end
 
     @testset "edge count preserved across decomposition" begin
-        g = SimpleGraph(8, [(1, 2), (2, 3), (3, 1), (5, 6), (6, 7), (7, 8), (5, 8)])
+        g = StrictGraph(8, [(1, 2), (2, 3), (3, 1), (5, 6), (6, 7), (7, 8), (5, 8)])
         _, subgraphs = decompose(g)
         @test sum(countEdges, subgraphs) == countEdges(g)
     end
@@ -474,7 +474,7 @@ end
     end
 
     @testset "disconnected graphs" begin
-        g = SimpleGraph(6, [(5, 6), (1, 3)])
+        g = StrictGraph(6, [(5, 6), (1, 3)])
         #> `startingPoint=missing`: all components, rooted in increasing vertex order
         @test breadthFirstSearch(g) == [1, 3, 2, 4, 5, 6]
         @test breadthFirstSearch(g, missing) == [1, 3, 2, 4, 5, 6]
@@ -484,8 +484,8 @@ end
     end
 
     @testset "order-0 graph" begin
-        @test isempty(breadthFirstSearch(SimpleGraph(0)))
-        v, nVisited = breadthFirstSearch(_ -> true, SimpleGraph(0), missing)
+        @test isempty(breadthFirstSearch(StrictGraph(0)))
+        v, nVisited = breadthFirstSearch(_ -> true, StrictGraph(0), missing)
         @test v == 0
         @test nVisited == 0
     end
@@ -510,7 +510,7 @@ end
     end
 
     @testset "predicate method: not found returns (0, nVisited)" begin
-        g = SimpleGraph(6, [(5, 6), (1, 3)])
+        g = StrictGraph(6, [(5, 6), (1, 3)])
 
         #> Search restricted to one component: `nVisited` is the component size
         @test breadthFirstSearch(_ -> false, g, 5) == (0, 2)
@@ -529,7 +529,7 @@ end
     end
 
     @testset "cache!Self buffer" begin
-        g = SimpleGraph(6, [(5, 6), (1, 3)])
+        g = StrictGraph(6, [(5, 6), (1, 3)])
 
         #> Discovery order is recorded in the first `nVisited` slots
         buf = fill(-1, 6)
@@ -557,7 +557,7 @@ end
     end
 
     @testset "non-Int vertex-label type" begin
-        g = SimpleGraph(4, NTuple{2, Int16}[(1, 2), (2, 3), (3, 4)])
+        g = StrictGraph(4, NTuple{2, Int16}[(1, 2), (2, 3), (3, 4)])
         ord = breadthFirstSearch(g, Int16(2))
         @test ord isa Vector{Int16}
         @test ord == [2, 1, 3, 4]
@@ -596,10 +596,10 @@ end
 
     @testset "size / edge-count / degree-sequence mismatches" begin
         #> Different vertex counts
-        @test !isIsomorphic(SimpleGraph(3, Int), SimpleGraph(4, Int))
+        @test !isIsomorphic(StrictGraph(3, Int), StrictGraph(4, Int))
         #> Same order, different edge counts
-        @test !isIsomorphic(path4, SimpleGraph(4, [(1, 2)]))
-        @test !isIsomorphic(SimpleGraph(4, [(1, 2)]), SimpleGraph(4, [(1, 2), (3, 4)]))
+        @test !isIsomorphic(path4, StrictGraph(4, [(1, 2)]))
+        @test !isIsomorphic(StrictGraph(4, [(1, 2)]), StrictGraph(4, [(1, 2), (3, 4)]))
         #> Same order, same edge count, different degree sequence: P4 vs star K_{1,3}
         @test countEdges(path4) == countEdges(star3)
         @test !isIsomorphic(path4, star3)
@@ -609,15 +609,15 @@ end
     @testset "edgeless and order-0 graphs" begin
         #> Two edgeless graphs of equal order are isomorphic; the identity is appended
         buf = Pair{Int, Int}[]
-        @test isIsomorphic(SimpleGraph(3, Int), SimpleGraph(3, Int), buf)
+        @test isIsomorphic(StrictGraph(3, Int), StrictGraph(3, Int), buf)
         @test buf == [1 => 1, 2 => 2, 3 => 3]
 
         #> Edgeless graphs of different order are not isomorphic
-        @test !isIsomorphic(SimpleGraph(2, Int), SimpleGraph(3, Int))
+        @test !isIsomorphic(StrictGraph(2, Int), StrictGraph(3, Int))
 
         #> Order-0 graphs: isomorphic, empty mapping
         buf0 = Pair{Int, Int}[]
-        @test isIsomorphic(SimpleGraph(0, Int), SimpleGraph(0, Int), buf0)
+        @test isIsomorphic(StrictGraph(0, Int), StrictGraph(0, Int), buf0)
         @test isempty(buf0)
     end
 
@@ -649,7 +649,7 @@ end
 
     @testset "disconnected graphs" begin
         #> K2 + K3 + isolated vertex, relabeled
-        g = SimpleGraph(7, [(1, 2), (3, 4), (4, 5), (3, 5)])
+        g = StrictGraph(7, [(1, 2), (3, 4), (4, 5), (3, 5)])
         h = relabel(g, [6, 7, 1, 2, 3, 4, 5])
         buf = Pair{Int, Int}[]
         @test isIsomorphic(g, h, buf)
@@ -657,14 +657,14 @@ end
 
         #> Same order and edge count, but different degree sequences:
         #> two disjoint edges (1, 1, 1, 1) vs a 2-path plus an isolated vertex (1, 2, 1, 0)
-        @test !isIsomorphic(SimpleGraph(4, [(1, 2), (3, 4)]),
-                            SimpleGraph(4, [(1, 2), (2, 3)]))
+        @test !isIsomorphic(StrictGraph(4, [(1, 2), (3, 4)]),
+                            StrictGraph(4, [(1, 2), (2, 3)]))
     end
 
     @testset "non-Int vertex-label type" begin
-        g = SimpleGraph(5, NTuple{2, Int16}[(1, 2), (2, 3), (3, 4), (4, 5), (5, 1)])
+        g = StrictGraph(5, NTuple{2, Int16}[(1, 2), (2, 3), (3, 4), (4, 5), (5, 1)])
         h = relabel(g, [3, 4, 5, 1, 2])
-        @test h isa SimpleGraph{Int16}
+        @test h isa StrictGraph{Int16}
         buf = Pair{Int16, Int16}[]
         @test isIsomorphic(g, h, buf)
         @test isValidIso(g, h, buf)
@@ -690,7 +690,7 @@ end
 
         #> Early-exit failure (different orders): buffer untouched
         buf = copy(pre)
-        @test !isIsomorphic(SimpleGraph(3, Int), SimpleGraph(4, Int), buf)
+        @test !isIsomorphic(StrictGraph(3, Int), StrictGraph(4, Int), buf)
         @test buf == pre
 
         #> Early-exit failure (different degree sequences): buffer untouched
@@ -731,25 +731,25 @@ end
 @testset "genRootGraph" begin
     @testset "special cases" begin
         @testset "order 0" begin
-            ok, root = genRootGraph(SimpleGraph(0))
+            ok, root = genRootGraph(StrictGraph(0))
             @test ok
             @test countVertices(root) == 0
             @test countEdges(root) == 0
         end
 
         @testset "order 1 (K1): root is K2" begin
-            ok, root = genRootGraph(SimpleGraph(1))
+            ok, root = genRootGraph(StrictGraph(1))
             @test ok
             @test countVertices(root) == 2
             @test listEdges(root) == [(1, 2)]
         end
 
         @testset "disconnected input throws; decompose-then-recover works" begin
-            @test_throws ArgumentError genRootGraph(SimpleGraph(4, [(1, 2), (3, 4)]))
+            @test_throws ArgumentError genRootGraph(StrictGraph(4, [(1, 2), (3, 4)]))
 
             #> K1 ∪ K2 as a whole is the line graph L(K2 ∪ K2), but `genRootGraph`
             #> requires connected input: decompose first, then recover each component
-            g = SimpleGraph(3, [(2, 3)])
+            g = StrictGraph(3, [(2, 3)])
             @test_throws ArgumentError genRootGraph(g)
             _, subgraphs = decompose(g)
             for (sg, rootEdges) in zip(subgraphs, ([(1, 2)], [(1, 2), (2, 3)]))
@@ -830,7 +830,7 @@ end
         end
 
         @testset "diamond graph (K4 minus one edge)" begin
-            g = SimpleGraph(4, [(1, 2), (1, 3), (2, 3), (2, 4), (3, 4)])
+            g = StrictGraph(4, [(1, 2), (1, 3), (2, 3), (2, 4), (3, 4)])
             ok, root = genRootGraph(g)
             @test ok
             @test isValidRoot(g, root)
@@ -845,7 +845,7 @@ end
                 makeCn(5), makeCn(6),
                 genLineGraph(makeKmn(2, 3)),
                 genLineGraph(makeKmn(3, 3)),
-                genLineGraph(SimpleGraph(5, [(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)])),
+                genLineGraph(StrictGraph(5, [(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)])),
             ]
             for g in lineGraphs
                 ok, root = genRootGraph(g)
@@ -857,14 +857,14 @@ end
     end
 
     @testset "non-line graphs (returns false => g)" begin
-        wheel5 = SimpleGraph(6, [(1, 2), (1, 3), (1, 4), (1, 5), (1, 6),    #> spokes
+        wheel5 = StrictGraph(6, [(1, 2), (1, 3), (1, 4), (1, 5), (1, 6),    #> spokes
                                  (2, 3), (3, 4), (4, 5), (5, 6), (2, 6)])   #> rim
         nonLineGraphs = (
             makeK1n(3),                                       #> claw K_{1,3}
             makeK1n(4),                                       #> star K_{1,4}
             makeK1n(5),                                       #> star K_{1,5}
             makeKmn(2, 3),                                    #> K_{2,3}
-            SimpleGraph(5, [(1, 2), (1, 4), (1, 5), (2, 3)]), #> claw w/ a subdivided leaf
+            StrictGraph(5, [(1, 2), (1, 4), (1, 5), (2, 3)]), #> claw w/ a subdivided leaf
             wheel5,                                           #> wheel W5
         )
         for g in nonLineGraphs

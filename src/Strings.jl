@@ -42,10 +42,10 @@ construction.
 
 !!! info
     Any binary operation that combines two `PauliStr` explicitly acting on different 
-    numbers of sites (e.g., [`mul`](@ref), [`checkCommute`](@ref)) follows the implicit 
-    identity-padding convention: the string with the smaller site count is treated as if 
-    temporarily promoted to the larger site count by tensoring single-site identities onto 
-    its unrepresented sites,
+    numbers of sites (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)) follows the 
+    implicit identity-padding convention: the string with the smaller site count is treated 
+    as if temporarily promoted to the larger site count by tensoring single-site identities 
+    onto its unrepresented sites,
 
         str_op -> str_op ⊗ I ⊗ ⋯ ⊗ I    (site number increases from left to right),
 
@@ -474,8 +474,8 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
     For any binary operation that combines two `PauliSum` (or one `PauliStr` and one 
     `PauliSum`) explicitly acting on different numbers of sites, if algebraically it can 
     be distributed into the corresponding binary operation acting on two underlying 
-    `PauliStr` (e.g., [`mul`](@ref), [`checkCommute`](@ref)), it follows the same implicit 
-    identity-padding convention for [`PauliStr`](@ref).
+    `PauliStr` (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)), it follows the same 
+    implicit identity-padding convention for [`PauliStr`](@ref).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -894,7 +894,7 @@ end
 
 Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
 its coefficient (stored in ham.coeff), then sort the Pauli terms into a deterministic total 
-order based on [`sortStrings!`](@ref).
+order based on [`$(sortStrings!|>repr)`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 

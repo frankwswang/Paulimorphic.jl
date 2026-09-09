@@ -455,10 +455,10 @@ checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, 
 
 Return the commutator [`op1`, `op2`] = `op1`*`op2` - `op2`*`op1` as a `PauliSum`. 
 The multiplications within the commutation follow the implicit identity-padding convention 
-of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
-the returned sum explicitly acts on the larger site count. When the commutator is zero 
-(i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the zero 
-operator.
+of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different numbers of 
+sites, the returned sum explicitly acts on the larger site count. When the commutator is 
+zero (i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the 
+zero operator.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr)
     prod1 = mul(op1, op2)
@@ -485,8 +485,8 @@ end
 
 Return the anticommutator {`op1`, `op2`} = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
 The multiplications within the anticommutation follow the implicit identity-padding 
-convention of [`mul`](@ref), so when the two operators explicitly act on different numbers 
-of sites, the returned sum explicitly acts on the larger site count. When the 
+convention of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different 
+numbers of sites, the returned sum explicitly acts on the larger site count. When the 
 anticommutator is zero (i.e., when `op1` and `op2` anticommute), this function returns an 
 empty `PauliSum` as the zero operator.
 """

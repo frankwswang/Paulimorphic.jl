@@ -446,9 +446,9 @@ anticommutation relations:
     c_i == (a_i)',    a_i c_j + c_j a_i == δ_{ij} I,    a_i a_j + a_j a_i == 0
 
 for every mode pair `(i, j)`. The adjoint condition is checked structurally (via 
-[`toAdjoint`](@ref)). The verified anticommutation relations are invariant under swapping 
-`enc.first` and `enc.second`, so the annihilation-versus-creation role assignment is a 
-positional convention carried by the `Pair` structure rather than a checkable property.
+[`$(toAdjoint|>repr)`](@ref)). The verified anticommutation relations are invariant under 
+swapping `enc.first` and `enc.second`, so the annihilation-versus-creation role assignment 
+is a positional convention carried by the `Pair` structure rather than a checkable property.
 
 Additionally, `enc` must be formatted such that
 - All contained `PauliSum` are in the canonical form (see [`PauliSum`](@ref) and 

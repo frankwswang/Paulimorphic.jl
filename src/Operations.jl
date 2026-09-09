@@ -1,6 +1,6 @@
-export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
 
-public add, mul
+public add, mul, toAdjoint
 
 const PauliStrOrSum = Union{PauliStr, PauliSum}
 
@@ -272,8 +272,8 @@ either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
-    `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
+    for `Integer`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}

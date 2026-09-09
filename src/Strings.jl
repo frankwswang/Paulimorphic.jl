@@ -1407,10 +1407,10 @@ end
     isHermitian(op::PauliSum) -> Bool
 
 Return `true` if the operator represented by `op` is Hermitian, i.e., `op == op'` (see 
-[`toAdjoint`](@ref)). The judgment is at the value level: it does not depend on the 
-specific representation of `op`. The judgment is exact, so an operator that is Hermitian in 
-exact arithmetic can fail the test if its coefficients carry floating-point rounding 
-residues.
+[`$(toAdjoint|>repr)`](@ref)). The judgment is at the value level: it does not depend on 
+the specific representation of `op`. The judgment is exact, so an operator that is 
+Hermitian in exact arithmetic can fail the test if its coefficients carry floating-point 
+rounding residues.
 """
 function isHermitian(op::PauliStr)
     (op.phase != posImg) && (op.phase != negImg) 
@@ -1515,11 +1515,11 @@ string `str` satisfies `selector(str) == true`. `selector` must be a callable th
 a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
 selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
 
-The accumulation is performed at the precision level of `complex($(extendType|>repr)(R, T))` 
-and converted to `Complex{R}` only once at the end. For floating-point precisions, the 
-selected coefficients are accumulated with Neumaier summation, following the term order of 
-`h`. For exact coefficient types (e.g., `Rational`), the accumulation is carried out by 
-exact addition (no overflow protection for `Integer`).
+The accumulation is performed at the precision level of 
+`complex($(extendType|>repr)(R, T))` and converted to `Complex{R}` only once at the end. 
+For floating-point precisions, the selected coefficients are accumulated with Neumaier 
+summation, following the term order of `h`. For exact coefficient types (e.g., `Rational`), 
+the accumulation is carried out by exact addition (no overflow protection for `Integer`).
 
 # Example
 ```jldoctest

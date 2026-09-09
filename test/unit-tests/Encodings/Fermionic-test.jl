@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posImg, negRea, negImg, mul
+using Paulimorphic: posImg, negRea, negImg, mul, toAdjoint
 
 @testset "Fermionic.jl" begin
 

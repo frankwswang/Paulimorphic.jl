@@ -1,37 +1,45 @@
-export SimpleGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDegree, 
+export StrictGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDegree, 
        countEdges, listEdges, listDegrees, genLineGraph, listComponents, decompose, 
        isIsomorphic, genRootGraph, breadthFirstSearch
 
 
 """
-    SimpleGraph{T<:Integer}
+    StrictGraph{T<:Integer}
 
-A simple graph represented by a graph order (`.order::Int <= typemax(Int)`) and adjacency 
-sets (`.adjacency`). Vertices are labeled by positive integers (i.e., from `1` to `.order`) 
-of type `T`.
+A strict graph (also known as a simple graph) represented by a graph order 
+(`0 <= .order::Int <= typemax(Int)`) and adjacency sets (`.adjacency`). The graph is 
+undirected and contains no self-loops or parallel edges. Vertices (if they exist) are 
+labeled by positive integers of type `T` (ranging from `1` to `.order`).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
-    SimpleGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
-    SimpleGraph{T}
+    StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
+    StrictGraph{T}
 
-Construct a simple graph of `order` with no edges.
+Construct a strict graph of `order` with no edges.
 
-    SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
+    StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
                 explicitError::Bool=false) where {T<:Integer} -> 
-    SimpleGraph
+    StrictGraph{T}
 
-Construct a simple graph of `order` with valid (undirected) edge elements from `edges`. All 
+Construct a strict graph of `order` with valid (undirected) edge elements from `edges`. All 
 invalid (e.g., self-loop, out-of-bound edges) or duplicate elements in `edges` are silently 
 ignored unless `explicitError=true`, in which case a `DomainError` is thrown.
 """
-struct SimpleGraph{T<:Integer}
+struct StrictGraph{T<:Integer}
     order::Int
     adjacency::Memory{Set{T}}
 
-    function SimpleGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
-        order < 0 && throw(DomainError(order, "`order` of the graph must be non-negative."))
+    function StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
+        if !(0 <= order <= typemax(Int))
+            throw(DomainError(order, "`order` must be in `0:typemax(Int)`."))
+        end
         order = Int(order)
+        if applicable(typemax, T) && order > typemax(T) #> Skipped if `T` is unbounded
+            throw(DomainError(order, "`order` must not exceed `typemax($T)` so that every "*
+                                     "vertex label of the constructed graph is "*
+                                     "representable."))
+        end
         adj = Memory{Set{T}}(undef, order)
         for i in eachindex(adj)
             adj[i] = Set{T}()
@@ -40,9 +48,9 @@ struct SimpleGraph{T<:Integer}
     end
 end
 
-function SimpleGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
+function StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
                      explicitError::Bool=false) where {T<:Integer}
-    g = SimpleGraph(order, T)
+    g = StrictGraph(order, T)
     for edge in edges
         success = attachEdge!(g, edge)
         if explicitError && !success
@@ -54,14 +62,14 @@ end
 
 
 """
-    countVertices(g::SimpleGraph) -> Int
+    countVertices(g::StrictGraph) -> Int
 
 Return the number of vertices (i.e., the order) of `g`.
 """
-countVertices(g::SimpleGraph) = g.order
+countVertices(g::StrictGraph) = g.order
 
 
-function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
+function modEdge!(g::StrictGraph, edge::NTuple{2, Integer}, connect::Bool)
     i, j = minmax(edge...)
 
     if i == j
@@ -82,28 +90,28 @@ function modEdge!(g::SimpleGraph, edge::NTuple{2, Integer}, connect::Bool)
 end
 
 """
-    attachEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+    attachEdge!(g::StrictGraph, edge::NTuple{2, Integer}) -> Bool
 
 Attach the undirected `edge=(i, j)` to `g`. Return `true` if `edge` was newly attached, 
 and `false` if `edge` is a self-loop (i.e., `i == j`), out of bounds, or already present.
 """
-attachEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
+attachEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 
 """
-    removeEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+    removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) -> Bool
 
 Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existed edge, 
 was successfully removed, and `false` if `edge` was absent or invalid.
 """
-removeEdge!(g::SimpleGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
+removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
 
 """
-    containEdge(g::SimpleGraph, edge::NTuple{2, Integer}) -> Bool
+    containEdge(g::StrictGraph, edge::NTuple{2, Integer}) -> Bool
 
 Return whether `edge` is a valid non-loop edge present in `g`.
 """
-function containEdge(g::SimpleGraph, (m, n)::NTuple{2, Integer})
+function containEdge(g::StrictGraph, (m, n)::NTuple{2, Integer})
     i, j = minmax(m, n)
 
     if i == j
@@ -118,11 +126,11 @@ end
 
 """
 
-    getDegree(g::SimpleGraph, vertex::Integer) -> Int
+    getDegree(g::StrictGraph, vertex::Integer) -> Int
 
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
 """
-function getDegree(g::SimpleGraph, vertex::Integer)
+function getDegree(g::StrictGraph, vertex::Integer)
     nv = g.order
     1 <= vertex <= nv || throw(DomainError(vertex, "`vertex` must be an integer in 1:$nv"))
     length(g.adjacency[begin+vertex-1])
@@ -130,12 +138,12 @@ end
 
 
 """
-    countEdges(g::SimpleGraph) -> Int
+    countEdges(g::StrictGraph) -> Int
 
 Return the number of undirected edges in `g`. Throws an `ArgumentError` if the adjacency 
 representation is internally inconsistent.
 """
-function countEdges(g::SimpleGraph)
+function countEdges(g::StrictGraph)
     c = 0
     for node in 1:countVertices(g); c += getDegree(g, node) end
     isodd(c) && throw(ArgumentError("The adjacency lists of `g` have been corrupted."))
@@ -144,12 +152,12 @@ end
 
 
 """
-    listEdges(g::SimpleGraph{T}) -> Vector{NTuple{2, T}}
+    listEdges(g::StrictGraph{T}) -> Vector{NTuple{2, T}}
 
 Return all undirected edges of `g` as sorted endpoint pairs `(i, j)` in a lexicographically 
 ordered `Vector`.
 """
-function listEdges(g::SimpleGraph{T}) where {T<:Integer}
+function listEdges(g::StrictGraph{T}) where {T<:Integer}
     edges = NTuple{2, T}[]
 
     for i in 1:countVertices(g)
@@ -165,11 +173,11 @@ end
 
 
 """
-    listDegrees(g::SimpleGraph) -> Vector{Int}
+    listDegrees(g::StrictGraph) -> Vector{Int}
 
 Return a `Vector` whose `i`-th entry is the degree of vertex `i`.
 """
-function listDegrees(g::SimpleGraph)
+function listDegrees(g::StrictGraph)
     length.(g.adjacency)
 end
 
@@ -182,17 +190,17 @@ end
 
 
 """
-    genLineGraph(g::SimpleGraph) -> SimpleGraph
+    genLineGraph(g::StrictGraph) -> StrictGraph
 
 Return the line graph of `g`: each edge of `g` becomes a vertex in the returned graph, and 
 every two such vertices are adjacent iff the corresponding edges of `g` share an endpoint. 
 As a result, vertex `i` of the constructed graph corresponds to `listEdges(g)[begin+i-1]`.
 """
-function genLineGraph(g::SimpleGraph{T}) where {T<:Integer}
+function genLineGraph(g::StrictGraph{T}) where {T<:Integer}
     typeE = typemax(T) > typemax(Int) ? T : Int
     edges = listEdges(g)
     ne = (typeE∘length)(edges)
-    lg = SimpleGraph(ne)
+    lg = StrictGraph(ne)
     nv = countVertices(g)
     vertexReg = listDegrees(g) #> Initialize the vertex-wise register as a degree recorder
 
@@ -213,7 +221,7 @@ function genLineGraph(g::SimpleGraph{T}) where {T<:Integer}
         adjacentEdges = adjacentEdgeGroups[v] #> Edges that share `v` as an endpoint
         d = length(adjacentEdges)
 
-        #>> Every two adjacent edges share exactly one endpoint in a simple graph, so each 
+        #>> Every two adjacent edges share exactly one endpoint in a strict graph, so each 
         #>> line-graph edge is generated by exactly one `attachEdge!` call across all groups
         for a in 1:d, b in (a+1):d
             attachEdge!(lg, (adjacentEdges[begin+a-1], adjacentEdges[begin+b-1]))
@@ -225,12 +233,12 @@ end
 
 
 """
-    listComponents(g::SimpleGraph{T}) where {T} -> Vector{Vector{T}}
+    listComponents(g::StrictGraph{T}) where {T} -> Vector{Vector{T}}
 
 Return the connected components of `g` as a `Vector` of sorted vertices. Components
 are listed in increasing order based on their first listed vertex.
 """
-function listComponents(g::SimpleGraph{T}) where {T<:Integer}
+function listComponents(g::StrictGraph{T}) where {T<:Integer}
     n = countVertices(g)
     seen = falses(n)
     components = Vector{T}[]
@@ -262,16 +270,16 @@ end
 
 
 """
-    decompose(g::SimpleGraph{T}) where {T<:Integer} -> 
-    Pair{Vector{Vector{T}}, Vector{ SimpleGraph{T} }}
+    decompose(g::StrictGraph{T}) where {T<:Integer} -> 
+    Pair{Vector{Vector{T}}, Vector{ StrictGraph{T} }}
 
 Return `components => subgraphs`, where `components` is the output of `listComponents(g)` 
 and `subgraphs[k]` is the induced subgraph on `components[k]`, with its vertices relabelled 
 by `1:length(components[k])` respectively.
 """
-function decompose(g::SimpleGraph{T}) where {T<:Integer}
+function decompose(g::StrictGraph{T}) where {T<:Integer}
     components = listComponents(g)
-    subgraphs = SimpleGraph{T}[]
+    subgraphs = StrictGraph{T}[]
     newLabels = Memory{T}(undef, countVertices(g))
     newLabels .= zero(T)
 
@@ -281,7 +289,7 @@ function decompose(g::SimpleGraph{T}) where {T<:Integer}
         end
 
         sgOrder = (T∘length)(nodes)
-        sg = SimpleGraph(sgOrder)
+        sg = StrictGraph(sgOrder)
 
         for node in nodes, adj in g.adjacency[begin+node-1]
             if adj > node
@@ -300,7 +308,7 @@ function decompose(g::SimpleGraph{T}) where {T<:Integer}
 end
 
 
-function isConnected(g::SimpleGraph{T}) where {T<:Integer}
+function isConnected(g::StrictGraph{T}) where {T<:Integer}
     countVertices(g) == 0 && (return true)
 
     seen = falses(countVertices(g))
@@ -342,18 +350,18 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1145/321850.321853
 """
-    genRootGraph(g::SimpleGraph, checkConnectivity::Bool=true) -> Pair{Bool, SimpleGraph}
+    genRootGraph(g::StrictGraph, checkConnectivity::Bool=true) -> Pair{Bool, StrictGraph}
 
 Attempt to recognize connected `g` as a line graph using [Lehot-style edge-label
 algorithm](https://doi.org/10.1145/321850.321853) to reconstruct potentially corresponding 
 root graph `r`. Return `true => r` if `g` is indeed a (connected) line graph; return 
 `false => g` otherwise. This function is only well behaved when the input `g` is a 
-connected `SimpleGraph`. Hence, in default, `checkConnectivity=true` such that any input 
+connected `StrictGraph`. Hence, in default, `checkConnectivity=true` such that any input 
 that is a disconnected graph throws an `ArgumentError`. For disconnected graphs, one can 
 first apply [`decompose`](@ref) to obtain connected subgraphs, and then apply 
 `genRootGraph` to each subgraph.
 """
-function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
+function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
         throw(ArgumentError("The input graph `g` must be connected."))
     end
@@ -362,9 +370,9 @@ function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<
     adjList = g.adjacency
 
     if order == 0
-        return (true => SimpleGraph(0))
+        return (true => StrictGraph(0))
     elseif order == 1
-        rootGraph = SimpleGraph(2)
+        rootGraph = StrictGraph(2)
         attachEdge!(rootGraph, (1, 2))
         return (true => rootGraph)
     end
@@ -448,7 +456,7 @@ function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<
     halfName!(info, adjList, discoveredNodes, 2) #> Half name all nodes adjacent to clique-2
     fullyName!(info, adjList)
 
-    rootGraph = SimpleGraph(info.rootOrder)
+    rootGraph = StrictGraph(info.rootOrder)
 
     for edge in edgeLabels
         (isFullyNamed(edge) && attachEdge!(rootGraph, edge)) || (return (false => g))
@@ -472,7 +480,7 @@ function genRootGraph(g::SimpleGraph{T}, checkConnectivity::Bool=true) where {T<
 end
 
 
-function isOddTriangle(triangle::NTuple{3, Integer}, g::SimpleGraph)
+function isOddTriangle(triangle::NTuple{3, Integer}, g::StrictGraph)
     order = countVertices(g)
     for i in triangle
         (i < 1 || i > order) && throw(DomainError(i, "The vertex label is out of bounds."))
@@ -582,7 +590,7 @@ end
 
 """
 
-    breadthFirstSearch(f, graph::SimpleGraph{T}, startingPoint::Union{Missing, T}, 
+    breadthFirstSearch(f, graph::StrictGraph{T}, startingPoint::Union{Missing, T}, 
                        cache!Self::AbstractVector{T}=zeros(T, graph.order)
                        ) where {T<:Integer} -> 
     Tuple{T, Int}
@@ -604,7 +612,7 @@ The optional `cache!Self` is used as a buffer to store the deterministic BFS que
 have length at least `graph.order`. The elements of `cache!Self` up to the returned 
 `nVisited` position contain the BFS discovery order.
 """
-function breadthFirstSearch(f::F, graph::SimpleGraph{T}, startingPoint::MissingOr{T}, 
+function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingOr{T}, 
                             cache!Self::AbstractVector{T}=zeros(T, graph.order)
                             ) where {T<:Integer, F}
     order = graph.order
@@ -665,7 +673,7 @@ end
 
 """
 
-    breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::Union{Missing, T}=missing
+    breadthFirstSearch(graph::StrictGraph{T}, startingPoint::Union{Missing, T}=missing
                        ) where {T<:Integer} -> 
     Vector{T}
 
@@ -677,7 +685,7 @@ all connected components. Components are started in increasing vertex order from
 `1:graph.order`. If `startingPoint` is a vertex label, the returned value contains only the 
 BFS order of the connected component reachable from `startingPoint`.
 """
-function breadthFirstSearch(graph::SimpleGraph{T}, startingPoint::MissingOr{T}=missing
+function breadthFirstSearch(graph::StrictGraph{T}, startingPoint::MissingOr{T}=missing
                             ) where {T<:Integer}
     storage = zeros(T, graph.order)
     _, nVisited = breadthFirstSearch(_->false, graph, startingPoint, storage)
@@ -686,13 +694,13 @@ end
 
 
 mutable struct GraphMapInfo{T<:Integer}
-    const graph::SameTypePair{SimpleGraph{T}} #> Compared graph: g1 -> g2
+    const graph::SameTypePair{StrictGraph{T}} #> Compared graph: g1 -> g2
     const track::Memory{SameTypePair{T}}      #> Element: prev-matched node => candidate
     const register::Memory{Bool}              #> `.register[begin+g2Cand-1] == isUsed`
     const frontier::SameTypePair{Memory{T}}   #> T1 => T2
     indexer::T                                #> The latest matched node in g1
 
-    function GraphMapInfo(g1::SimpleGraph{T}, g2::SimpleGraph{T}) where {T<:Integer}
+    function GraphMapInfo(g1::StrictGraph{T}, g2::StrictGraph{T}) where {T<:Integer}
         g1Order, g2Order = g1.order, g2.order
         track = Memory{Pair{T, T}}(undef, g1Order); track .= (zero(T) => zero(T))
         g1Front = Memory{T}(undef, g1Order); g1Front .= zero(T)
@@ -817,7 +825,7 @@ function addMatchPair!(info::GraphMapInfo{T}, pair::SameTypePair{T}) where {T<:I
 end
 
 
-function connectivityOrder(g::SimpleGraph{T}, 
+function connectivityOrder(g::StrictGraph{T}, 
                            rootOrder::AbstractVector{Int}) where {T<:Integer}
     nv = countVertices(g)
     if length(rootOrder) != nv
@@ -849,7 +857,7 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1016/j.dam.2018.02.018
 """
-    isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T},
+    isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T},
                  match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing) where
     {T<:Integer} ->
     Bool
@@ -871,7 +879,7 @@ entry**, so that any data already in it is preserved after the function call. In
 words, on success, the discovered mappings are directly *appended* to the buffer. On 
 failure, the buffer is restored to exactly its initial state.
 """
-function isIsomorphic(g1::SimpleGraph{T}, g2::SimpleGraph{T}, 
+function isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T}, 
                       match!Self::MissingOr{AbstractVector{ SameTypePair{T} }}=missing
                       ) where {T<:Integer}
     storeMatch = ismissing(match!Self) ? false : true

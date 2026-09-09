@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul
 
 @testset "Strings.jl" begin
 

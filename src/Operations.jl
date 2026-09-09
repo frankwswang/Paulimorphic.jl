@@ -1,4 +1,6 @@
-export add, mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
+
+public add, mul, toAdjoint
 
 const PauliStrOrSum = Union{PauliStr, PauliSum}
 
@@ -46,7 +48,7 @@ result does not reference any data in either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
-    procedure is determined by `$extendType(T, complex( promote_type(T1, T2) ))`.
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
              simplification::Bool=true) where {T<:Real}
@@ -80,7 +82,7 @@ applied to the result. The result does not reference any data in either `h` or `
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
-    procedure is determined by `$extendType(T, complex( promote_type(T1, T2) ))`.
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
 function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
              simplification::Bool=true) where {T<:Real}
@@ -270,8 +272,8 @@ either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$extendType(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
-    `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
+    for `Integer`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
@@ -317,8 +319,8 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$extendType(T, complex( promote_type(T1, T2) ))` (no overflow protection for 
-    `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
+    for `Integer`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
              simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
@@ -453,10 +455,10 @@ checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, 
 
 Return the commutator [`op1`, `op2`] = `op1`*`op2` - `op2`*`op1` as a `PauliSum`. 
 The multiplications within the commutation follow the implicit identity-padding convention 
-of [`mul`](@ref), so when the two operators explicitly act on different numbers of sites, 
-the returned sum explicitly acts on the larger site count. When the commutator is zero 
-(i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the zero 
-operator.
+of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different numbers of 
+sites, the returned sum explicitly acts on the larger site count. When the commutator is 
+zero (i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the 
+zero operator.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr)
     prod1 = mul(op1, op2)
@@ -483,8 +485,8 @@ end
 
 Return the anticommutator {`op1`, `op2`} = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
 The multiplications within the anticommutation follow the implicit identity-padding 
-convention of [`mul`](@ref), so when the two operators explicitly act on different numbers 
-of sites, the returned sum explicitly acts on the larger site count. When the 
+convention of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different 
+numbers of sites, the returned sum explicitly acts on the larger site count. When the 
 anticommutator is zero (i.e., when `op1` and `op2` anticommute), this function returns an 
 empty `PauliSum` as the zero operator.
 """

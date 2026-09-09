@@ -2,7 +2,7 @@ using Test
 using Random: Xoshiro
 using LinearAlgebra: kron
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, toAdjoint
 
 @testset "Operations.jl" begin
 

@@ -21,6 +21,10 @@
 * **Fermion-to-qubit encodings**: Jordan–Wigner, parity, and Bravyi–Kitaev Majorana encodings, conversion between Majorana and Dirac forms, and validity checkers for both.
 * **Molecular electronic Hamiltonians**: encoding from one- and two-body molecular integral tensors with spin-sectored encodings, selectable operator ordering (`NormalOrder` or `PairedOrder`), and validation of integral symmetries (Hermiticity, particle exchange, and index-pair transposition).
 
+## Why Paulimorphic.jl?
+
+Several packages in the Julia ecosystem already provide functionality for constructing and transforming Pauli operators, e.g., [PauliStrings.jl](https://paulistrings.org/stable/), [PauliPropagation.jl](https://sparqlesim.github.io/PauliPropagation.jl/stable/), and [QuantumClifford.jl](https://qc.quantumsavory.org/stable/). These packages mostly serve research directions such as operator dynamics, quantum circuit simulation, and quantum error correction. In contrast, Paulimorphic aims to be a flexible toolkit for representational manipulation and structural analysis of Pauli operators themselves — both as observables in their own right and as encodings of other quantum many-body systems. For example, it provides fermion-to-qubit encodings such as Jordan–Wigner and Bravyi–Kitaev, alongside graph-theoretic analysis of operator anticommutation structure. In other words, this package is designed for investigating the polymorphic character of Pauli operators — hence it is indeed *Pauli-morphic*.
+
 ## Example
 
 The following code builds the transverse-field Ising Hamiltonian on an open chain of `n` sites,

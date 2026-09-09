@@ -7,7 +7,7 @@ export getFrustrationInfo
 Compute the (anticommutation) frustration graph of the Pauli strings in `ham`: each 
 term (a weighted [`PauliStr`](@ref)) forms a vertex, and whether two vertices are joined by 
 an edge is determined by the anticommutator of their corresponding Pauli strings (evaluated 
-by [`checkAntiCom`](@ref)). The graph is returned not as a [`SimpleGraph`](@ref) but as its 
+by [`checkAntiCom`](@ref)). The graph is returned not as a [`StrictGraph`](@ref) but as its 
 structural information: 
 
     vertices => edges

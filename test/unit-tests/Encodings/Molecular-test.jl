@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: formatMolecularInteData, genNBodyOperator
+using Paulimorphic: formatMolecularInteData, genNBodyOperator, mul
 
 @testset "Molecular.jl" begin
 

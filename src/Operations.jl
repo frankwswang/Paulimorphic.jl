@@ -1,4 +1,6 @@
-export add, mul, scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom, toAdjoint
+
+public add, mul
 
 const PauliStrOrSum = Union{PauliStr, PauliSum}
 

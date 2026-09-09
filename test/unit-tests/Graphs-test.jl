@@ -128,12 +128,21 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. StrictGraph construction
 # ──────────────────────────────────────────────────────────────────────────────
-@testset "StrictGraph construction" begin
+@testset "StrictGraph" begin
     @testset "order-0 graph" begin
         g = StrictGraph(0)
         @test countVertices(g) == 0
         @test countEdges(g) == 0
         @test isempty(listEdges(g))
+    end
+
+    @testset "Graph order bound with respect to graph-label type" begin
+        @test_throws DomainError StrictGraph(BigInt(10)^50)
+        @test_throws DomainError StrictGraph(200, Int8)
+        @test_throws DomainError g = StrictGraph(200, Int8)
+        g = StrictGraph(127, Int8)  #> boundary case must keep working
+        @test attachEdge!(g, (1, 127))
+        @test containEdge(g, (127, 1))
     end
 
     @testset "edgeless graph" begin

@@ -9,7 +9,7 @@ export StrictGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
 A strict graph (also known as a simple graph) represented by a graph order 
 (`.order::Int <= typemax(Int)`) and adjacency sets (`.adjacency`). The graph is undirected 
 and contains no self-loops or parallel edges. Vertices are labeled by positive integers 
-(i.e., from `1` to `.order`) of type `T`.
+of type `T` (ranging from from `1` to `.order::Int`).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
@@ -31,8 +31,15 @@ struct StrictGraph{T<:Integer}
     adjacency::Memory{Set{T}}
 
     function StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
-        order < 0 && throw(DomainError(order, "`order` of the graph must be non-negative."))
+        if !(0 <= order <= typemax(Int))
+            throw(DomainError(order, "`order` must be in 0:typemax(Int)."))
+        end
         order = Int(order)
+        if applicable(typemax, T) && order > typemax(T) #> Skipped if `T` is unbounded
+            throw(DomainError(order, "`order` must not exceed `typemax($T)` so that every "*
+                                     "vertex label of the constructed graph is "*
+                                     "representable."))
+        end
         adj = Memory{Set{T}}(undef, order)
         for i in eachindex(adj)
             adj[i] = Set{T}()

@@ -126,7 +126,7 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
 @testset "Graphs.jl" begin
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 1. StrictGraph construction
+# 1. Graph construction
 # ──────────────────────────────────────────────────────────────────────────────
 @testset "StrictGraph" begin
     @testset "order-0 graph" begin

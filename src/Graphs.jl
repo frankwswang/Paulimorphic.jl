@@ -32,7 +32,7 @@ struct StrictGraph{T<:Integer}
 
     function StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
         if !(0 <= order <= typemax(Int))
-            throw(DomainError(order, "`order` must be in 0:typemax(Int)."))
+            throw(DomainError(order, "`order` must be in `0:typemax(Int)`."))
         end
         order = Int(order)
         if applicable(typemax, T) && order > typemax(T) #> Skipped if `T` is unbounded

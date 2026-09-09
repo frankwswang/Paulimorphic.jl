@@ -16,3 +16,7 @@ const MissingOr{T} = Union{Missing, T}
 const Interface = Union{Function, Type, Module}
 
 const NonEmptyTuple{T, M} = Tuple{T, Vararg{T, M}}
+
+
+#> Pre-declared functions for forward referencing in docstrings <#
+function toAdjoint end #> From Operations.jl

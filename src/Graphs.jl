@@ -639,13 +639,13 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
             cache!Self[offset+tail] = T(localStart)
 
             while head <= tail
-                lastNode = Int(cache!Self[offset+head])
+                lastNode = cache!Self[offset+head]
 
                 if f(lastNode)::Bool
                     return (lastNode, head) #> Matched node and call count of `f`
                 else
                     tailLast = tail
-                    for child in graph.adjacency[begin+lastNode-1]
+                    for child in graph.adjacency[begin+Int(lastNode)-1]
                         if !register[begin+child-1]
                             register[begin+child-1] = true
                             tail += 1

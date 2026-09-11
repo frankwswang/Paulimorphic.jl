@@ -606,7 +606,7 @@ The predicate `f` is called once for each dequeued vertex as `f(v)::Bool`. If `f
 returns `true`, the search terminates immediately and returns `(v, nVisited)`, where `v::T` 
 is the first vertex satisfying `f`, and `nVisited` is the number of vertices dequeued, 
 equivalently the number of calls to `f`. If no vertex satisfies `f`, the function returns 
-`(zero(T), nVisited)` is used as the sentinel value for "not found".
+`(zero(T), nVisited)`, the sentinel value for "not found".
 
 The optional `cache!Self` is used as a buffer to store the deterministic BFS queue. It must 
 have length at least `graph.order`. The elements of `cache!Self` up to the returned 
@@ -646,8 +646,9 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
                 else
                     tailLast = tail
                     for child in graph.adjacency[begin+Int(lastNode)-1]
-                        if !register[begin+child-1]
-                            register[begin+child-1] = true
+                        childInt = Int(child)
+                        if !register[begin+childInt-1]
+                            register[begin+childInt-1] = true
                             tail += 1
                             cache!Self[offset+tail] = child
                         end

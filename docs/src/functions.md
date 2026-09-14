@@ -7,4 +7,5 @@
 ```@autodocs
 Modules = [Paulimorphic]
 Order   = [:function]
+Private = false
 ```

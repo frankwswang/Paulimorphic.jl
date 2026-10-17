@@ -60,7 +60,7 @@ a vertex. Two vertices are joined by an edge whenever their Pauli strings antico
 (via [`checkAntiCom`](@ref)). Same as `getFrustrationInfo(::PauliSum)`, this method returns 
 the frustration graph by its underlying information of as a `Pair`:
 
-    `strings => edges`
+    strings => edges
 
 where `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index 
 pairs `(i, j)`, `i < j`, indexing into `strings` in the given order.

@@ -14,12 +14,17 @@ representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 
 Specifically, each element is represented by 
 
-    phase * (P_1 ⊗ P_2 ⊗ … ⊗ P_n),
+```math
+\\mathtt{phase} \\, (P_1 \\otimes P_2 \\otimes \\cdots \\otimes P_n),
+```
 
 where `P_k` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
 bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
-    (x_k, z_k):  (0, 0) => I,  (0, 1) => Z,  (1, 0) => X,  (1, 1) => Y;
+```math
+(x_k, z_k) \\mapsto P_k: \\quad (0, 0) \\mapsto I, \\quad (0, 1) \\mapsto Z, \\quad
+(1, 0) \\mapsto X, \\quad (1, 1) \\mapsto Y;
+```
 
 and `phase::`[`PhaseFactor`](@ref) takes one of the values in `(+1, +im, -1, -im)`. 
 Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
@@ -34,8 +39,8 @@ from `i`-th word to `i+1`-th word). Bits past site `n` in the final word are zer
 construction.
 
 # Fields
-- `.x::Memory{UInt}`: X-component — bit `k` is set iff `P_k ∈ {X, Y}`.
-- `.z::Memory{UInt}`: Z-component — bit `k` is set iff `P_k ∈ {Z, Y}`.
+- `.x::Memory{UInt}`: X-component — bit `k` is set iff ``P_k \\in \\{X, Y\\}``.
+- `.z::Memory{UInt}`: Z-component — bit `k` is set iff ``P_k \\in \\{Z, Y\\}``.
 - `.phase::PhaseFactor`: phase information such that `im^Int(.phase)` returns one of the 
   four overall phase coefficients.
 - `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
@@ -45,9 +50,11 @@ construction.
     numbers of sites (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)) follows the 
     implicit identity-padding convention: the string with the smaller site count is treated 
     as if temporarily promoted to the larger site count by tensoring single-site identities 
-    onto its unrepresented sites,
+    onto its unrepresented sites (with the site index increasing from left to right),
 
-        str_op -> str_op ⊗ I ⊗ ⋯ ⊗ I    (site number increases from left to right),
+    ```math
+    P \\mapsto P \\otimes I \\otimes \\cdots \\otimes I,
+    ```
 
     without mutating either input. Under this convention, a zero-site `PauliStr` (
     `.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
@@ -460,10 +467,12 @@ end
 
 A linear combination of Pauli strings, i.e. a general operator
 
-    ∑_k coeff_k * str_k,
+```math
+\\sum_k c_k \\, P_k,
+```
 
-stored as two parallel buffers: the Pauli strings `.str::Memory{PauliStr}` and their 
-associated coefficients `.coeff::Memory{Complex{T}}`.
+stored as two parallel buffers: the Pauli strings ``P_k`` in `.str::Memory{PauliStr}` and 
+their associated coefficients ``c_k`` in `.coeff::Memory{Complex{T}}`.
 
 # Fields
 - `.str::Memory{PauliStr}`: the Pauli strings, one per stored term.
@@ -918,8 +927,8 @@ end
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
-    abs(c) >  tolerance * scale    (if inclusive == false)
-    abs(c) >= tolerance * scale    (if inclusive == true )
+    abs(c) >  tolerance * scale    # inclusive == false
+    abs(c) >= tolerance * scale    # inclusive == true 
 
 where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
 when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 
@@ -1166,16 +1175,17 @@ are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must 
 `1:src.n`.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
+```text
+lowToHigh = true  (dstStart=2):    lowToHigh = false (dstStart=1):
+    dst: [b1, b2, b3] (initial)        dst:         [b1, b2, b3] (initial)
+    src:     [c1, c2, c3]              src: [c1, c2, c3]
+    dst: [b1, c1, c2] (result)         dst:         [c3, b2, b3] (result)
 
-    lowToHigh = true  (dstStart=2):    lowToHigh = false (dstStart=1):
-     dst: [b1, b2, b3] (initial)       dst:         [b1, b2, b3] (initial)
-     src:     [c1, c2, c3]             src: [c1, c2, c3]
-     dst: [b1, c1, c2] (result)        dst:         [c3, b2, b3] (result)
-
-    lowToHigh = true  (dstStart=2, srcRange=2:3):
-     dst: [b1, b2, b3] (initial)
-     src:     [c2, c3] (site 1 of `src` deselected)
-     dst: [b1, c2, c3] (result)
+lowToHigh = true  (dstStart=2, srcRange=2:3):
+    dst: [b1, b2, b3] (initial)
+    src:     [c2, c3] (site 1 of `src` deselected)
+    dst: [b1, c2, c3] (result)
+```
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
                 src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
@@ -1288,11 +1298,12 @@ direction, the part of the window that falls outside `1:dst.n` is truncated. `st
 must be in `1:dst.n`, and `nSite` must be non-negative.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
-
-    lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
-     dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
-      op:     [op, op, op]                       op: [op, op, op]
-     dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
+```text
+lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
+    dst: [b1, b2, b3]     (initial)             dst:         [b1, b2, b3] (initial)
+     op:     [op, op, op]                        op: [op, op, op]
+    dst: [b1, op, op]     (result)              dst:         [op, b2, b3] (result)
+```
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 lowToHigh::Bool=true)
@@ -1356,14 +1367,15 @@ returned. Depending on the specific choice of `filler`, or the value of `nSite` 
 operator as `ham` (up to numerical round-off errors if `simplification=true`).
 
 # Mechanism illustration (`[c1, c2, c3]` represents a three-site string, `fl` the filler):
+```text
+lowToHigh = true  (nSite=5):    lowToHigh = false (nSite=5):
+    old: [c1, c2, c3]               old:         [c1, c2, c3]
+    new: [c1, c2, c3, fl, fl]       new: [fl, fl, c1, c2, c3]
 
-    lowToHigh = true  (nSite=5):    lowToHigh = false (nSite=5):
-     old: [c1, c2, c3]               old:         [c1, c2, c3]
-     new: [c1, c2, c3, fl, fl]       new: [fl, fl, c1, c2, c3]
-
-    lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
-     old: [c1, c2, c3]               old: [c1, c2, c3]
-     new: [c1, c2]                   new:     [c2, c3]
+lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
+    old: [c1, c2, c3]               old: [c1, c2, c3]
+    new: [c1, c2]                   new:     [c2, c3]
+```
 
 # String ownership
 The returned sum does not reference any data in `ham`: its coefficients are held in an 

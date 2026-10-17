@@ -110,9 +110,11 @@ end
 The singleton format tag for the operator string ordering in which each particle's 
 creation-annihilation operator pair stays adjacent: 
 
-    c_1 * a_1 * c_2 * a_2 * ... * c_N * a_N
+```math
+c_1 a_1 \\, c_2 a_2 \\cdots c_N a_N,
+```
 
-where `c_n == (a_n)'` (`1 <= n <= N`).
+where ``c_n = a_n^\\dagger`` (``1 \\le n \\le N``).
 """
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 
@@ -122,9 +124,11 @@ struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 The singleton format tag for the normal ordering of a given operator string, which places 
 every creation operator to the left of every annihilation operator: 
 
-    c_1 * c_2 * ... * c_N * a_N * ... * a_2 * a_1
+```math
+c_1 c_2 \\cdots c_N \\, a_N \\cdots a_2 a_1,
+```
 
-where `c_n == (a_n)'` (`1 <= n <= N`).
+where ``c_n = a_n^\\dagger`` (``1 \\le n \\le N``).
 """
 struct NormalOrder <: StructuredType end #> (1', 2', ..., N', N, ..., 2, 1)
 
@@ -149,8 +153,8 @@ its creation and annihilation operators within that `sector`:
 Additionally, `format` specifies the operator ordering of the monomial: 
 [`PairedOrder`](@ref) produces pairwise ordering (similar to the Chemist notation for the 
 indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces the normal 
-ordering: `c_1 c_2 ... c_N a_N ... a_2 a_1`. When `checkEncoding` is set to `true`, `enc` 
-is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
+ordering: ``c_1 c_2 \\cdots c_N \\, a_N \\cdots a_2 a_1``. When `checkEncoding` is set to 
+`true`, `enc` is validated via [`checkSpinSectoredEnc`](@ref) before the construction.
 """
 function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                           spinSecConfig::NonEmptyTuple{Bool, M}, 
@@ -517,44 +521,56 @@ const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 Return `PauliSum`-based encoding (representation) of the molecular electronic Hamiltonian 
 
-    H_{elec} = ∑_s H_s + ∑_{i,j,m,n} inte2BCross[i,j,m,n] c_{i,1} c_{m,2} a_{n,2} a_{j,1}
+```math
+H_{\\mathrm{elec}} = \\sum_s H_s
++ \\sum_{i,j,m,n} \\mathtt{inte2BCross}[i,j,m,n] \\, c_{i,1} c_{m,2} a_{n,2} a_{j,1},
+```
 
-where `c_{i,s} = (a_{i,s})'` is the Dirac creation operator for mode `i` in spin sector 
-`s`, represented by products of single-mode fermionic operator from the input encoding 
-`enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)` whose validity checking is 
-controlled by the same-named argument `checkEncoding`; `inte2BCross` is the 
-cross-spin-sector two-body spatial molecular integral tensor and `H_s` is a per-spin-sector 
-Hamiltonian fragment 
+where ``c_{i,s} = a_{i,s}^\\dagger`` is the Dirac creation operator for mode `i` in spin 
+sector `s`, represented by products of single-mode fermionic operator from the input 
+encoding `enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)` whose validity checking 
+is controlled by the same-named argument `checkEncoding`; `inte2BCross` is the 
+cross-spin-sector two-body spatial molecular integral tensor and ``H_s`` is a 
+per-spin-sector Hamiltonian fragment 
 
-    H_s = ∑_{i,j} h1_s[i,j] c_{i,s} a_{j,s} + 
-          (1/2) ∑_{i,j,m,n} h2_s[i,j,m,n] c_{i,s} c_{m,s} a_{n,s} a_{j,s}
+```math
+H_s = \\sum_{i,j} h^{(1)}_s[i,j] \\, c_{i,s} a_{j,s}
++ \\frac{1}{2} \\sum_{i,j,m,n} h^{(2)}_s[i,j,m,n] \\, c_{i,s} c_{m,s} a_{n,s} a_{j,s},
+```
 
-with `(h1_s, h2_s)` respectively being one-body and two-body tensors of per-spin-sector 
-molecular integrals, specified by either `inte1B2BSpin1` or `inte1B2BSpin2`. Both 
-per-spin-sector two-body tensors, as well as `inte2BCross`, follow the index-pair layout 
-(i.e., the Chemist notation for two-body molecular integrals); the numbers of 
-spatial-orbital modes per spin sector `(n1, n2)`, are inferred from `size(inte2BCross)`. 
-Hence, the per-spin-sector tensors must match these counts, whereas the total number of 
-spin-orbital modes covered by `enc` can exceed `n1 + n2`. 
+with ``(h^{(1)}_s, h^{(2)}_s)`` respectively being one-body and two-body tensors of 
+per-spin-sector molecular integrals, specified by either `inte1B2BSpin1` or 
+`inte1B2BSpin2`. Both per-spin-sector two-body tensors, as well as `inte2BCross`, follow 
+the index-pair layout (i.e., the Chemist notation for two-body molecular integrals); the 
+numbers of spatial-orbital modes per spin sector `(n1, n2)`, are inferred from 
+`size(inte2BCross)`. Hence, the per-spin-sector tensors must match these counts, whereas 
+the total number of spin-orbital modes covered by `enc` can exceed `n1 + n2`. 
 
 ## Deciding the ordering of two-body terms
 
-The form of the two-body terms in `H_{elec}` (as well as in `H_s`) described above 
+The form of the two-body terms in ``H_{\\mathrm{elec}}`` (as well as in ``H_s``) described 
+above, 
 
-        c_{i,s1} c_{m,s2} a_{n,s2} a_{j,s1}
+```math
+c_{i,s_1} c_{m,s_2} a_{n,s_2} a_{j,s_1},
+```
 
 follows the normal ordering convention, which can be enforced upon the returned encoding by 
 setting `format = NormalOrder()`. Alternatively, `format = PairedOrder()` encodes the 
 two-body term in the form (associated with the same two-body tensor)
 
-        c_{i,s1} a_{j,s1} c_{m,s2} a_{n,s2}
+```math
+c_{i,s_1} a_{j,s_1} c_{m,s_2} a_{n,s_2}.
+```
 
 Consequently, for the resulting encoding to represent the same electronic Hamiltonian, the 
-coefficient matrix for the one-body terms (`c_{i,s} a_{j,s}`) can no longer directly be the 
-one-body tensor (e.g., first(inte1B2BSpin1)), but is obtained by subtracting a `correction`
-matrix
+coefficient matrix for the one-body terms (``c_{i,s} a_{j,s}``) can no longer directly be 
+the one-body tensor (e.g., `first(inte1B2BSpin1)`), but is obtained by subtracting a 
+correction matrix, whose ``(i, j)`` element is 
 
-        correction[i, j] = (1/2) * ∑_k h2_s[i, k, k, j]
+```math
+\\frac{1}{2} \\sum_k h^{(2)}_s[i, k, k, j],
+```
 
 from the one-body tensor. This correction is carried out automatically 
 (via [`formatMolecularInteData`](@ref)) when `format = PairedOrder()`, hence 
@@ -711,7 +727,9 @@ the coefficient matrix of a specific two-index two-body term in the Hamiltonian 
 
 This correction on the one-body matrix derives from the two-body operator monomial identity 
 
-    c_i a_j c_k a_l == c_i c_k a_l a_j + (j == k) * c_i a_l
+```math
+c_i a_j c_k a_l = c_i c_k a_l a_j + \\delta_{jk} \\, c_i a_l
+```
 
 so that assembling the `PairedOrder` two-body sum with the corrected one-body matrix 
 produces a `PairedOrder` encoding equivalent to the `NormalOrder` encoding of the same 

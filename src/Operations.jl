@@ -65,9 +65,9 @@ add(promote_type(T1, T2), h1, h2, simplification)
         simplification::Bool=true) where {T<:Real} -> 
     PauliSum{T}
 
-    add(h::PauliSum{T}, term::Pair{PauliStr, C}, 
-        simplification::Bool=true) where {T<:Real, C<:Union{Real, Complex}} -> 
-    PauliSum{promote_type(T, real(C))}
+    add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
 
     h + term -> PauliSum
     term + h -> PauliSum

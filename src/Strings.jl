@@ -774,8 +774,8 @@ countTerms(h::PauliSum) = length(h.str)
 Return the number of sites `str` explicitly acts on (stored in its field `.n`). Per the 
 implicit identity-padding convention (see [`PauliStr`](@ref)), `str` acts as the identity 
 on every site beyond this count. Therefore, the returned value effectively describes the 
-minimal number of single-site operators required to represent `str` without implicit 
-identity padding.
+number of single-site operators required to represent `str` without implicit identity 
+padding.
 """
 countSites(str::PauliStr) = str.n
 

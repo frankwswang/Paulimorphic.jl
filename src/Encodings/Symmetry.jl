@@ -14,8 +14,12 @@ under simultaneously transposing every index pair ``(c_n, a_n)``:
 
 ```math
 \\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N]
-= \\mathtt{inte}[a_1, c_1, \\ldots, a_N, c_N]^{*}
+= \\mathtt{inte}[a_1, c_1, \\ldots, a_N, c_N]^{*},
 ```
+
+where ``[\\ldots,\\ldots]`` represents the multi-dimensional index for `inte`, following 
+the [Cartesian-indexing 
+style](https://docs.julialang.org/en/v1/manual/arrays/#Cartesian-indexing) in Julia.
 
 If `inte` does not hold this symmetry, `checkInteHermiticity` returns `false`, or throws 
 an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must be 
@@ -120,8 +124,9 @@ An integral tensor
 
 ```math
 \\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N] =
-\\int \\hat{O}\\big[f_{c_1}^{*}, f_{a_1}, \\ldots, f_{c_N}^{*}, f_{a_N}\\big]
-(x_1, \\ldots, x_N) \\, \\mathrm{d}x_1 \\cdots \\mathrm{d}x_N
+\\int \\mathrm{d}x_1 \\cdots \\mathrm{d}x_N \\, 
+\\hat{O}\\llbracket f_{c_1}^{*}, f_{a_1}, \\ldots, f_{c_N}^{*}, f_{a_N} \\rrbracket
+(x_1, \\ldots, x_N)
 ```
 
 may hold such a symmetry when the action of the underlying core operator ``\\hat{O}`` onto 

@@ -12,11 +12,11 @@ const PauliZMatEntries = (1,   0,    0, -1)
 
 A `UInt8`-based enumeration of the four single-site Pauli operators. Each instance's 
 integer value is the operator's two-bit binary code `xz` (i.e., `2x + z`), where the high 
-bit `x` marks the X-component and the low bit `z` marks the Z-component:
+bit `x` marks the ``x``-component and the low bit `z` marks the ``z``-component:
 
     symI::PauliSym  =>  0 # binary 00: identity (no component)
-    symZ::PauliSym  =>  1 # binary 01: Z (Z-component only)
-    symX::PauliSym  =>  2 # binary 10: X (X-component only)
+    symZ::PauliSym  =>  1 # binary 01: Z (``z``-component only)
+    symX::PauliSym  =>  2 # binary 10: X (``x``-component only)
     symY::PauliSym  =>  3 # binary 11: Y (both components)
 
 Hence, `PauliSym(num)` decodes `num` in `0:3` directly as the bit pair and imposes the 

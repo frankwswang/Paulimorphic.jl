@@ -12,10 +12,10 @@ using LinearAlgebra: dot
 An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 
-Specifically, each element ``\\hat{P}_k`` is represented by 
+Specifically, each element ``\\hat{P}_m`` is represented by 
 
 ```math
-\\hat{P}_k = (\\hat{\\sigma}_1 \\otimes \\hat{\\sigma}_2 \\otimes \\cdots \\otimes 
+\\hat{P}_m = (\\hat{\\sigma}_1 \\otimes \\hat{\\sigma}_2 \\otimes \\cdots \\otimes 
               \\hat{\\sigma}_n) \\, \\mathtt{phase}, 
 ```
 
@@ -57,7 +57,7 @@ construction.
     onto its unrepresented sites (with the site index increasing from left to right),
 
     ```math
-    \\hat{P}_k \\mapsto \\hat{P}_k \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
+    \\hat{P}_m \\mapsto \\hat{P}_m \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
     ```
 
     without mutating either input. Under this convention, a zero-site `PauliStr` 

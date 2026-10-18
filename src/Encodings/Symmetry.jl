@@ -18,8 +18,8 @@ under simultaneously transposing every index pair ``(c_n, a_n)``:
 ```
 
 where ``[\\ldots,\\ldots]`` represents the multi-dimensional index for `inte`, following 
-the [Cartesian-indexing 
-style](https://docs.julialang.org/en/v1/manual/arrays/#Cartesian-indexing) in Julia.
+the default [array-indexing 
+style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
 
 If `inte` does not hold this symmetry, `checkInteHermiticity` returns `false`, or throws 
 an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must be 

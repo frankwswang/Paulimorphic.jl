@@ -101,8 +101,8 @@ attachEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 """
     removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) -> Bool
 
-Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existed edge, 
-was successfully removed, and `false` if `edge` was absent or invalid.
+Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existing 
+edge, was successfully removed, and `false` if `edge` was absent or invalid.
 """
 removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
@@ -154,8 +154,8 @@ end
 """
     listEdges(g::StrictGraph{T}) -> Vector{NTuple{2, T}}
 
-Return all undirected edges of `g` as sorted endpoint pairs `(i, j)` in a lexicographically 
-ordered `Vector`.
+Return all undirected edges of `g` as endpoint pairs `(i, j)` with `i < j`, collected in a 
+lexicographically ordered `Vector`.
 """
 function listEdges(g::StrictGraph{T}) where {T<:Integer}
     edges = NTuple{2, T}[]
@@ -352,14 +352,14 @@ end
 """
     genRootGraph(g::StrictGraph, checkConnectivity::Bool=true) -> Pair{Bool, StrictGraph}
 
-Attempt to recognize connected `g` as a line graph using [Lehot-style edge-label
-algorithm](https://doi.org/10.1145/321850.321853) to reconstruct potentially corresponding 
-root graph `r`. Return `true => r` if `g` is indeed a (connected) line graph; return 
-`false => g` otherwise. This function is only well behaved when the input `g` is a 
-connected `StrictGraph`. Hence, in default, `checkConnectivity=true` such that any input 
-that is a disconnected graph throws an `ArgumentError`. For disconnected graphs, one can 
-first apply [`decompose`](@ref) to obtain connected subgraphs, and then apply 
-`genRootGraph` to each subgraph.
+Attempt to recognize a connected `g` as a line graph using a [Lehot-style edge-labeling 
+algorithm](https://doi.org/10.1145/321850.321853) to reconstruct its potential root graph 
+`r`. Return `true => r` if `g` is indeed a (connected) line graph; return `false => g` 
+otherwise. This function is only well behaved when the input `g` is a connected 
+`StrictGraph`. Hence, by default `checkConnectivity=true`, so that any disconnected-graph 
+input throws an `ArgumentError`. For disconnected graphs, one can first apply 
+[`decompose`](@ref) to obtain connected subgraphs, and then apply `genRootGraph` to each 
+subgraph.
 """
 function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)

@@ -57,8 +57,8 @@ construction.
     P \\mapsto P \\otimes I \\otimes \\cdots \\otimes I,
     ```
 
-    without mutating either input. Under this convention, a zero-site `PauliStr` (
-    `.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
+    without mutating either input. Under this convention, a zero-site `PauliStr` 
+    (`.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
     operator that does not act on any specific site. It is the default representation for 
     the multiplicative unit of the Pauli group up to its `.phase`, composable with a string 
     of any site count. Consequently a zero-site `PauliStr` is only equal (as defined by 
@@ -99,12 +99,12 @@ the Pauli string (as `im^Int(.phase)`), which by default is `+1`.
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
 single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative. 
-`phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
-string as `im^Int(.phase)`, which in default is `+1`.
+`phase::`[`PhaseFactor`](@ref) determines the phase attached to the Pauli string (as 
+`im^Int(.phase)`), which by default is `+1`.
 
     PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
 
-Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites and in default 
+Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites, which by default 
 preserves the site count of `pStr`. When `nSite > pStr.n` every site above `pStr.n` carries 
 the identity; when `nSite < pStr.n`, the sites above `nSite` are cropped away. `phase` 
 assigns the value of field `.phase`. The returned `PauliStr` holds freshly allocated 
@@ -411,7 +411,7 @@ Print the output `String` from [`toString`](@ref)`(op::`[`PauliStr`](@ref)`)` to
 false)`), e.g., the REPL's default display buffer, and [`countWeight`](@ref)`(op) > 
 $CONSTVAR!!maximalFullShowSize`, only the first and last $(CONSTVAR!!minimalKeptShowSize÷2) 
 non-identity single-site operators are printed, with the omitted operators replaced by 
-`" … "`. Otherwise, the complete string is always printed (in the default-format).
+`" … "`. Otherwise, the complete string is always printed (in the default format).
 """
 function Base.show(io::IO, op::PauliStr)
     if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
@@ -501,12 +501,12 @@ their associated coefficients ``c_k`` in `.coeff::Memory{Complex{T}}`.
              simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
-Construct a `res::PauliSum{T}` with `T=real(C)` from `strs` and `coeffs`. When `coeffs` is 
-an `AbstractVector`, it must have the same length as `strs`, and each `coeffs[i]` is the 
-coefficient initially associated with `strs[i]`; when `coeffs` is a `C` (scalar), it is the 
-coefficient initially associated with every string in `strs`. The core data type `T=Bool` 
-is specifically disallowed because phase absorption must be able to scale a coefficient by 
-`±1` and `±im`, which `Complex{Bool}` cannot represent.
+Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in the second 
+signature. When `coeffs` is an `AbstractVector`, it must have the same length as `strs`, 
+and each `coeffs[i]` is the coefficient initially associated with `strs[i]`; when `coeffs` 
+is a `C` (scalar), it is the coefficient initially associated with every string in `strs`. 
+The core data type `T=Bool` is specifically disallowed because phase absorption must be 
+able to scale a coefficient by `±1` and `±im`, which `Complex{Bool}` cannot represent.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -745,7 +745,7 @@ end
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
-`i`th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
+`i`-th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
 default), the returned strings hold no reference to the data in `ham`.
 
 !!! warning
@@ -906,9 +906,9 @@ end
 """
     canonicalize!(ham::PauliSum) -> PauliSum
 
-Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
-its coefficient (stored in ham.coeff), then sort the Pauli terms into a deterministic total 
-order based on [`$(sortStrings!|>repr)`](@ref).
+Rewrite `ham` into a canonical form in place and return it: absorb every string's phase 
+into its coefficient (stored in `ham.coeff`), then sort the Pauli terms into a 
+deterministic total order based on [`$(sortStrings!|>repr)`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
@@ -997,7 +997,7 @@ bits.
 The optional argument `forward` selects the direction of the shift:
 - `forward = true` moves bits toward the most-significant end. The in-word shift (specified 
   by `bitOffset`) direction is from the least significant bit (LSB) to the most significant 
-  bit (MSB) (e.g., a 2-bit shift sends `0b0011` to `0b1100`); the shift across words move 
+  bit (MSB) (e.g., a 2-bit shift sends `0b0011` to `0b1100`); the shift across words moves 
   from the lower index to higher index (e.g., `[w1, w2, _]` becomes `[_, w1, w2]`).
 - `forward = false` is the exact reverse, moving bits toward the least-significant end.
 
@@ -1086,7 +1086,7 @@ first, with the word width set by the element type at `8*sizeof(T)` bits. Every 
 
 `nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
 the bit capacity of its buffer. `nBit` is allowed to exceed the number of bits available 
-in `dstWords` or `srcWords`, in which case the excessive bits (on the more significant 
+in `dstWords` or `srcWords`, in which case the excess bits (on the more significant 
 side) are dropped upon pasting.
 
 !!! warning
@@ -1242,7 +1242,7 @@ value.
 
 `nBit` must be non-negative, and `dstBitIdxLo` must be within the bit capacity of 
 `dstWords`. `nBit` is allowed to exceed the number of bits available in `dstWords`, in 
-which case the excessive bits (on the more significant side) are dropped upon stamping.
+which case the excess bits (on the more significant side) are dropped upon stamping.
 """
 function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
                     nBit::Signed) where {T<:BitUInteger}

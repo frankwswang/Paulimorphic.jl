@@ -204,7 +204,7 @@ If any above symmetry check fails, or the size of `inte` does not match `nOrb`,
 (e.g., `nOrb` containing any negative elements).
 
 !!! info
-    when `particleExch=true`, for `idxPairSymm` to be in a valid form (aside from being of 
+    When `particleExch=true`, for `idxPairSymm` to be in a valid form (aside from being of 
     the allowed type), `idxPairSymm` must have the same equality pattern as `orbSecLabel`. 
     In other words, for any valid index pair `i` and `j` (`1<=i<=j<=N`), 
     `orbSecLabel[begin+i-1] == orbSecLabel[begin+j-1]` must imply 

@@ -214,7 +214,7 @@ Mode `p` is associated with the Majorana-operator pair,
 where ``N`` denotes `nMode` and ``Z_{p-1}`` is absent for `p == 1`.
 
 As a result, site `j` stores the parity of the first `j` mode occupancies, making the 
-encoding the prefix-sum dual of the Jordan–Wigner encoding. each occupation-number vector 
+encoding the prefix-sum dual of the Jordan–Wigner encoding. Each occupation-number vector 
 state is represented by its prefix-parity counterpart in the Pauli-Z basis:
 
 ```math
@@ -693,7 +693,8 @@ of [`checkMajoranaEnc`](@ref)) of `nMode = length(enc.first)` fermionic modes, a
 rebuild its underlying `PauliStr`-based Majorana frame: `2nMode` single Pauli strings 
 `frame` (returned in ascending order, all carrying the positive-real phase) together with 
 a pair of (real) transformation matrices `matAnn => matCre`, each of size `2nMode` by 
-`nMode`, such that 
+`nMode` with element type `T` (the promoted real core type of the coefficients in `enc`), 
+such that 
 
     PauliSum(enc.first[ begin+i-1]) == PauliSum(frame, matAnn[:, i])
     PauliSum(enc.second[begin+i-1]) == PauliSum(frame, matCre[:, i])

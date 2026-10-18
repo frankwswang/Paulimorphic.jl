@@ -55,10 +55,10 @@ end
     getFrustrationInfo(strings::AbstractVector{PauliStr}) -> 
     Pair{Vector{PauliStr}, Vector{ NTuple{2, Int} }}
 
-Compute the (anticommutation) frustration graph of `strings`, treating every its element as 
-a vertex. Two vertices are joined by an edge whenever their Pauli strings anticommute 
+Compute the (anticommutation) frustration graph of `strings`, treating each of its elements 
+as a vertex. Two vertices are joined by an edge whenever their Pauli strings anticommute 
 (via [`checkAntiCom`](@ref)). Same as `getFrustrationInfo(::PauliSum)`, this method returns 
-the frustration graph by its underlying information of as a `Pair`:
+the frustration graph by its underlying information as a `Pair`:
 
     strings => edges
 

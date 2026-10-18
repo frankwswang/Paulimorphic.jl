@@ -29,7 +29,7 @@ Several packages in the Julia ecosystem already provide functionality for constr
 
 The following code builds the transverse-field Ising Hamiltonian on an open chain of `n` sites,
 
-$$H = -J \sum_{i=1}^{n-1} Z_i Z_{i+1} - h \sum_{i=1}^{n} X_i,$$
+$$\hat{H} = -J \sum_{i=1}^{n-1} \hat{Z}_i \hat{Z}_{i+1} - h \sum_{i=1}^{n} \hat{X}_i,$$
 
 as a `PauliSum`, and then inspects a few of its properties.
 

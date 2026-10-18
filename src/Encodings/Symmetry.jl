@@ -58,10 +58,10 @@ under exchanging the index pairs of the two particles `p` and `q` specified by `
 ```
 
 An integral tensor may hold this symmetry when the underlying core operator 
-``O(x_1, \\ldots, x_N)`` is invariant under exchanging the respective coordinates of 
+``\\hat{O}(x_1, \\ldots, x_N)`` is invariant under exchanging the respective coordinates of 
 particles `p` and `q`, ``x_p`` and ``x_q``. In other words, these `N` particles are 
 considered **identical** with respect to operations (e.g., interactions) characterized by 
-``O``.
+``\\hat{O}``.
 
 If `inte` does not hold this symmetry, `checkInteParticleExchange` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 
@@ -120,16 +120,16 @@ An integral tensor
 
 ```math
 \\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N] =
-\\int O\\big[f_{c_1}^{*}, f_{a_1}, \\ldots, f_{c_N}^{*}, f_{a_N}\\big](x_1, \\ldots, x_N)
-\\, \\mathrm{d}x_1 \\cdots \\mathrm{d}x_N
+\\int \\hat{O}\\big[f_{c_1}^{*}, f_{a_1}, \\ldots, f_{c_N}^{*}, f_{a_N}\\big]
+(x_1, \\ldots, x_N) \\, \\mathrm{d}x_1 \\cdots \\mathrm{d}x_N
 ```
 
-may hold such a symmetry when the action of the underlying core operator ``O`` onto all 
-the basis wavefunctions ``f`` indexed by ``(c_1, a_1, \\ldots, c_N, a_N)`` is invariant 
-under the transposition of ``(a_p, c_p)`` inside the integration expression. For example, 
-when ``O`` is the Coulomb operator (``1/r_{12}``), its corresponding two-particle integral 
-tensor holds a four-fold symmetry of this type as long as all the basis wavefunctions used 
-for the integration are real.
+may hold such a symmetry when the action of the underlying core operator ``\\hat{O}`` onto 
+all the basis wavefunctions ``f`` indexed by ``(c_1, a_1, \\ldots, c_N, a_N)`` is 
+invariant under the transposition of ``(a_p, c_p)`` inside the integration expression. For 
+example, when ``\\hat{O}`` is the Coulomb operator (``1/r_{12}``), its corresponding 
+two-particle integral tensor holds a four-fold symmetry of this type as long as all the 
+basis wavefunctions used for the integration are real.
 
 If `inte` does not hold this symmetry, `checkIntePairTransposition` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 

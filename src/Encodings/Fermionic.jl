@@ -19,12 +19,14 @@ const PairwiseSumEnc{T1<:AbstractVector{<:PauliSum}, T2<:AbstractVector{<:PauliS
 
 Return `true` if `enc` forms a valid `PauliStr`-based or `PauliSum`-based Majorana encoding 
 of `length(enc.first)` fermionic modes, where `enc.first` and `enc.second` respectively 
-store the odd-indexed (``\\gamma_{2p-1}``) and even-indexed (``\\gamma_{2p}``) Majorana 
-operators. Every stored operator ``\\gamma_i`` must be Hermitian and the operators must 
-also satisfy the following anticommutation relation: 
+store the odd-indexed (``\\hat{\\gamma}_{2p-1}``) and even-indexed 
+(``\\hat{\\gamma}_{2p}``) Majorana operators. Every stored operator ``\\hat{\\gamma}_i`` 
+must be Hermitian and the operators must also satisfy the following anticommutation 
+relation: 
 
 ```math
-\\gamma_i \\gamma_j + \\gamma_j \\gamma_i = 2 \\delta_{ij} I.
+\\hat{\\gamma}_i \\hat{\\gamma}_j + \\hat{\\gamma}_j \\hat{\\gamma}_i
+= 2 \\delta_{ij} \\hat{I}.
 ```
 
 Additionally, `enc` must be formatted such that all contained Majorana operators explicitly 
@@ -155,7 +157,8 @@ fermionic modes as a Majorana encoding (see [`checkMajoranaEnc`](@ref)): a colle
 sites. Mode `p` is associated with the Majorana-operator pair, 
 
 ```math
-\\gamma_{2p-1} = Z_1 \\cdots Z_{p-1} X_p, \\qquad \\gamma_{2p} = Z_1 \\cdots Z_{p-1} Y_p.
+\\hat{\\gamma}_{2p-1} = \\hat{Z}_1 \\cdots \\hat{Z}_{p-1} \\hat{X}_p, \\qquad
+\\hat{\\gamma}_{2p} = \\hat{Z}_1 \\cdots \\hat{Z}_{p-1} \\hat{Y}_p.
 ```
 
 As a result, the expression of each occupation-number vector state remains unchanged in the 
@@ -173,8 +176,8 @@ carries the identity.
 
 # Returned format
 The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
-(``\\gamma_{2p-1}``) are stored in `res.first` and Majorana operators with even indices 
-(``\\gamma_{2p}``) are stored in `res.second`.
+(``\\hat{\\gamma}_{2p-1}``) are stored in `res.first` and Majorana operators with even 
+indices (``\\hat{\\gamma}_{2p}``) are stored in `res.second`.
 """
 function genJordanWignerEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
@@ -207,11 +210,11 @@ Hermitian, mutually anticommuting Pauli strings, each explicitly acting on `nSit
 Mode `p` is associated with the Majorana-operator pair, 
 
 ```math
-\\gamma_{2p-1} = Z_{p-1} X_p X_{p+1} \\cdots X_N, \\qquad
-\\gamma_{2p} = Y_p X_{p+1} \\cdots X_N,
+\\hat{\\gamma}_{2p-1} = \\hat{Z}_{p-1} \\hat{X}_p \\hat{X}_{p+1} \\cdots \\hat{X}_N, \\qquad
+\\hat{\\gamma}_{2p} = \\hat{Y}_p \\hat{X}_{p+1} \\cdots \\hat{X}_N,
 ```
 
-where ``N`` denotes `nMode` and ``Z_{p-1}`` is absent for `p == 1`.
+where ``N`` denotes `nMode` and ``\\hat{Z}_{p-1}`` is absent for `p == 1`.
 
 As a result, site `j` stores the parity of the first `j` mode occupancies, making the 
 encoding the prefix-sum dual of the Jordan–Wigner encoding. Each occupation-number vector 
@@ -229,8 +232,8 @@ carries the identity.
 
 # Returned format
 The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
-(``\\gamma_{2p-1}``) are stored in `res.first` and Majorana operators with even indices 
-(``\\gamma_{2p}``) are stored in `res.second`.
+(``\\hat{\\gamma}_{2p-1}``) are stored in `res.first` and Majorana operators with even 
+indices (``\\hat{\\gamma}_{2p}``) are stored in `res.second`.
 """
 function genParityEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
@@ -266,8 +269,8 @@ fermionic modes as a Majorana encoding (see [`checkMajoranaEnc`](@ref)): a colle
 sites. Mode `p` is associated with the Majorana-operator pair, 
 
 ```math
-\\gamma_{2p-1} = X_{U(p)} X_p Z_{P(p)}, \\qquad
-\\gamma_{2p} = X_{U(p)} Y_p Z_{P(p) \\setminus F(p)},
+\\hat{\\gamma}_{2p-1} = \\hat{X}_{U(p)} \\hat{X}_p \\hat{Z}_{P(p)}, \\qquad
+\\hat{\\gamma}_{2p} = \\hat{X}_{U(p)} \\hat{Y}_p \\hat{Z}_{P(p) \\setminus F(p)},
 ```
 
 where the update set ``U(p)``, parity set ``P(p)``, and flip set ``F(p)`` are the index 
@@ -281,8 +284,8 @@ as ``O(\\log \\mathtt{nMode})``. `nMode` must be positive and `nSite` must be no
 
 # Returned format
 The encoding is returned as a `res::Pair` such that the Majorana operators with odd indices 
-(``\\gamma_{2p-1}``) are stored in `res.first` and Majorana operators with even indices 
-(``\\gamma_{2p}``) are stored in `res.second`.
+(``\\hat{\\gamma}_{2p-1}``) are stored in `res.first` and Majorana operators with even 
+indices (``\\hat{\\gamma}_{2p}``) are stored in `res.second`.
 """
 function genBravyiKitaevEnc(nMode::Integer, nSite::Integer=nMode)::PairwiseStrEnc
     nModeInt, nSiteInt = checkEncodingCounts(nMode, nSite)
@@ -347,25 +350,28 @@ fermionic encoding returned as `res`, whose stored operators obey the following
 anticommutation relations: 
 
 ```math
-a_p a_q^\\dagger + a_q^\\dagger a_p = \\delta_{pq} I, \\qquad a_p a_q + a_q a_p = 0,
+\\hat{a}_p \\hat{a}_q^\\dagger + \\hat{a}_q^\\dagger \\hat{a}_p = \\delta_{pq} \\hat{I},
+\\qquad \\hat{a}_p \\hat{a}_q + \\hat{a}_q \\hat{a}_p = 0,
 ```
 
-where ``a_p`` is the annihilation operator stored at `res.first[begin+p-1]` and 
-``a_p^\\dagger`` is the creation operator stored at `res.second[begin+p-1]`. Furthermore, 
-the relations between the Dirac (fermionic) operators and the Majorana operators are as 
-follows: 
+where ``\\hat{a}_p`` is the annihilation operator stored at `res.first[begin+p-1]` and 
+``\\hat{a}_p^\\dagger`` is the creation operator stored at `res.second[begin+p-1]`. 
+Furthermore, the relations between the Dirac (fermionic) operators and the Majorana 
+operators are as follows: 
 
 ```math
-a_p = \\frac{\\gamma_{2p-1} + \\mathrm{i} \\, \\gamma_{2p}}{2}, \\qquad
-a_p^\\dagger = \\frac{\\gamma_{2p-1} - \\mathrm{i} \\, \\gamma_{2p}}{2},
+\\hat{a}_p =
+\\frac{\\hat{\\gamma}_{2p-1} + \\mathrm{i} \\, \\hat{\\gamma}_{2p}}{2}, \\qquad
+\\hat{a}_p^\\dagger =
+\\frac{\\hat{\\gamma}_{2p-1} - \\mathrm{i} \\, \\hat{\\gamma}_{2p}}{2},
 ```
 
-where ``\\gamma_{2p-1}`` and ``\\gamma_{2p}`` denote `enc.first[begin+p-1]` and 
-`enc.second[begin+p-1]`, respectively. Each Dirac operator is a two-term canonical-form 
-[`PauliSum`](@ref). In the first method, `T` must be able to exactly represent `1//2` 
-(e.g., a concrete `AbstractFloat` or `Rational` subtype); the second method falls back to 
-the first method with `T=Rational{Int}`. The result in both methods does not reference any 
-data in `enc`.
+where ``\\hat{\\gamma}_{2p-1}`` and ``\\hat{\\gamma}_{2p}`` denote `enc.first[begin+p-1]` 
+and `enc.second[begin+p-1]`, respectively. Each Dirac operator is a two-term 
+canonical-form [`PauliSum`](@ref). In the first method, `T` must be able to exactly 
+represent `1//2` (e.g., a concrete `AbstractFloat` or `Rational` subtype); the second 
+method falls back to the first method with `T=Rational{Int}`. The result in both methods 
+does not reference any data in `enc`.
 """
 function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:Real}
     oneHalf = one(T) / 2
@@ -401,10 +407,10 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
     Pair{<:PauliSum, <:PauliSum}
 
 Convert a single-mode Dirac-operator pair `opPair`, in which `opPair.first` and 
-`opPair.second` respectively represent the annihilation operator ``a`` and the creation 
-operator ``c`` of the same fermionic mode, into the corresponding pair of Majorana 
-operators returned as `res`, where `res.first` holds ``a + c`` and `res.second` holds 
-``\\mathrm{i} \\, (c - a)``.
+`opPair.second` respectively represent the annihilation operator ``\\hat{a}`` and the 
+creation operator ``\\hat{c}`` of the same fermionic mode, into the corresponding pair of 
+Majorana operators returned as `res`, where `res.first` holds ``\\hat{a} + \\hat{c}`` and 
+`res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``.
 
 When `checkForDiracPair=true`, `opPair` is first verified to form a valid single-mode 
 Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
@@ -461,13 +467,14 @@ end
 Return `true` if `enc` forms a valid Dirac fermionic encoding. It must contain a `Pair` of 
 `AbstractVector`, holding in total (positive) `2p` operators represented by `PauliSum`. 
 Specifically, `enc.first` and `enc.second` must respectively store `p` annihilation 
-operators (``a_i``, denoting `enc.first[begin+i-1]`) and creation operators (``c_j``, 
-denoting `enc.second[begin+j-1]`), which satisfy the following adjoint condition and 
-anticommutation relations: 
+operators (``\\hat{a}_i``, denoting `enc.first[begin+i-1]`) and creation operators 
+(``\\hat{c}_j``, denoting `enc.second[begin+j-1]`), which satisfy the following adjoint 
+condition and anticommutation relations: 
 
 ```math
-c_i = a_i^\\dagger, \\qquad a_i c_j + c_j a_i = \\delta_{ij} I,
-\\qquad a_i a_j + a_j a_i = 0
+\\hat{c}_i = \\hat{a}_i^\\dagger, \\qquad
+\\hat{a}_i \\hat{c}_j + \\hat{c}_j \\hat{a}_i = \\delta_{ij} \\hat{I}, \\qquad
+\\hat{a}_i \\hat{a}_j + \\hat{a}_j \\hat{a}_i = 0
 ```
 
 for every mode pair `(i, j)`. The adjoint condition is checked structurally (via 
@@ -482,11 +489,12 @@ Additionally, `enc` must be formatted such that
   [`countSites`](@ref) returns the same value)
 
 When `strRestricted=true`, `enc` must additionally be convertible to a Pauli-string-based 
-Majorana encoding: for each mode `i`, ``a_i + c_i`` and ``\\mathrm{i} \\, (c_i - a_i)`` 
-must each be representable as a `PauliStr` with a phase of exactly `1` or `-1`. Under the 
-default `strRestricted=false`, encodings whose modes are represented as `PauliSum` beyond 
-containing a single `PauliStr` are accepted as long as they satisfy the Hermitian adjoint 
-condition and the anticommutation relations.
+Majorana encoding: for each mode `i`, ``\\hat{a}_i + \\hat{c}_i`` and 
+``\\mathrm{i} \\, (\\hat{c}_i - \\hat{a}_i)`` must each be representable as a `PauliStr` 
+with a phase of exactly `1` or `-1`. Under the default `strRestricted=false`, encodings 
+whose modes are represented as `PauliSum` beyond containing a single `PauliStr` are 
+accepted as long as they satisfy the Hermitian adjoint condition and the anticommutation 
+relations.
 
 All operator comparisons are exact, so an encoding whose coefficients are subject to 
 floating-point errors (e.g., mode-mixing amplitudes that are not exactly representable) 
@@ -622,13 +630,14 @@ Convert a valid Dirac fermionic encoding `enc` (verified via [`checkDiracEnc`](@
 as the inverse transformation of [`toDiracEnc`](@ref): 
 
 ```math
-\\gamma_{2p-1} = a_p^\\dagger + a_p, \\qquad
-\\gamma_{2p} = \\mathrm{i} \\, (a_p^\\dagger - a_p),
+\\hat{\\gamma}_{2p-1} = \\hat{a}_p^\\dagger + \\hat{a}_p, \\qquad
+\\hat{\\gamma}_{2p} = \\mathrm{i} \\, (\\hat{a}_p^\\dagger - \\hat{a}_p),
 ```
 
-where ``a_p`` denotes `enc.first[begin+p-1]`, and ``\\gamma_{2p-1}`` and ``\\gamma_{2p}`` 
-denote `res.first[begin+p-1]` and `res.second[begin+p-1]`, respectively. In the first two 
-method signatures, the first argument selects the output representation:
+where ``\\hat{a}_p`` denotes `enc.first[begin+p-1]`, and ``\\hat{\\gamma}_{2p-1}`` and 
+``\\hat{\\gamma}_{2p}`` denote `res.first[begin+p-1]` and `res.second[begin+p-1]`, 
+respectively. In the first two method signatures, the first argument selects the output 
+representation:
 
 - `::Type{PauliStr}`: each recovered Majorana operator must be representable as a single 
   `PauliStr` with a coefficient of exactly `1` or `-1`; equivalently, `enc` must satisfy 

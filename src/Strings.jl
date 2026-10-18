@@ -15,15 +15,15 @@ representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 Specifically, each element is represented by 
 
 ```math
-\\mathtt{phase} \\, (P_1 \\otimes P_2 \\otimes \\cdots \\otimes P_n),
+\\mathtt{phase} \\, (\\hat{P}_1 \\otimes \\hat{P}_2 \\otimes \\cdots \\otimes \\hat{P}_n),
 ```
 
-where ``P_k`` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
-bits of the `x` and `z` buffers (each as one contiguous bitstring),
+where ``\\hat{P}_k`` is a single-site Pauli encoded as a pair of bits specified by the 
+`k`-th bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
 ```math
-(x_k, z_k) \\mapsto P_k: \\quad (0, 0) \\mapsto I, \\quad (0, 1) \\mapsto Z, \\quad
-(1, 0) \\mapsto X, \\quad (1, 1) \\mapsto Y;
+(x_k, z_k) \\mapsto \\hat{P}_k: \\quad (0, 0) \\mapsto \\hat{I}, \\quad
+(0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
 ```
 
 and ``\\mathtt{phase}`` is the complex coefficient [`evalPhase`](@ref)`(.phase)` encoded 
@@ -40,8 +40,10 @@ from `i`-th word to `i+1`-th word). Bits past site `n` in the final word are zer
 construction.
 
 # Fields
-- `.x::Memory{UInt}`: X-component — bit `k` is set iff ``P_k \\in \\{X, Y\\}``.
-- `.z::Memory{UInt}`: Z-component — bit `k` is set iff ``P_k \\in \\{Z, Y\\}``.
+- `.x::Memory{UInt}`: X-component — bit `k` is set iff 
+  ``\\hat{P}_k \\in \\{\\hat{X}, \\hat{Y}\\}``.
+- `.z::Memory{UInt}`: Z-component — bit `k` is set iff 
+  ``\\hat{P}_k \\in \\{\\hat{Z}, \\hat{Y}\\}``.
 - `.phase::PhaseFactor`: phase information such that `im^Int(.phase)` returns one of the 
   four overall phase coefficients.
 - `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
@@ -54,7 +56,7 @@ construction.
     onto its unrepresented sites (with the site index increasing from left to right),
 
     ```math
-    P \\mapsto P \\otimes I \\otimes \\cdots \\otimes I,
+    \\hat{P} \\mapsto \\hat{P} \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
     ```
 
     without mutating either input. Under this convention, a zero-site `PauliStr` 
@@ -472,11 +474,12 @@ end
 A linear combination of Pauli strings, i.e. a general operator
 
 ```math
-\\sum_k c_k \\, P_k,
+\\sum_k c_k \\, \\hat{P}_k,
 ```
 
-stored as two parallel buffers: the Pauli strings ``P_k`` in `.str::Memory{PauliStr}` and 
-their associated coefficients ``c_k`` in `.coeff::Memory{Complex{T}}`.
+stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in 
+`.str::Memory{PauliStr}` and their associated coefficients ``c_k`` in 
+`.coeff::Memory{Complex{T}}`.
 
 # Fields
 - `.str::Memory{PauliStr}`: the Pauli strings, one per stored term.

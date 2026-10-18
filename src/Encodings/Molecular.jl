@@ -132,6 +132,13 @@ where ``c_n = a_n^\\dagger`` (``1 \\le n \\le N``).
 """
 struct NormalOrder <: StructuredType end #> (1', 2', ..., N', N, ..., 2, 1)
 
+"""
+    NBodyOrdering
+
+The (type) union of [`PairedOrder`](@ref) and [`NormalOrder`](@ref). It is a type alias 
+for the operator orderings supported by functions such as [`genNBodyOperatorSum`](@ref) 
+and [`encodeElecHam`](@ref) (as the type constraint for argument `format`).
+"""
 const NBodyOrdering = Union{PairedOrder, NormalOrder}
 
 
@@ -452,10 +459,11 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 end
 
 """
-    gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractArray{C, D}, 
-                        iModeStart::Integer=1; hermiticity::Bool=true, 
-                        idxPairSymm::Bool=false, checkInput::Bool=true) where 
-                       {T<:Real, C<:Union{Complex{T}, T}, D} -> 
+    gen1BodyOperatorSum(oneSecEnc::Pair{<:AbstractVector{<:PauliSum}, 
+                                        <:AbstractVector{<:PauliSum}}, 
+                        orbInte::AbstractMatrix{C}, iModeStart::Integer=1; 
+                        hermiticity::Bool=true, idxPairSymm::Bool=false, 
+                        checkInput::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum
 
 Return a one-particle operator summation as the linear combination of products of 

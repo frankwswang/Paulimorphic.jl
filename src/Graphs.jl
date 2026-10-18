@@ -6,17 +6,18 @@ export StrictGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
 """
     StrictGraph{T<:Integer}
 
-A strict graph (also known as a simple graph) represented by a graph order 
-(`0 <= .order::Int <= typemax(Int)`) and adjacency sets (`.adjacency`). The graph is 
-undirected and contains no self-loops or parallel edges. Vertices (if they exist) are 
-labeled by positive integers of type `T` (ranging from `1` to `.order`).
+A strict graph (also known as a simple graph) represented by a graph order (`.order::Int`) 
+and adjacency sets (`.adjacency::Memory{Set{T}}`). The graph is undirected and contains no 
+self-loops or parallel edges. Vertices (if they exist) are labeled by positive integers of 
+type `T` (ranging from `1` to `.order`).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
     StrictGraph{T}
 
-Construct a strict graph of `order` with no edges.
+Construct a strict graph of `order` with no edges. `order` must be in `0:typemax(Int)` and, 
+for a bounded `T`, must not exceed `typemax(T)`; otherwise, a `DomainError` is thrown.
 
     StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
                 explicitError::Bool=false) where {T<:Integer} -> 

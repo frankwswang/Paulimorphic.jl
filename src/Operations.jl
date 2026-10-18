@@ -345,7 +345,10 @@ mul(promote_type(T, real(C)), h, coeff, simplification)
     h * phase -> PauliSum
     phase * h -> PauliSum
 
-Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form.
+Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. The result does 
+not reference any data in `h`.
 """
 mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true) where 
    {T<:Real} = 

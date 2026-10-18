@@ -18,7 +18,7 @@ Specifically, each element is represented by
 \\mathtt{phase} \\, (P_1 \\otimes P_2 \\otimes \\cdots \\otimes P_n),
 ```
 
-where `P_k` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
+where ``P_k`` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
 bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
 ```math
@@ -26,10 +26,11 @@ bits of the `x` and `z` buffers (each as one contiguous bitstring),
 (1, 0) \\mapsto X, \\quad (1, 1) \\mapsto Y;
 ```
 
-and `phase::`[`PhaseFactor`](@ref) takes one of the values in `(+1, +im, -1, -im)`. 
-Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
-multiplication. The phase generated when two `PauliStr` are multiplied is absorbed into 
-the result's `.phase`.
+and ``\\mathtt{phase}`` is the complex coefficient [`evalPhase`](@ref)`(.phase)` encoded 
+by the field `.phase::`[`PhaseFactor`](@ref), one of `+1`, `+im`, `-1`, and `-im`. Carrying 
+the phase coefficient keeps `PauliStr` a member of the Pauli group under multiplication. 
+The phase generated when two `PauliStr` are multiplied is absorbed into the result's 
+`.phase`.
 
 # Bit layout
 With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
@@ -72,26 +73,29 @@ construction.
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
-             phase::PhaseFactor, nSite=8*sizeof(UInt)*length(xWords)) -> PauliStr
+             phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords)) -> PauliStr
 
 Construct a `PauliStr` on `nSite` sites from the bit-packed components, `xWords` and 
-`zWords`. The layouts of `xWords` and `zWords` should follow the layout for fields `.x` and 
-`.z` of `PauliStr`, respectively. `phase::`[`PhaseFactor`](@ref) assigns the value of field 
-`.phase`. `nSite` assigns the value of field `.n`, which in default is set to the inputs' 
-full capacity, `8 * sizeof(UInt) * length(xWords)`. `nSite` may fall on either side of that 
-capacity: when it is smaller, only the leading `cld(nSite, 8 * sizeof(UInt))` words of each 
-input are taken — any surplus words are ignored; when it is larger, every site past `nSite` 
-carries the identity. The components are copied into freshly allocated buffers, so the 
-returned `PauliStr` does not reference `xWords` or `zWords`.
+`zWords`, which must have the same length. The layouts of `xWords` and `zWords` should 
+follow the layout for fields `.x` and `.z` of `PauliStr`, respectively. 
+`phase::`[`PhaseFactor`](@ref) assigns the value of field `.phase`. `nSite` assigns the 
+value of field `.n`, which by default is set to the inputs' full capacity, 
+`8 * sizeof(UInt) * length(xWords)`. `nSite` may fall on either side of that capacity: when 
+it is smaller, only the leading `cld(nSite, 8 * sizeof(UInt))` words of each input are 
+taken — any surplus words are ignored, and the bits above site `nSite` in the last taken 
+word are cleared; when it is larger, every site past the capacity (up to `nSite`) carries 
+the identity. The components are copied into freshly allocated buffers, so the returned 
+`PauliStr` does not reference `xWords` or `zWords`.
 
     PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$(posRea|>repr)) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symZ`, `symX`, `symY`) per site, with `list[i]` acting on site `i`. The resulting string 
-spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
-phase attached to the Pauli string as `im^Int(.phase)`, which in default is `+1`.
+spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the phase attached to 
+the Pauli string (as `im^Int(.phase)`), which by default is `+1`.
 
-    PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
+    PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, 
+             phase::PhaseFactor=PhaseFactor(0)) -> PauliStr
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
 single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative. 
@@ -770,7 +774,8 @@ countTerms(h::PauliSum) = length(h.str)
 Return the number of sites `str` explicitly acts on (stored in its field `.n`). Per the 
 implicit identity-padding convention (see [`PauliStr`](@ref)), `str` acts as the identity 
 on every site beyond this count. Therefore, the returned value effectively describes the 
-lower bound of the number of single-site operators `str` can be composed with.
+minimal number of single-site operators required to represent `str` without implicit 
+identity padding.
 """
 countSites(str::PauliStr) = str.n
 
@@ -838,10 +843,10 @@ end
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
-`(abs(w), real(w), imag(w))` of the corresponding weight, yielding a total order even when 
-duplicate strings are present; otherwise, the strings alone form the sort key ordered by 
-`isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must share the same 
-length.
+`(abs(c), real(c), imag(c))` of the corresponding coefficient `c`, yielding a total order 
+even when duplicate strings are present; otherwise, the strings alone form the sort key 
+ordered by `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must 
+share the same length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
                       coeffs::AbstractVector{<:RealOrComplex}, considerCoeff::Bool=true)

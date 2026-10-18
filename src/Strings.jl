@@ -12,17 +12,18 @@ using LinearAlgebra: dot
 An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 
-Specifically, each element is represented by 
+Specifically, each element ``\\hat{P}_k`` is represented by 
 
 ```math
-\\mathtt{phase} \\, (\\hat{P}_1 \\otimes \\hat{P}_2 \\otimes \\cdots \\otimes \\hat{P}_n),
+\\hat{P}_k = (\\hat{\\sigma}_1 \\otimes \\hat{\\sigma}_2 \\otimes \\cdots \\otimes 
+              \\hat{\\sigma}_n) \\, \\mathtt{phase}, 
 ```
 
-where ``\\hat{P}_k`` is a single-site Pauli encoded as a pair of bits specified by the 
-`k`-th bits of the `x` and `z` buffers (each as one contiguous bitstring),
+where ``\\hat{\\sigma}_k`` is a single-site Pauli encoded as a pair of bits specified by 
+the `k`-th bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
 ```math
-(x_k, z_k) \\mapsto \\hat{P}_k: \\quad (0, 0) \\mapsto \\hat{I}, \\quad
+(x_k, z_k) \\mapsto \\hat{\\sigma}_k: \\quad (0, 0) \\mapsto \\hat{I}, \\quad
 (0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
 ```
 
@@ -41,9 +42,9 @@ construction.
 
 # Fields
 - `.x::Memory{UInt}`: X-component — bit `k` is set iff 
-  ``\\hat{P}_k \\in \\{\\hat{X}, \\hat{Y}\\}``.
+  ``\\hat{\\sigma}_k \\in \\{\\hat{X}, \\hat{Y}\\}``.
 - `.z::Memory{UInt}`: Z-component — bit `k` is set iff 
-  ``\\hat{P}_k \\in \\{\\hat{Z}, \\hat{Y}\\}``.
+  ``\\hat{\\sigma}_k \\in \\{\\hat{Z}, \\hat{Y}\\}``.
 - `.phase::PhaseFactor`: phase information such that `im^Int(.phase)` returns one of the 
   four overall phase coefficients.
 - `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
@@ -56,7 +57,7 @@ construction.
     onto its unrepresented sites (with the site index increasing from left to right),
 
     ```math
-    \\hat{P} \\mapsto \\hat{P} \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
+    \\hat{P}_k \\mapsto \\hat{P}_k \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
     ```
 
     without mutating either input. Under this convention, a zero-site `PauliStr` 

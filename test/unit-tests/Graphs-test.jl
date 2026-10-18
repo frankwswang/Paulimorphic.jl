@@ -593,6 +593,14 @@ end
         @test bl1
         @test bl2
     end
+
+    @testset "return-type stability" begin
+        g = StrictGraph(4, NTuple{2, Int16}[(1, 2), (2, 3), (3, 4)])
+        res = breadthFirstSearch(==(3), g, Int16(2)) #> Search sequence: 2, 1, 3
+        @test res == (3, 3)
+        @test res === (Int16(3), 3)
+        @test (@inferred breadthFirstSearch(==(3), g, Int16(2))) isa Tuple{Int16, Int}
+    end
 end
 
 # ──────────────────────────────────────────────────────────────────────────────

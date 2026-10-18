@@ -34,7 +34,6 @@ end
 const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
 
 """
-
     toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> 
     $(SparseMatrixCSC|>repr){Complex{T}, Int}
 

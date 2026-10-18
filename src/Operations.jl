@@ -31,8 +31,8 @@ add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) =
 add(Int, str1, str2, simplification)
 
 """
-    add(::Type{T}, h1::PauliSum, h2::PauliSum, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    add(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
 
     add(h1::PauliSum{T1}, h2::PauliSum{T2}, 
         simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
@@ -61,13 +61,13 @@ add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where
 add(promote_type(T1, T2), h1, h2, simplification)
 
 """
-    add(::Type{T}, h::PauliSum, term::Pair{PauliStr, <:Union{Complex, Real}}, 
-        simplification::Bool=true) where {T<:Real} -> 
+    add(::Type{T}, h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> 
     PauliSum{T}
 
-    add(h::PauliSum{T}, term::Pair{PauliStr, C}, 
-        simplification::Bool=true) where {T<:Real, C<:Union{Real, Complex}} -> 
-    PauliSum{promote_type(T, real(C))}
+    add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    PauliSum{promote_type(T1, T2)}
 
     h + term -> PauliSum
     term + h -> PauliSum
@@ -345,7 +345,10 @@ mul(promote_type(T, real(C)), h, coeff, simplification)
     h * phase -> PauliSum
     phase * h -> PauliSum
 
-Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form.
+Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical form. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. The result does 
+not reference any data in `h`.
 """
 mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true) where 
    {T<:Real} = 
@@ -453,7 +456,9 @@ checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, 
     evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Return the commutator [`op1`, `op2`] = `op1`*`op2` - `op2`*`op1` as a `PauliSum`. 
+Return the commutator 
+``[\\hat{O}_1, \\hat{O}_2] = \\hat{O}_1 \\hat{O}_2 - \\hat{O}_2 \\hat{O}_1``, with 
+``\\hat{O}_1`` and ``\\hat{O}_2`` denoting `op1` and `op2` respectively, as a `PauliSum`. 
 The multiplications within the commutation follow the implicit identity-padding convention 
 of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different numbers of 
 sites, the returned sum explicitly acts on the larger site count. When the commutator is 
@@ -483,7 +488,9 @@ end
     evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
-Return the anticommutator {`op1`, `op2`} = `op1`*`op2` + `op2`*`op1` as a `PauliSum`. 
+Return the anticommutator 
+``\\{\\hat{O}_1, \\hat{O}_2\\} = \\hat{O}_1 \\hat{O}_2 + \\hat{O}_2 \\hat{O}_1``, with 
+``\\hat{O}_1`` and ``\\hat{O}_2`` denoting `op1` and `op2` respectively, as a `PauliSum`. 
 The multiplications within the anticommutation follow the implicit identity-padding 
 convention of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different 
 numbers of sites, the returned sum explicitly acts on the larger site count. When the 

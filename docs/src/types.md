@@ -2,5 +2,6 @@
 
 ```@autodocs
 Modules = [Paulimorphic]
-Order   = [:type]
+Order   = [:type, :constant]
+Private = false
 ```

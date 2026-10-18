@@ -17,7 +17,7 @@
 * **Efficient and deterministic representation** of Pauli strings (`PauliStr`) and Pauli sums (`PauliSum`).
 * **Operator algebra**: operator summation, scalar–operator and operator–operator multiplication, Hermitian adjoints, commutation and anticommutation evaluations, etc.
 * **Multi-level data manipulation**: shifting and pasting single-site operators; reframing and truncating Pauli sums, etc.
-* **Frustration-graph analysis**: constructing the anticommutation graph of operators, backed by lightweight graph-theory analysis functionalities, such as connected components, breadth-first search, isomorphism detection, and root-graph reconstruction.
+* **Frustration-graph analysis**: constructing the anticommutation graph of operators, backed by lightweight graph analysis functionalities, such as connected components, breadth-first search, isomorphism detection, and root-graph reconstruction.
 * **Fermion-to-qubit encodings**: Jordan–Wigner, parity, and Bravyi–Kitaev Majorana encodings, conversion between Majorana and Dirac forms, and validity checkers for both.
 * **Molecular electronic Hamiltonians**: encoding from one- and two-body molecular integral tensors with spin-sectored encodings, selectable operator ordering (`NormalOrder` or `PairedOrder`), and validation of integral symmetries (Hermiticity, particle exchange, and index-pair transposition).
 
@@ -29,7 +29,7 @@ Several packages in the Julia ecosystem already provide functionality for constr
 
 The following code builds the transverse-field Ising Hamiltonian on an open chain of `n` sites,
 
-$$H = -J \sum_{i=1}^{n-1} Z_i Z_{i+1} - h \sum_{i=1}^{n} X_i,$$
+$$\hat{H} = -J \sum_{i=1}^{n-1} \hat{Z}_i \hat{Z}_{i+1} - h \sum_{i=1}^{n} \hat{X}_i,$$
 
 as a `PauliSum`, and then inspects a few of its properties.
 

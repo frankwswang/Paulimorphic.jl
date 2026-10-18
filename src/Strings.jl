@@ -14,17 +14,23 @@ representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 
 Specifically, each element is represented by 
 
-    phase * (P_1 ⊗ P_2 ⊗ … ⊗ P_n),
+```math
+\\mathtt{phase} \\, (\\hat{P}_1 \\otimes \\hat{P}_2 \\otimes \\cdots \\otimes \\hat{P}_n),
+```
 
-where `P_k` is a single-site Pauli encoded as a pair of bits specified by the `k`-th 
-bits of the `x` and `z` buffers (each as one contiguous bitstring),
+where ``\\hat{P}_k`` is a single-site Pauli encoded as a pair of bits specified by the 
+`k`-th bits of the `x` and `z` buffers (each as one contiguous bitstring),
 
-    (x_k, z_k):  (0, 0) => I,  (0, 1) => Z,  (1, 0) => X,  (1, 1) => Y;
+```math
+(x_k, z_k) \\mapsto \\hat{P}_k: \\quad (0, 0) \\mapsto \\hat{I}, \\quad
+(0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
+```
 
-and `phase::`[`PhaseFactor`](@ref) takes one of the values in `(+1, +im, -1, -im)`. 
-Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
-multiplication. The phase generated when two `PauliStr` are multiplied is absorbed into 
-the result's `.phase`.
+and ``\\mathtt{phase}`` is the complex coefficient [`evalPhase`](@ref)`(.phase)` encoded 
+by the field `.phase::`[`PhaseFactor`](@ref), one of `+1`, `+im`, `-1`, and `-im`. Carrying 
+the phase coefficient keeps `PauliStr` a member of the Pauli group under multiplication. 
+The phase generated when two `PauliStr` are multiplied is absorbed into the result's 
+`.phase`.
 
 # Bit layout
 With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
@@ -34,8 +40,10 @@ from `i`-th word to `i+1`-th word). Bits past site `n` in the final word are zer
 construction.
 
 # Fields
-- `.x::Memory{UInt}`: X-component — bit `k` is set iff `P_k ∈ {X, Y}`.
-- `.z::Memory{UInt}`: Z-component — bit `k` is set iff `P_k ∈ {Z, Y}`.
+- `.x::Memory{UInt}`: X-component — bit `k` is set iff 
+  ``\\hat{P}_k \\in \\{\\hat{X}, \\hat{Y}\\}``.
+- `.z::Memory{UInt}`: Z-component — bit `k` is set iff 
+  ``\\hat{P}_k \\in \\{\\hat{Z}, \\hat{Y}\\}``.
 - `.phase::PhaseFactor`: phase information such that `im^Int(.phase)` returns one of the 
   four overall phase coefficients.
 - `.n::Int`: the number of sites (i.e., the "site count") the string explicitly acts on. 
@@ -45,12 +53,14 @@ construction.
     numbers of sites (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)) follows the 
     implicit identity-padding convention: the string with the smaller site count is treated 
     as if temporarily promoted to the larger site count by tensoring single-site identities 
-    onto its unrepresented sites,
+    onto its unrepresented sites (with the site index increasing from left to right),
 
-        str_op -> str_op ⊗ I ⊗ ⋯ ⊗ I    (site number increases from left to right),
+    ```math
+    \\hat{P} \\mapsto \\hat{P} \\otimes \\hat{I} \\otimes \\cdots \\otimes \\hat{I},
+    ```
 
-    without mutating either input. Under this convention, a zero-site `PauliStr` (
-    `.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
+    without mutating either input. Under this convention, a zero-site `PauliStr` 
+    (`.n == 0`, with `.x` and `.z` holding no words) represents `phase` times an identity 
     operator that does not act on any specific site. It is the default representation for 
     the multiplicative unit of the Pauli group up to its `.phase`, composable with a string 
     of any site count. Consequently a zero-site `PauliStr` is only equal (as defined by 
@@ -65,35 +75,38 @@ construction.
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
-             phase::PhaseFactor, nSite=8*sizeof(UInt)*length(xWords)) -> PauliStr
+             phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords)) -> PauliStr
 
 Construct a `PauliStr` on `nSite` sites from the bit-packed components, `xWords` and 
-`zWords`. The layouts of `xWords` and `zWords` should follow the layout for fields `.x` and 
-`.z` of `PauliStr`, respectively. `phase::`[`PhaseFactor`](@ref) assigns the value of field 
-`.phase`. `nSite` assigns the value of field `.n`, which in default is set to the inputs' 
-full capacity, `8 * sizeof(UInt) * length(xWords)`. `nSite` may fall on either side of that 
-capacity: when it is smaller, only the leading `cld(nSite, 8 * sizeof(UInt))` words of each 
-input are taken — any surplus words are ignored; when it is larger, every site past `nSite` 
-carries the identity. The components are copied into freshly allocated buffers, so the 
-returned `PauliStr` does not reference `xWords` or `zWords`.
+`zWords`, which must have the same length. The layouts of `xWords` and `zWords` should 
+follow the layout for fields `.x` and `.z` of `PauliStr`, respectively. 
+`phase::`[`PhaseFactor`](@ref) assigns the value of field `.phase`. `nSite` assigns the 
+value of field `.n`, which by default is set to the inputs' full capacity, 
+`8 * sizeof(UInt) * length(xWords)`. `nSite` may fall on either side of that capacity: when 
+it is smaller, only the leading `cld(nSite, 8 * sizeof(UInt))` words of each input are 
+taken — any surplus words are ignored, and the bits above site `nSite` in the last taken 
+word are cleared; when it is larger, every site past the capacity (up to `nSite`) carries 
+the identity. The components are copied into freshly allocated buffers, so the returned 
+`PauliStr` does not reference `xWords` or `zWords`.
 
     PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$(posRea|>repr)) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symZ`, `symX`, `symY`) per site, with `list[i]` acting on site `i`. The resulting string 
-spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the four optional 
-phase attached to the Pauli string as `im^Int(.phase)`, which in default is `+1`.
+spans `length(list)` sites. `phase::`[`PhaseFactor`](@ref) determines the phase attached to 
+the Pauli string (as `im^Int(.phase)`), which by default is `+1`.
 
-    PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=PhaseFactor(0))
+    PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, 
+             phase::PhaseFactor=PhaseFactor(0)) -> PauliStr
 
 Build a uniform `PauliStr` on `nSite` sites in which every site carries the same 
 single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative. 
-`phase::`[`PhaseFactor`](@ref) determines the four optional phase attached to the Pauli 
-string as `im^Int(.phase)`, which in default is `+1`.
+`phase::`[`PhaseFactor`](@ref) determines the phase attached to the Pauli string (as 
+`im^Int(.phase)`), which by default is `+1`.
 
     PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
 
-Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites and in default 
+Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites, which by default 
 preserves the site count of `pStr`. When `nSite > pStr.n` every site above `pStr.n` carries 
 the identity; when `nSite < pStr.n`, the sites above `nSite` are cropped away. `phase` 
 assigns the value of field `.phase`. The returned `PauliStr` holds freshly allocated 
@@ -400,7 +413,7 @@ Print the output `String` from [`toString`](@ref)`(op::`[`PauliStr`](@ref)`)` to
 false)`), e.g., the REPL's default display buffer, and [`countWeight`](@ref)`(op) > 
 $CONSTVAR!!maximalFullShowSize`, only the first and last $(CONSTVAR!!minimalKeptShowSize÷2) 
 non-identity single-site operators are printed, with the omitted operators replaced by 
-`" … "`. Otherwise, the complete string is always printed (in the default-format).
+`" … "`. Otherwise, the complete string is always printed (in the default format).
 """
 function Base.show(io::IO, op::PauliStr)
     if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
@@ -460,10 +473,13 @@ end
 
 A linear combination of Pauli strings, i.e. a general operator
 
-    ∑_k coeff_k * str_k,
+```math
+\\sum_k c_k \\, \\hat{P}_k,
+```
 
-stored as two parallel buffers: the Pauli strings `.str::Memory{PauliStr}` and their 
-associated coefficients `.coeff::Memory{Complex{T}}`.
+stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in 
+`.str::Memory{PauliStr}` and their associated coefficients ``c_k`` in 
+`.coeff::Memory{Complex{T}}`.
 
 # Fields
 - `.str::Memory{PauliStr}`: the Pauli strings, one per stored term.
@@ -488,12 +504,12 @@ associated coefficients `.coeff::Memory{Complex{T}}`.
              simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
-Construct a `res::PauliSum{T}` with `T=real(C)` from `strs` and `coeffs`. When `coeffs` is 
-an `AbstractVector`, it must have the same length as `strs`, and each `coeffs[i]` is the 
-coefficient initially associated with `strs[i]`; when `coeffs` is a `C` (scalar), it is the 
-coefficient initially associated with every string in `strs`. The core data type `T=Bool` 
-is specifically disallowed because phase absorption must be able to scale a coefficient by 
-`±1` and `±im`, which `Complex{Bool}` cannot represent.
+Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in the second 
+signature. When `coeffs` is an `AbstractVector`, it must have the same length as `strs`, 
+and each `coeffs[i]` is the coefficient initially associated with `strs[i]`; when `coeffs` 
+is a `C` (scalar), it is the coefficient initially associated with every string in `strs`. 
+The core data type `T=Bool` is specifically disallowed because phase absorption must be 
+able to scale a coefficient by `±1` and `±im`, which `Complex{Bool}` cannot represent.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -502,8 +518,8 @@ coefficient, so even with a `coeffs::C`, the stored coefficients may differ term
 When `simplification=true` (by default), equal strings — including strings that 
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
 term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
-accumulated on the precision level of `extendType(T, complex(C))`. For floating-point 
-precisions, the accumulation is realized by [Neumaier 
+accumulated on the precision level of `$(extendType|>repr)(T, complex(C))`. For 
+floating-point precisions, the accumulation is realized by [Neumaier 
 summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
 For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
 addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
@@ -704,7 +720,7 @@ end
 
 
 """
-    setCoeff!(ham::PauliSum{T}, coeff::RealOrComplex, i::Integer, 
+    setCoeff!(ham::PauliSum{T}, coeff::Union{Real, Complex}, i::Integer, 
               copyStr::Bool=true) where {T<:Real} -> Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
@@ -732,7 +748,7 @@ end
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
-`i`th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
+`i`-th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
 default), the returned strings hold no reference to the data in `ham`.
 
 !!! warning
@@ -761,7 +777,8 @@ countTerms(h::PauliSum) = length(h.str)
 Return the number of sites `str` explicitly acts on (stored in its field `.n`). Per the 
 implicit identity-padding convention (see [`PauliStr`](@ref)), `str` acts as the identity 
 on every site beyond this count. Therefore, the returned value effectively describes the 
-lower bound of the number of single-site operators `str` can be composed with.
+number of single-site operators required to represent `str` without implicit identity 
+padding.
 """
 countSites(str::PauliStr) = str.n
 
@@ -829,10 +846,10 @@ end
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
-`(abs(w), real(w), imag(w))` of the corresponding weight, yielding a total order even when 
-duplicate strings are present; otherwise, the strings alone form the sort key ordered by 
-`isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must share the same 
-length.
+`(abs(c), real(c), imag(c))` of the corresponding coefficient `c`, yielding a total order 
+even when duplicate strings are present; otherwise, the strings alone form the sort key 
+ordered by `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must 
+share the same length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
                       coeffs::AbstractVector{<:RealOrComplex}, considerCoeff::Bool=true)
@@ -892,9 +909,9 @@ end
 """
     canonicalize!(ham::PauliSum) -> PauliSum
 
-Rewrite `ham` into a canonical form in place and return it: absorb every string's phase into
-its coefficient (stored in ham.coeff), then sort the Pauli terms into a deterministic total 
-order based on [`$(sortStrings!|>repr)`](@ref).
+Rewrite `ham` into a canonical form in place and return it: absorb every string's phase 
+into its coefficient (stored in `ham.coeff`), then sort the Pauli terms into a 
+deterministic total order based on [`$(sortStrings!|>repr)`](@ref).
 
 This function preserves the term count. In other words, it does **not** merge duplicate 
 strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
@@ -918,8 +935,8 @@ end
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
-    abs(c) >  tolerance * scale    (if inclusive == false)
-    abs(c) >= tolerance * scale    (if inclusive == true )
+    abs(c) >  tolerance * scale    # inclusive == false
+    abs(c) >= tolerance * scale    # inclusive == true
 
 where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
 when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 
@@ -983,7 +1000,7 @@ bits.
 The optional argument `forward` selects the direction of the shift:
 - `forward = true` moves bits toward the most-significant end. The in-word shift (specified 
   by `bitOffset`) direction is from the least significant bit (LSB) to the most significant 
-  bit (MSB) (e.g., a 2-bit shift sends `0b0011` to `0b1100`); the shift across words move 
+  bit (MSB) (e.g., a 2-bit shift sends `0b0011` to `0b1100`); the shift across words moves 
   from the lower index to higher index (e.g., `[w1, w2, _]` becomes `[_, w1, w2]`).
 - `forward = false` is the exact reverse, moving bits toward the least-significant end.
 
@@ -1072,7 +1089,7 @@ first, with the word width set by the element type at `8*sizeof(T)` bits. Every 
 
 `nBit` must be non-negative, and each of `dstBitIdxLo` and `srcBitIdxLo` must be within 
 the bit capacity of its buffer. `nBit` is allowed to exceed the number of bits available 
-in `dstWords` or `srcWords`, in which case the excessive bits (on the more significant 
+in `dstWords` or `srcWords`, in which case the excess bits (on the more significant 
 side) are dropped upon pasting.
 
 !!! warning
@@ -1166,16 +1183,17 @@ are truncated. `dstStart` must be in `1:dst.n`, and a non-empty `srcRange` must 
 `1:src.n`.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
+```text
+lowToHigh = true  (dstStart=2):    lowToHigh = false (dstStart=1):
+    dst: [b1, b2, b3] (initial)        dst:         [b1, b2, b3] (initial)
+    src:     [c1, c2, c3]              src: [c1, c2, c3]
+    dst: [b1, c1, c2] (result)         dst:         [c3, b2, b3] (result)
 
-    lowToHigh = true  (dstStart=2):    lowToHigh = false (dstStart=1):
-     dst: [b1, b2, b3] (initial)       dst:         [b1, b2, b3] (initial)
-     src:     [c1, c2, c3]             src: [c1, c2, c3]
-     dst: [b1, c1, c2] (result)        dst:         [c3, b2, b3] (result)
-
-    lowToHigh = true  (dstStart=2, srcRange=2:3):
-     dst: [b1, b2, b3] (initial)
-     src:     [c2, c3] (site 1 of `src` deselected)
-     dst: [b1, c2, c3] (result)
+lowToHigh = true  (dstStart=2, srcRange=2:3):
+    dst: [b1, b2, b3] (initial)
+    src:     [c2, c3] (site 1 of `src` deselected)
+    dst: [b1, c2, c3] (result)
+```
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
                 src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
@@ -1227,7 +1245,7 @@ value.
 
 `nBit` must be non-negative, and `dstBitIdxLo` must be within the bit capacity of 
 `dstWords`. `nBit` is allowed to exceed the number of bits available in `dstWords`, in 
-which case the excessive bits (on the more significant side) are dropped upon stamping.
+which case the excess bits (on the more significant side) are dropped upon stamping.
 """
 function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
                     nBit::Signed) where {T<:BitUInteger}
@@ -1288,11 +1306,12 @@ direction, the part of the window that falls outside `1:dst.n` is truncated. `st
 must be in `1:dst.n`, and `nSite` must be non-negative.
 
 # Mechanism illustration (e.g., `[b1, b2, b3]` represents a three-site `dst`):
-
-    lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
-     dst: [b1, b2, b3]     (initial)            dst:         [b1, b2, b3] (initial)
-      op:     [op, op, op]                       op: [op, op, op]
-     dst: [b1, op, op]     (result)             dst:         [op, b2, b3] (result)
+```text
+lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSite=3):
+    dst: [b1, b2, b3]     (initial)             dst:         [b1, b2, b3] (initial)
+     op:     [op, op, op]                        op: [op, op, op]
+    dst: [b1, op, op]     (result)              dst:         [op, b2, b3] (result)
+```
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 lowToHigh::Bool=true)
@@ -1356,14 +1375,15 @@ returned. Depending on the specific choice of `filler`, or the value of `nSite` 
 operator as `ham` (up to numerical round-off errors if `simplification=true`).
 
 # Mechanism illustration (`[c1, c2, c3]` represents a three-site string, `fl` the filler):
+```text
+lowToHigh = true  (nSite=5):    lowToHigh = false (nSite=5):
+    old: [c1, c2, c3]               old:         [c1, c2, c3]
+    new: [c1, c2, c3, fl, fl]       new: [fl, fl, c1, c2, c3]
 
-    lowToHigh = true  (nSite=5):    lowToHigh = false (nSite=5):
-     old: [c1, c2, c3]               old:         [c1, c2, c3]
-     new: [c1, c2, c3, fl, fl]       new: [fl, fl, c1, c2, c3]
-
-    lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
-     old: [c1, c2, c3]               old: [c1, c2, c3]
-     new: [c1, c2]                   new:     [c2, c3]
+lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
+    old: [c1, c2, c3]               old: [c1, c2, c3]
+    new: [c1, c2]                   new:     [c2, c3]
+```
 
 # String ownership
 The returned sum does not reference any data in `ham`: its coefficients are held in an 

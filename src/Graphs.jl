@@ -6,17 +6,18 @@ export StrictGraph, countVertices, attachEdge!, removeEdge!, containEdge, getDeg
 """
     StrictGraph{T<:Integer}
 
-A strict graph (also known as a simple graph) represented by a graph order 
-(`0 <= .order::Int <= typemax(Int)`) and adjacency sets (`.adjacency`). The graph is 
-undirected and contains no self-loops or parallel edges. Vertices (if they exist) are 
-labeled by positive integers of type `T` (ranging from `1` to `.order`).
+A strict graph (also known as a simple graph) represented by a graph order (`.order::Int`) 
+and adjacency sets (`.adjacency::Memory{Set{T}}`). The graph is undirected and contains no 
+self-loops or parallel edges. Vertices (if they exist) are labeled by positive integers of 
+type `T` (ranging from `1` to `.order`).
 
 ≡≡≡ Initialization Method(s) ≡≡≡
 
     StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
     StrictGraph{T}
 
-Construct a strict graph of `order` with no edges.
+Construct a strict graph of `order` with no edges. `order` must be in `0:typemax(Int)` and, 
+for a bounded `T`, must not exceed `typemax(T)`; otherwise, a `DomainError` is thrown.
 
     StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}}, 
                 explicitError::Bool=false) where {T<:Integer} -> 
@@ -100,8 +101,8 @@ attachEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, true)
 """
     removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) -> Bool
 
-Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existed edge, 
-was successfully removed, and `false` if `edge` was absent or invalid.
+Remove the undirected `edge=(i, j)` from `g`. Return `true` if `edge`, as an existing 
+edge, was successfully removed, and `false` if `edge` was absent or invalid.
 """
 removeEdge!(g::StrictGraph, edge::NTuple{2, Integer}) = modEdge!(g, edge, false)
 
@@ -125,7 +126,6 @@ end
 
 
 """
-
     getDegree(g::StrictGraph, vertex::Integer) -> Int
 
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
@@ -154,8 +154,8 @@ end
 """
     listEdges(g::StrictGraph{T}) -> Vector{NTuple{2, T}}
 
-Return all undirected edges of `g` as sorted endpoint pairs `(i, j)` in a lexicographically 
-ordered `Vector`.
+Return all undirected edges of `g` as endpoint pairs `(i, j)` with `i < j`, collected in a 
+lexicographically ordered `Vector`.
 """
 function listEdges(g::StrictGraph{T}) where {T<:Integer}
     edges = NTuple{2, T}[]
@@ -233,7 +233,7 @@ end
 
 
 """
-    listComponents(g::StrictGraph{T}) where {T} -> Vector{Vector{T}}
+    listComponents(g::StrictGraph{T}) where {T<:Integer} -> Vector{Vector{T}}
 
 Return the connected components of `g` as a `Vector` of sorted vertices. Components
 are listed in increasing order based on their first listed vertex.
@@ -352,14 +352,14 @@ end
 """
     genRootGraph(g::StrictGraph, checkConnectivity::Bool=true) -> Pair{Bool, StrictGraph}
 
-Attempt to recognize connected `g` as a line graph using [Lehot-style edge-label
-algorithm](https://doi.org/10.1145/321850.321853) to reconstruct potentially corresponding 
-root graph `r`. Return `true => r` if `g` is indeed a (connected) line graph; return 
-`false => g` otherwise. This function is only well behaved when the input `g` is a 
-connected `StrictGraph`. Hence, in default, `checkConnectivity=true` such that any input 
-that is a disconnected graph throws an `ArgumentError`. For disconnected graphs, one can 
-first apply [`decompose`](@ref) to obtain connected subgraphs, and then apply 
-`genRootGraph` to each subgraph.
+Attempt to recognize a connected `g` as a line graph using a [Lehot-style edge-labeling 
+algorithm](https://doi.org/10.1145/321850.321853) to reconstruct its potential root graph 
+`r`. Return `true => r` if `g` is indeed a (connected) line graph; return `false => g` 
+otherwise. This function is only well behaved when the input `g` is a connected 
+`StrictGraph`. Hence, by default `checkConnectivity=true`, so that any disconnected-graph 
+input throws an `ArgumentError`. For disconnected graphs, one can first apply 
+[`decompose`](@ref) to obtain connected subgraphs, and then apply `genRootGraph` to each 
+subgraph.
 """
 function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
@@ -589,7 +589,6 @@ end
 
 
 """
-
     breadthFirstSearch(f, graph::StrictGraph{T}, startingPoint::Union{Missing, T}, 
                        cache!Self::AbstractVector{T}=zeros(T, graph.order)
                        ) where {T<:Integer} -> 
@@ -606,7 +605,7 @@ The predicate `f` is called once for each dequeued vertex as `f(v)::Bool`. If `f
 returns `true`, the search terminates immediately and returns `(v, nVisited)`, where `v::T` 
 is the first vertex satisfying `f`, and `nVisited` is the number of vertices dequeued, 
 equivalently the number of calls to `f`. If no vertex satisfies `f`, the function returns 
-`(zero(T), nVisited)` is used as the sentinel value for "not found".
+`(zero(T), nVisited)`, the sentinel value for "not found".
 
 The optional `cache!Self` is used as a buffer to store the deterministic BFS queue. It must 
 have length at least `graph.order`. The elements of `cache!Self` up to the returned 
@@ -639,15 +638,16 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
             cache!Self[offset+tail] = T(localStart)
 
             while head <= tail
-                lastNode = Int(cache!Self[offset+head])
+                lastNode = cache!Self[offset+head]
 
                 if f(lastNode)::Bool
                     return (lastNode, head) #> Matched node and call count of `f`
                 else
                     tailLast = tail
-                    for child in graph.adjacency[begin+lastNode-1]
-                        if !register[begin+child-1]
-                            register[begin+child-1] = true
+                    for child in graph.adjacency[begin+Int(lastNode)-1]
+                        childInt = Int(child)
+                        if !register[begin+childInt-1]
+                            register[begin+childInt-1] = true
                             tail += 1
                             cache!Self[offset+tail] = child
                         end
@@ -672,7 +672,6 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
 end
 
 """
-
     breadthFirstSearch(graph::StrictGraph{T}, startingPoint::Union{Missing, T}=missing
                        ) where {T<:Integer} -> 
     Vector{T}
@@ -857,10 +856,9 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1016/j.dam.2018.02.018
 """
-    isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T},
-                 match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing) where
-    {T<:Integer} ->
-    Bool
+    isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T}, 
+                 match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing
+                 ) where {T<:Integer} -> Bool
 
 Return whether `g1` is isomorphic to `g2`, i.e., whether there exists a bijection
 between their vertices that preserves vertex adjacency.

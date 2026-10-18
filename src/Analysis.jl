@@ -21,15 +21,15 @@ commuting groups.
 # Approximate frustration information
 This method also supports returning an approximate frustration graph through the optional 
 argument `edgeThreshold::Real`. Specifically, an edge `(i, j)` is included in `edges` only 
-if the `i`-th and `j`-th `PauliStr` in `vertices` anticommute *and* the magnitude of the 
-their coefficient product `c_ij` clears `edgeThreshold`:
+if the `i`-th and `j`-th `PauliStr` in `vertices` anticommute *and* the magnitude of their 
+coefficient product `c_ij` clears `edgeThreshold`:
 
-    abs(c_ij) >  edgeThreshold    (inclusive = false)
-    abs(c_ij) >= edgeThreshold    (inclusive = true )
+    abs(c_ij) >  edgeThreshold    # inclusive == false
+    abs(c_ij) >= edgeThreshold    # inclusive == true
 
 Additionally, keyword `inclusive` selects whether the `c_ij` that equals `edgeThreshold` 
 exactly is kept (`>=`) or dropped (`>`). When `edgeThreshold = 0`, `inclusive = true` 
-will also admit anticommuting term even when their coefficient product is exactly zero, 
+will also admit anticommuting terms even when their coefficient product is exactly zero, 
 whereas `inclusive = false` excludes them. A negative `edgeThreshold` throws an 
 `ArgumentError`. To prune *vertices* (terms) by their own magnitude beforehand, apply 
 [`curtail`](@ref) to `ham` first.
@@ -55,12 +55,12 @@ end
     getFrustrationInfo(strings::AbstractVector{PauliStr}) -> 
     Pair{Vector{PauliStr}, Vector{ NTuple{2, Int} }}
 
-Compute the (anticommutation) frustration graph of `strings`, treating every its element as 
-a vertex. Two vertices are joined by an edge whenever their Pauli strings anticommute 
+Compute the (anticommutation) frustration graph of `strings`, treating each of its elements 
+as a vertex. Two vertices are joined by an edge whenever their Pauli strings anticommute 
 (via [`checkAntiCom`](@ref)). Same as `getFrustrationInfo(::PauliSum)`, this method returns 
-the frustration graph by its underlying information of as a `Pair`:
+the frustration graph by its underlying information as a `Pair`:
 
-    `strings => edges`
+    strings => edges
 
 where `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index 
 pairs `(i, j)`, `i < j`, indexing into `strings` in the given order.
@@ -77,7 +77,8 @@ function getFrustrationInfo(strings::AbstractVector{PauliStr})
 end
 
 """
-    getFrustrationInfoCore!(validEdges, strings, edge::NTuple{2, Int}) -> Pair
+    getFrustrationInfoCore!(validEdges::AbstractVector{NTuple{2, Int}}, 
+                            strings::AbstractVector{PauliStr}, edge::NTuple{2, Int}) -> Pair
 
 Core function for [`getFrustrationInfo`](@ref). It tests the single candidate 
 `edge = (i, j)` (one-based indices into `strings`) and pushes `(i, j)` onto `validEdges` if 

@@ -16,7 +16,7 @@ makedocs(
         "Core Types" => "types.md", 
         "Core Functions" => "functions.md", 
     ], 
-    checkdocs = :all, 
+    checkdocs = :public, 
 )
 
 deploydocs(

@@ -126,7 +126,6 @@ end
 
 
 """
-
     getDegree(g::StrictGraph, vertex::Integer) -> Int
 
 Return the degree (i.e., number of neighbors) of the input `vertex` in `g`.
@@ -234,7 +233,7 @@ end
 
 
 """
-    listComponents(g::StrictGraph{T}) where {T} -> Vector{Vector{T}}
+    listComponents(g::StrictGraph{T}) where {T<:Integer} -> Vector{Vector{T}}
 
 Return the connected components of `g` as a `Vector` of sorted vertices. Components
 are listed in increasing order based on their first listed vertex.
@@ -590,7 +589,6 @@ end
 
 
 """
-
     breadthFirstSearch(f, graph::StrictGraph{T}, startingPoint::Union{Missing, T}, 
                        cache!Self::AbstractVector{T}=zeros(T, graph.order)
                        ) where {T<:Integer} -> 
@@ -674,7 +672,6 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
 end
 
 """
-
     breadthFirstSearch(graph::StrictGraph{T}, startingPoint::Union{Missing, T}=missing
                        ) where {T<:Integer} -> 
     Vector{T}
@@ -859,10 +856,9 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1016/j.dam.2018.02.018
 """
-    isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T},
-                 match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing) where
-    {T<:Integer} ->
-    Bool
+    isIsomorphic(g1::StrictGraph{T}, g2::StrictGraph{T}, 
+                 match!Self::Union{AbstractVector{Pair{T, T}}, Missing}=missing
+                 ) where {T<:Integer} -> Bool
 
 Return whether `g1` is isomorphic to `g2`, i.e., whether there exists a bijection
 between their vertices that preserves vertex adjacency.

@@ -51,7 +51,7 @@ genPauliSym(num::Integer) = PauliSym(num)
 """
     PhaseFactor <: Enum{UInt8}
 
-A `UInt8`-backed enumeration of the four phase coefficients `im^k` that a Pauli-group
+A `UInt8`-based enumeration of the four phase coefficients `im^k` that a Pauli-group
 element may carry (the fourth roots of unity). Each instance's integer value is the
 exponent `k` of `im`:
 

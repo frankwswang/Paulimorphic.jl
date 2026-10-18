@@ -31,8 +31,8 @@ add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) =
 add(Int, str1, str2, simplification)
 
 """
-    add(::Type{T}, h1::PauliSum, h2::PauliSum, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    add(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
 
     add(h1::PauliSum{T1}, h2::PauliSum{T2}, 
         simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
@@ -61,8 +61,8 @@ add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where
 add(promote_type(T1, T2), h1, h2, simplification)
 
 """
-    add(::Type{T}, h::PauliSum, term::Pair{PauliStr, <:Union{Complex, Real}}, 
-        simplification::Bool=true) where {T<:Real} -> 
+    add(::Type{T}, h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> 
     PauliSum{T}
 
     add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 

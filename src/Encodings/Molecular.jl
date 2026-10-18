@@ -351,8 +351,8 @@ validate the structure of `orbInte` when `checkInput=true`:
   `particleExch=false`, it only guarantees the same operator-summation Hermiticity when 
   `format = NormalOrder()`.
 
-- `idxPairSymm=true`: `orbInte` must have index-pair transposition symmetry (checked via 
-  [`checkIntePairTransposition`](@ref)).
+- `idxPairSymm[begin+p-1]=true`: `orbInte` must have index-pair transposition symmetry for 
+  particle `p` (checked via [`checkIntePairTransposition`](@ref)).
 
 !!! info
     When `checkInput` is set to `true`, `enc` is also checked via 
@@ -518,7 +518,10 @@ const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 """
     encodeElecHam(format::$(NBodyOrdering|>repr), 
-                  enc::Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}, 
+                  enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
+                                            <:AbstractVector{<:PauliSum}}}, 
+                             Pair{<:AbstractVector{<:PauliSum}, 
+                                  <:AbstractVector{<:PauliSum}}}, 
                   inte1B2BSpin1::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   inte1B2BSpin2::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   inte2BCross::AbstractArray{C, 4}, checkEncoding::Bool=true; 
@@ -588,11 +591,16 @@ regardless of the value of `format`.
 
 ## Simplified method
 
-    encodeElecHam(format::$(NBodyOrdering|>repr), enc::OptSpinSectoredEnc, 
+    encodeElecHam(format::$(NBodyOrdering|>repr), 
+                  enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
+                                            <:AbstractVector{<:PauliSum}}}, 
+                             Pair{<:AbstractVector{<:PauliSum}, 
+                                  <:AbstractVector{<:PauliSum}}}, 
                   orbInte1B2B::Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}, 
                   checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
-                  idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)) -> 
+                  idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)
+                  ) where {T<:Real, C<:Union{Complex{T}, T}} -> 
     PauliSum
 
 The single-set form encodes both spin sectors and their coupling from one shared 

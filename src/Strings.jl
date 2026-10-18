@@ -515,8 +515,8 @@ coefficient, so even with a `coeffs::C`, the stored coefficients may differ term
 When `simplification=true` (by default), equal strings — including strings that 
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
 term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
-accumulated on the precision level of `extendType(T, complex(C))`. For floating-point 
-precisions, the accumulation is realized by [Neumaier 
+accumulated on the precision level of `$(extendType|>repr)(T, complex(C))`. For 
+floating-point precisions, the accumulation is realized by [Neumaier 
 summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
 For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
 addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
@@ -717,7 +717,7 @@ end
 
 
 """
-    setCoeff!(ham::PauliSum{T}, coeff::RealOrComplex, i::Integer, 
+    setCoeff!(ham::PauliSum{T}, coeff::Union{Real, Complex}, i::Integer, 
               copyStr::Bool=true) where {T<:Real} -> Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
@@ -933,7 +933,7 @@ Return a filtered shallow copy of `ham` with negligible terms removed, retaining
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
     abs(c) >  tolerance * scale    # inclusive == false
-    abs(c) >= tolerance * scale    # inclusive == true 
+    abs(c) >= tolerance * scale    # inclusive == true
 
 where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
 when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 

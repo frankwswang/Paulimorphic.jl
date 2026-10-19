@@ -274,7 +274,7 @@ end
     @pauli_str expr -> PauliStr
 
 A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
-carrying the unit phase ([`PhaseFactor(0)`](@ref PhaseFactor)`), where `input[begin+i-1]` 
+carrying the unit phase ([`PhaseFactor(0)`](@ref `PhaseFactor`)), where `input[begin+i-1]` 
 specifies the single-site Pauli operator acting on site `i`. The resulting string spans 
 `length(input)` sites. When `@pauli_str` is directly invoked, any expression `expr` that 
 evaluates (at runtime in the invoking scope) to either one of the following two types of 

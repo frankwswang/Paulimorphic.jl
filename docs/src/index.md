@@ -89,3 +89,17 @@ julia> using Paulimorphic
 Pages = ["types.md", "functions.md"]
 Depth = 2
 ```
+
+## Notation and Conventions
+
+The public docstrings and tutorials in this documentation follow several typesetting conventions:
+
+* Decorative symbol ``\,\hat{}\,`` marks an operator (e.g., ``\hat{X}`` for a single-site Pauli ``X`` operator).
+
+* Symbol ``\mathrm{i}`` denotes the imaginary unit.
+
+* Double square brackets ``\llbracket`` and ``\rrbracket``, as in ``\hat{O}\llbracket f_1, \ldots, f_N \rrbracket``, denote the action of an operator on functions.
+
+* Single square brackets ``[`` and ``]``, as in ``\mathtt{inte}[c_1, a_1, \ldots, c_N, a_N]``, denote the Cartesian indexing of a tensor following the default [array-indexing style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
+
+* Mathematical variables represented by typewriter symbols (i.e., in a monospace format) stand for identifiers of code objects (e.g., ``\mathtt{inte}`` directly mirrors `inte`). A mathematical variable may still partially reference a code object outside of this format when the code object serves as a decorative symbol within the context. For instance, ``i_k`` appearing in a docstring of code expression may reference `k` in the code.

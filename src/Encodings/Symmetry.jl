@@ -8,18 +8,19 @@ using LinearAlgebra: Symmetric, Hermitian
                         {T<:Real, C<:Union{Complex{T}, T}, D} -> 
     Bool
 
-Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
-index-pair layout (axes `(2n-1, 2n)` host the index pairs of particle `n`), is Hermitian 
-under simultaneously transposing every index pair ``(c_n, a_n)``: 
+Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`), whose axes follow the 
+index-pair layout, is Hermitian under simultaneously transposing every index pair 
+``(c_k, a_k)``. Specifically, axes `(2k-1, 2k)` of `inte` must host ``(c_k, a_k)`` for the 
+`k`-th particle, with the value of ``c_k`` labeling a creation operator and the value of 
+``a_k`` labeling an annihilation operator. In other words, `inte` must satisfy 
 
 ```math
 \\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N]
 = \\mathtt{inte}[a_1, c_1, \\ldots, a_N, c_N]^{*},
 ```
 
-where ``[\\ldots,\\ldots]`` represents the multi-dimensional index for `inte`, following 
-the default [array-indexing 
-style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
+where ``{}^{*}`` denotes the complex conjugate and ``[\\ldots,\\ldots]`` represents the 
+multi-dimensional index for `inte`.
 
 If `inte` does not hold this symmetry, `checkInteHermiticity` returns `false`, or throws 
 an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must be 
@@ -53,24 +54,25 @@ end
     Bool
 
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
-index-pair layout (axes `(2n-1, 2n)` host the index pairs of particle `n`), is invariant 
-under exchanging the index pairs of the two particles `p` and `q` specified by `posPair`: 
+index-pair layout (axes `(2k-1, 2k)` host the index pair ``(c_k, a_k)`` of the `k`-th 
+particle), is invariant under exchanging the index pairs of the two particles `k` and `l` 
+with `(k, l) = posPair`: 
 
 ```math
-\\mathtt{inte}[\\ldots, c_p, a_p, \\ldots, c_q, a_q, \\ldots]
-= \\mathtt{inte}[\\ldots, c_q, a_q, \\ldots, c_p, a_p, \\ldots]
+\\mathtt{inte}[\\ldots, c_k, a_k, \\ldots, c_l, a_l, \\ldots]
+= \\mathtt{inte}[\\ldots, c_l, a_l, \\ldots, c_k, a_k, \\ldots]
 ```
 
 An integral tensor may hold this symmetry when the underlying core operator 
 ``\\hat{O}(x_1, \\ldots, x_N)`` is invariant under exchanging the respective coordinates of 
-particles `p` and `q`, ``x_p`` and ``x_q``. In other words, these `N` particles are 
+particles `k` and `l`, ``x_k`` and ``x_l``. In other words, these `N` particles are 
 considered **identical** with respect to operations (e.g., interactions) characterized by 
 ``\\hat{O}``.
 
 If `inte` does not hold this symmetry, `checkInteParticleExchange` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 
-be even; for index pairs `p` and `q`, their corresponding axes must have equal extents. In 
-the case of `p == q`, i.e., no distinct particles are exchanged, 
+be even; the axes hosting the index pairs of particles `k` and `l` must have equal 
+extents. In the case of `k == l`, i.e., no distinct particles are exchanged, 
 `checkInteParticleExchange` always returns `true`.
 """
 function checkInteParticleExchange(inte::AbstractArray{<:RealOrComplex, D}, 
@@ -113,11 +115,12 @@ end
     Bool
 
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
-index-pair layout (axes `(2n-1, 2n)` host the index pairs of particle `n`), is invariant 
-under transposing the index pair ``(a_p, c_p)`` of particle `p = pos` (`1 <= p <= N`): 
+index-pair layout (axes `(2k-1, 2k)` host the index pair ``(c_k, a_k)`` of the `k`-th 
+particle), is invariant under transposing the index pair of particle `k = pos` 
+(`1 <= k <= N`): 
 
 ```math
-\\mathtt{inte}[\\ldots, c_p, a_p, \\ldots] = \\mathtt{inte}[\\ldots, a_p, c_p, \\ldots]
+\\mathtt{inte}[\\ldots, c_k, a_k, \\ldots] = \\mathtt{inte}[\\ldots, a_k, c_k, \\ldots]
 ```
 
 An integral tensor
@@ -130,15 +133,15 @@ An integral tensor
 ```
 
 may hold such a symmetry when the action of the underlying core operator ``\\hat{O}`` onto 
-all the basis wavefunctions ``f`` indexed by ``(c_1, a_1, \\ldots, c_N, a_N)`` is 
-invariant under the transposition of ``(a_p, c_p)`` inside the integration expression. For 
-example, when ``\\hat{O}`` is the Coulomb operator (``1/r_{12}``), its corresponding 
-two-particle integral tensor holds a four-fold symmetry of this type as long as all the 
-basis wavefunctions used for the integration are real.
+all the basis wavefunctions ``f`` indexed by ``(c_1, a_1, \\ldots, c_N, a_N)`` is invariant 
+under the transposition of ``(c_k, a_k)`` inside the integration expression. For example, 
+when ``\\hat{O}`` is the Coulomb operator (``1/r_{12}``), its corresponding two-particle 
+integral tensor holds a four-fold symmetry of this type as long as all the basis 
+wavefunctions used for the integration are real.
 
 If `inte` does not hold this symmetry, `checkIntePairTransposition` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 
-be even; the axes corresponding to ``(a_p, c_p)`` must have equal extents.
+be even; the axes hosting ``(c_k, a_k)`` must have equal extents.
 """
 function checkIntePairTransposition(inte::AbstractArray{<:RealOrComplex, D}, pos::Integer, 
                                     explicitError::Bool=false)::Bool where {D}
@@ -176,13 +179,14 @@ end
     Bool
 
 Return `true` if `inte` is an `N`-particle integral tensor (`N == D÷2 >= 1`), given a tuple 
-of orbital-sector extents `nOrb` (i.e., `nOrb[begin+p-1]` specifies the mode count for 
-particle `p`), and the index-pair transposition symmetry flags. More specifically, 
-`idxPairSymm[begin+p-1]` indicates whether ``\\mathtt{inte}[\\ldots, c_p, a_p, \\ldots]`` 
-is invariant under the transposition of the index pair ``(c_p, a_p)`` for particle `p`. 
-For `inte` to be a valid integral tensor, its axes must follow the index-pair layout: axes 
-`(2n-1, 2n)` host all the index pairs of particle `n` (`1<=n<=N`). Therefore, the size of 
-`inte` must satisfy 
+of orbital-sector extents `nOrb` (i.e., `nOrb[begin+k-1]` specifies the mode count for the 
+`k`-th particle), the orbital-sector labels `orbSecLabel` (particles sharing a label draw 
+from the same orbital set), and the index-pair transposition symmetry flags. More 
+specifically, `idxPairSymm[begin+k-1]` indicates whether 
+``\\mathtt{inte}[\\ldots, c_k, a_k, \\ldots]`` is invariant under the transposition of the 
+index pair ``(c_k, a_k)``. For `inte` to be a valid integral tensor, its axes must follow 
+the index-pair layout: axes `(2k-1, 2k)` host the index pair ``(c_k, a_k)`` of the `k`-th 
+particle (`1 <= k <= N`). Therefore, the size of `inte` must satisfy 
 
     size(inte) == Tuple(repeat(collect(nOrb), inner=2))
 
@@ -211,7 +215,7 @@ If any above symmetry check fails, or the size of `inte` does not match `nOrb`,
 !!! info
     When `particleExch=true`, for `idxPairSymm` to be in a valid form (aside from being of 
     the allowed type), `idxPairSymm` must have the same equality pattern as `orbSecLabel`. 
-    In other words, for any valid index pair `i` and `j` (`1<=i<=j<=N`), 
+    In other words, for any two particles `i` and `j` (`1<=i<=j<=N`), 
     `orbSecLabel[begin+i-1] == orbSecLabel[begin+j-1]` must imply 
     `idxPairSymm[begin+i-1] == idxPairSymm[begin+j-1]`.
 """
@@ -250,7 +254,7 @@ function checkNBodyInteTensor(inte::AbstractArray{<:RealOrComplex, D},
         end
     end
 
-    #> Tensor axes follow the index-pair layout: axes `(2n-1, 2n)` belong to particle `n`
+    #> Tensor axes follow the index-pair layout: axes `(2k-1, 2k)` belong to particle `k`
     shape = ntuple(d->nOrb[begin + (d-1)÷2], Val(D))
     if size(inte) != shape
         if explicitError

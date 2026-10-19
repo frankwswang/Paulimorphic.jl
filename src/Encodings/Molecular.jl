@@ -20,11 +20,12 @@ must obey all the following conditions:
 If any condition fails, `checkSpinSectoredEnc` returns `false`, or throws an error when 
 `explicitError` is set to `true`.
 """
-function checkSpinSectoredEnc((sec1Enc, sec2Enc)::NTuple{2, PairwiseSumEnc}, 
+function checkSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, 
                               explicitError::Bool=false)::Bool
+    sec1Enc, sec2Enc = enc
     if sec1Enc === sec2Enc || sec1Enc == sec2Enc
         if explicitError
-            throw(ArgumentError("`sec1Enc` and `sec2Enc` should not be equal, as they "*
+            throw(ArgumentError("The two elements of `enc` should not be equal, as they "*
                                 "correspond to separate spin sectors."))
         else
             false
@@ -115,10 +116,22 @@ The singleton format tag for the operator string ordering in which each particle
 creation-annihilation operator pair stays adjacent: 
 
 ```math
-\\hat{c}_1 \\hat{a}_1 \\, \\hat{c}_2 \\hat{a}_2 \\cdots \\hat{c}_N \\hat{a}_N,
+\\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\hat{c}_{i_2} \\hat{a}_{j_2}
+\\cdots \\hat{c}_{i_N} \\hat{a}_{j_N},
 ```
 
-where ``\\hat{c}_n = \\hat{a}_n^\\dagger`` (``1 \\le n \\le N``).
+where ``\\hat{c}_p = \\hat{a}_p^\\dagger`` for any mode ``p``; ``i_k`` and ``j_k`` 
+(``1 \\le k \\le N``) are the modes of the creation and annihilation operators associated 
+with the ``k``-th particle, respectively. The indexing layout of any associated coefficient 
+tensor `inte` that matches this operator-string ordering is named the **index-pair layout**:
+
+```math
+\\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N]
+\\leftrightarrow
+\\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N},
+```
+
+where the value of ``c_k`` (or ``a_k``) labels the mode ``i_k`` (or ``j_k``).
 """
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 
@@ -129,10 +142,13 @@ The singleton format tag for the normal ordering of a given operator string, whi
 every creation operator to the left of every annihilation operator: 
 
 ```math
-\\hat{c}_1 \\hat{c}_2 \\cdots \\hat{c}_N \\, \\hat{a}_N \\cdots \\hat{a}_2 \\hat{a}_1,
+\\hat{c}_{i_1} \\hat{c}_{i_2} \\cdots \\hat{c}_{i_N} \\,
+\\hat{a}_{j_N} \\cdots \\hat{a}_{j_2} \\hat{a}_{j_1},
 ```
 
-where ``\\hat{c}_n = \\hat{a}_n^\\dagger`` (``1 \\le n \\le N``).
+where ``\\hat{c}_p = \\hat{a}_p^\\dagger`` for any mode ``p``; ``i_k`` and ``j_k`` 
+(``1 \\le k \\le N``) are the modes of the creation and annihilation operators of the 
+``k``-th particle, respectively.
 """
 struct NormalOrder <: StructuredType end #> (1', 2', ..., N', N, ..., 2, 1)
 
@@ -156,20 +172,22 @@ const NBodyOrdering = Union{PairedOrder, NormalOrder}
     PauliSum
 
 Return a spin-1/2 `N`-particle operator monomial as the product of `PauliSum` provided by 
-the input encoding `enc`. For particle `p` (`1 <= p <= N`), `spinSecConfig[begin+p-1]` 
-specifies its spin `sector` (`false` for the first element of `enc`, `true` for the 
-second), and `(iCre, iAnn) = modeIdxConfig[begin+p-1]` specifies the modes associated with 
-its creation and annihilation operators within that `sector`: 
-
-    c_p = sector.second[begin+iCre-1];    a_p = sector.first[begin+iAnn-1];    c_p == (a_p)'
+the input encoding `enc`. For the `k`-th particle (`1 <= k <= N`), 
+`spinSecConfig[begin+k-1]` specifies its spin `sector` (`false` for the first element of 
+`enc`, `true` for the second), and `(iCre, iAnn) = modeIdxConfig[begin+k-1]` specifies the 
+modes ``i_k`` and ``j_k`` of its creation operator ``\\hat{c}_{i_k}`` and annihilation 
+operator ``\\hat{a}_{j_k}`` within that `sector`, namely `sector.second[begin+iCre-1]` and 
+`sector.first[begin+iAnn-1]`, respectively (with ``\\hat{c}_p = \\hat{a}_p^\\dagger`` for 
+any mode ``p``). 
 
 Additionally, `format` specifies the operator ordering of the monomial: 
-[`PairedOrder`](@ref) produces pairwise ordering (similar to the Chemist notation for the 
-indexing of two-body molecular integrals), and [`NormalOrder`](@ref) produces the normal 
-ordering: 
-``\\hat{c}_1 \\hat{c}_2 \\cdots \\hat{c}_N \\, \\hat{a}_N \\cdots \\hat{a}_2 \\hat{a}_1``. 
-When `checkEncoding` is set to `true`, `enc` is validated via 
-[`checkSpinSectoredEnc`](@ref) before the construction.
+[`PairedOrder`](@ref) produces the pairwise ordering 
+``\\hat{c}_{i_1} \\hat{a}_{j_1} \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N}`` (similar to the 
+Chemist notation for the indexing of two-body molecular integrals), and 
+[`NormalOrder`](@ref) produces the normal ordering 
+``\\hat{c}_{i_1} \\cdots \\hat{c}_{i_N} \\, \\hat{a}_{j_N} \\cdots \\hat{a}_{j_1}``. When 
+`checkEncoding` is set to `true`, `enc` is validated via [`checkSpinSectoredEnc`](@ref) 
+before the construction.
 """
 function genNBodyOperator(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                           spinSecConfig::NonEmptyTuple{Bool, M}, 
@@ -319,11 +337,12 @@ end
 Return a spin-1/2 `N`-particle operator summation as the linear combination of products of 
 `PauliSum` provided by the input encoding `enc`. The linear coefficients of the `PauliSum` 
 products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`), whose 
-axes follow the index-pair layout: axes `(2p-1, 2p)` host the index pair 
-`(c_p, a_p) == ((a_p)', a_p)` of particle `p` (`1 <= p <= N`). Specifically, the `i_k`-th 
-index along axis `k` of `orbInte` maps to the mode `n = iModeStart[begin+p-1] + i_k - 1` of 
-particle `p = (k+1) ÷ 2` (`n >= 1` and `i_k >= 1`) in one of the two spin sectors specified 
-by `spinSecConfig[begin+p-1]`. Subsequently, the returned summation is evaluated as 
+axes follow the index-pair layout: axes `(2k-1, 2k)` host the index pair ``(c_k, a_k)`` of 
+the `k`-th particle (`1 <= k <= N`), where ``c_k`` and ``a_k`` respectively label the modes 
+of its creation and annihilation operators. Specifically, the index ``c_k`` (or ``a_k``) is 
+incremented by `iModeStart[begin+k-1] - 1` to give the mode (index) of the corresponding 
+operator in the spin sector specified by `spinSecConfig[begin+k-1]`. Subsequently, the 
+returned summation is evaluated as 
 
     prefactor * sum(orbInte[idx] * monomial(idx) for idx in CartesianIndices(orbInte))
 
@@ -348,9 +367,12 @@ following two validation protocols:
   monomial, meaning `prefactor` is fixed at `1`, and no exchange symmetry is validated for 
   `orbInte` or assumed for its underlying operator. As a result, tensor elements with 
   distinct indices may be added together to be associated with the same operator monomial 
-  (after reforming them in canonical form, e.g., 
-  `canonicalize!(c_i * c_j * a_j * a_i) == canonicalize!(c_j * c_i * a_i * a_j)` with 
-  `c_i == (a_i)' && c_j == (a_j)'`).
+  (after reforming them in canonical form), e.g., for any two distinct modes ``i`` and 
+  ``j``: 
+  ```math
+    \\hat{c}_i \\hat{c}_j \\hat{a}_j \\hat{a}_i = 
+    \\hat{c}_j \\hat{c}_i \\hat{a}_i \\hat{a}_j.
+  ```
 
 Aside from `particleExch`, there are two more optional keyword arguments that are used to 
 validate the structure of `orbInte` when `checkInput=true`: 
@@ -361,8 +383,8 @@ validate the structure of `orbInte` when `checkInput=true`:
   `particleExch=false`, it only guarantees the same operator-summation Hermiticity when 
   `format = NormalOrder()`.
 
-- `idxPairSymm[begin+p-1]=true`: `orbInte` must have index-pair transposition symmetry for 
-  particle `p` (checked via [`checkIntePairTransposition`](@ref)).
+- `idxPairSymm[begin+k-1]=true`: `orbInte` must have index-pair transposition symmetry for 
+  the `k`-th particle (checked via [`checkIntePairTransposition`](@ref)).
 
 !!! info
     When `checkInput` is set to `true`, `enc` is also checked via 
@@ -478,10 +500,10 @@ end
 
 Return a one-particle operator summation as the linear combination of products of 
 `PauliSum` provided by the input encoding `oneSecEnc`. The linear coefficients of the 
-`PauliSum` products are specified by the one-particle integral matrix `orbInte`, for which 
-the elements of each (one-based) index pair `(i, j)` also map to the creation operator 
-`oneSecEnc.second[begin+iModeStart+i-2]` and the annihilation operator 
-`oneSecEnc.first[begin+iModeStart+j-2]`, respectively.
+`PauliSum` products are specified by the one-particle integral matrix `orbInte`, whose 
+element at the (one-based) index pair `(i, j)` is the coefficient of the product of the 
+creation operator `oneSecEnc.second[begin+iModeStart+i-2]` and the annihilation operator 
+`oneSecEnc.first[begin+iModeStart+j-2]`.
 
 This function is a specialization of [`genNBodyOperatorSum`](@ref) in the case of `N=1`, 
 for which the two operator orderings, [`PairedOrder`](@ref) and [`NormalOrder`](@ref), 
@@ -545,30 +567,37 @@ Hamiltonian
 
 ```math
 \\hat{H}_{\\mathrm{elec}} = \\sum_s \\hat{H}_s
-+ \\sum_{i,j,m,n} \\mathtt{inte2BCross}[i,j,m,n] \\,
-\\hat{c}_{i,1} \\hat{c}_{m,2} \\hat{a}_{n,2} \\hat{a}_{j,1},
++ \\sum_{i,j,k,l} \\mathtt{inte2BCross}[i,j,k,l] \\,
+\\hat{c}_{i,1} \\hat{c}_{k,2} \\hat{a}_{l,2} \\hat{a}_{j,1},
 ```
 
 where ``\\hat{c}_{i,s} = \\hat{a}_{i,s}^\\dagger`` is the Dirac creation operator for 
 mode `i` in spin sector `s`, represented by products of single-mode fermionic operators 
-from the input encoding `enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)` whose 
-validity checking is controlled by the same-named argument `checkEncoding`; `inte2BCross` 
-is the cross-spin-sector two-body spatial molecular integral tensor and ``\\hat{H}_s`` is 
-a per-spin-sector Hamiltonian fragment 
+from the input encoding `enc` reordered by 
+[`formatSpinSectoredEnc(enc)`](@ref `formatSpinSectoredEnc`) whose validity checking is 
+controlled by the same-named argument `checkEncoding`; `inte2BCross` is the 
+cross-spin-sector two-body spatial molecular integral tensor and ``\\hat{H}_s`` is a 
+per-spin-sector Hamiltonian fragment
 
 ```math
 \\hat{H}_s = \\sum_{i,j} h^{(1)}_s[i,j] \\, \\hat{c}_{i,s} \\hat{a}_{j,s}
-+ \\frac{1}{2} \\sum_{i,j,m,n} h^{(2)}_s[i,j,m,n] \\,
-\\hat{c}_{i,s} \\hat{c}_{m,s} \\hat{a}_{n,s} \\hat{a}_{j,s},
++ \\frac{1}{2} \\sum_{i,j,k,l} h^{(2)}_s[i,j,k,l] \\,
+\\hat{c}_{i,s} \\hat{c}_{k,s} \\hat{a}_{l,s} \\hat{a}_{j,s},
 ```
 
-with ``(h^{(1)}_s, h^{(2)}_s)`` respectively being one-body and two-body tensors of 
-per-spin-sector molecular integrals, specified by either `inte1B2BSpin1` or 
-`inte1B2BSpin2`. Both per-spin-sector two-body tensors, as well as `inte2BCross`, follow 
-the index-pair layout (i.e., the Chemist notation for two-body molecular integrals); the 
-numbers of spatial-orbital modes per spin sector `(n1, n2)` are inferred from 
-`size(inte2BCross)`. Hence, the per-spin-sector tensors must match these counts, whereas 
-the total number of spin-orbital modes covered by `enc` can exceed `n1 + n2`. 
+with ``h^{(1)}_s`` and ``h^{(2)}_s`` respectively denoting the one-body and two-body 
+tensors of per-spin-sector molecular integrals at different values of ``s``: 
+
+- ``s = 1``: `first(inte1B2BSpin1)`, `last(inte1B2BSpin1)`
+
+- ``s = 2``: `first(inte1B2BSpin2)`, `last(inte1B2BSpin2)`
+
+Both per-spin-sector two-body tensors, as well as `inte2BCross`, follow the index-pair 
+layout (i.e., the Chemist notation for two-body molecular integrals); the numbers of 
+spatial-orbital modes per spin sector, `nMode1` and `nMode2`, are inferred from 
+`size(inte2BCross) == (nMode1, nMode1, nMode2, nMode2)`. Hence, the per-spin-sector 
+tensors must match these counts, whereas the total number of spin-orbital modes covered by 
+`enc` can exceed `nMode1 + nMode2`. 
 
 ## Deciding the ordering of two-body terms
 
@@ -576,7 +605,7 @@ The form of the two-body terms in ``\\hat{H}_{\\mathrm{elec}}`` (as well as in
 ``\\hat{H}_s``) described above, 
 
 ```math
-\\hat{c}_{i,s_1} \\hat{c}_{m,s_2} \\hat{a}_{n,s_2} \\hat{a}_{j,s_1},
+\\hat{c}_{i,s_1} \\hat{c}_{k,s_2} \\hat{a}_{l,s_2} \\hat{a}_{j,s_1},
 ```
 
 follows the normal ordering convention, which can be enforced upon the returned encoding by 
@@ -584,7 +613,7 @@ setting `format = NormalOrder()`. Alternatively, `format = PairedOrder()` encode
 two-body term in the form (associated with the same two-body tensor)
 
 ```math
-\\hat{c}_{i,s_1} \\hat{a}_{j,s_1} \\hat{c}_{m,s_2} \\hat{a}_{n,s_2}.
+\\hat{c}_{i,s_1} \\hat{a}_{j,s_1} \\hat{c}_{k,s_2} \\hat{a}_{l,s_2}.
 ```
 
 Consequently, for the resulting encoding to represent the same electronic Hamiltonian, the 
@@ -617,7 +646,10 @@ regardless of the value of `format`.
     PauliSum
 
 The single-set form encodes both spin sectors and their coupling from one shared 
-spatial-orbital tensor pair `orbInte1B2B`.
+spatial-orbital tensor pair `orbInte1B2B`, i.e., shorthand for 
+
+    encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), 
+                  checkEncoding; hermiticity, idxPairSymm)
 
 ## Symmetry assertion
 In both method signatures of `encodeElecHam`, keyword argument `hermiticity` (`true` by 
@@ -752,7 +784,8 @@ The first element of the returned integral data, `newInte1B`, is the result of s
 the coefficient matrix of a specific two-index two-body term in the Hamiltonian under the 
 `PairedOrder` format from `first(inteData)`:
 
-    newInte1B[i, j] == inte1B[i, j] - (1/2) * sum(inte2B[i, k, k, j] for k in 1:nOrbital)
+    newInte1B[i, j] == 
+    first(inteData)[i, j] - (1/2) * sum(last(inteData)[i, k, k, j] for k in 1:nOrbital)
 
 This correction on the one-body matrix derives from the two-body operator monomial identity 
 

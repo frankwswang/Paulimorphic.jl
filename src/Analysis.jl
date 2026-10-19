@@ -15,7 +15,7 @@ structural information:
 where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `ham` and 
 `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
 `(i, j)`, `i < j`, indexing into `vertices`. Such a graph records which terms in a 
-target Hamiltonian fail to commute — e.g. as a basis for partitioning it into mutually 
+target Hamiltonian fail to commute — e.g., as a basis for partitioning it into mutually 
 commuting groups.
 
 # Approximate frustration information
@@ -24,8 +24,8 @@ argument `edgeThreshold::Real`. Specifically, an edge `(i, j)` is included in `e
 if the `i`-th and `j`-th `PauliStr` in `vertices` anticommute *and* the magnitude of their 
 coefficient product `c_ij` clears `edgeThreshold`:
 
-    abs(c_ij) >  edgeThreshold    # inclusive == false
-    abs(c_ij) >= edgeThreshold    # inclusive == true
+    abs(c_ij) >  edgeThreshold    # `inclusive == false`
+    abs(c_ij) >= edgeThreshold    # `inclusive == true`
 
 Additionally, keyword `inclusive` selects whether the `c_ij` that equals `edgeThreshold` 
 exactly is kept (`>=`) or dropped (`>`). When `edgeThreshold = 0`, `inclusive = true` 

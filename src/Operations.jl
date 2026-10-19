@@ -378,9 +378,9 @@ end
     scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
 
 Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
-[`evalPhase`](@ref)`(p)`, then absorbed into `h.coeff`. This is to match the canonical form 
-of `PauliSum` in which its phases are carried by coefficients rather than the stored 
-`PauliStr`.
+[`evalPhase(p)`](@ref `evalPhase`), then absorbed into `h.coeff`. This is to match the 
+canonical form of `PauliSum` in which its phases are carried by coefficients rather than 
+the stored `PauliStr`.
 """
 scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
 
@@ -453,7 +453,7 @@ checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, 
 
     evalCommute(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
 
-    evalCommute(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
 Return the commutator 
@@ -485,7 +485,7 @@ end
 
     evalAntiCom(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
 
-    evalAntiCom(h1::PauliSum{T1}, h2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
     PauliSum{promote_type(T1, T2)}
 
 Return the anticommutator 
@@ -497,9 +497,9 @@ numbers of sites, the returned sum explicitly acts on the larger site count. Whe
 anticommutator is zero (i.e., when `op1` and `op2` anticommute), this function returns an 
 empty `PauliSum` as the zero operator.
 """
-function evalAntiCom(str1::PauliStr, str2::PauliStr)
-    prod1 = mul(str1, str2)
-    prod2 = mul(str2, str1)
+function evalAntiCom(op1::PauliStr, op2::PauliStr)
+    prod1 = mul(op1, op2)
+    prod2 = mul(op2, op1)
     prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end
 

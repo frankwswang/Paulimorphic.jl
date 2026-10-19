@@ -12,15 +12,24 @@ const PauliZMatEntries = (1,   0,    0, -1)
 
 A `UInt8`-based enumeration of the four single-site Pauli operators. Each instance's 
 integer value is the operator's two-bit binary code `xz` (i.e., `2x + z`), where the high 
-bit `x` marks the X-component and the low bit `z` marks the Z-component:
+bit `x` marks the ``x``-component and the low bit `z` marks the ``z``-component:
 
-    symI::PauliSym  =>  0 # binary 00: identity (no component)
-    symZ::PauliSym  =>  1 # binary 01: Z (Z-component only)
-    symX::PauliSym  =>  2 # binary 10: X (X-component only)
-    symY::PauliSym  =>  3 # binary 11: Y (both components)
+    Int(symI::PauliSym)  ==  0 # binary 00: identity (no component)
+    Int(symZ::PauliSym)  ==  1 # binary 01: Z (``z``-component only)
+    Int(symX::PauliSym)  ==  2 # binary 10: X (``x``-component only)
+    Int(symY::PauliSym)  ==  3 # binary 11: Y (both components)
 
-Hence, `PauliSym(num)` decodes `num` in `0:3` directly as the bit pair and imposes the 
-value order: `symI < symZ < symX < symY`.
+Hence, `PauliSym(num)` serves as a symbolic representation of the (single-site) Pauli 
+operators for `num` in `0:3`:
+
+```math
+\\mathtt{symI} \\mapsto \\hat{I}, \\quad
+\\mathtt{symZ} \\mapsto \\hat{Z}, \\quad
+\\mathtt{symX} \\mapsto \\hat{X}, \\quad
+\\mathtt{symY} \\mapsto \\hat{Y};
+```
+
+and `PauliSym` also imposes a strict total order: `symI < symZ < symX < symY`.
 """
 @enum PauliSym::UInt8 begin #> Assigned values align with X-Z layout
     symI=0 #> 00

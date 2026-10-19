@@ -28,7 +28,7 @@ bitstring),
 (0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
 ```
 
-and `phase` is the complex coefficient [`evalPhase`](@ref)`(.phase)` encoded by the field 
+and `phase` is the complex coefficient [`evalPhase`](@ref) encoded by the field 
 `.phase::`[`PhaseFactor`](@ref), one of `+1`, `+im`, `-1`, and `-im`. Carrying the phase 
 coefficient keeps `PauliStr` a member of the Pauli group under multiplication. The phase 
 generated when two `PauliStr` are multiplied is absorbed into the result's `.phase`.

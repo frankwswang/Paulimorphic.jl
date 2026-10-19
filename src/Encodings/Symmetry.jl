@@ -20,8 +20,8 @@ an annihilation operator. In other words, `inte` must satisfy
 = \\mathtt{inte}[\\mathtt{a_1}, \\mathtt{c_1}, \\ldots, \\mathtt{a_N}, \\mathtt{c_N}]^{*},
 ```
 
-where ``[\\ldots,\\ldots]`` represents the multi-dimensional index for `inte`, following 
-the default [array-indexing 
+where ``{}^{*}`` denotes the complex conjugate and ``[\\ldots,\\ldots]`` represents the 
+multi-dimensional index for `inte`, following the default [array-indexing 
 style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
 
 If `inte` does not hold this symmetry, `checkInteHermiticity` returns `false`, or throws 

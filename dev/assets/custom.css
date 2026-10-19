@@ -1,0 +1,6 @@
+/* Render KaTeX's typewriter font (`\mathtt`) with the same font stack Documenter uses for
+   code, so that code-related symbols in math blocks match inline code spans. */
+.katex .mathtt {
+    font-family: 'JuliaMono', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 
+                 'DejaVu Sans Mono', monospace;
+}

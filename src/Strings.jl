@@ -273,18 +273,27 @@ end
 
     @pauli_str expr -> PauliStr
 
-A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
-carrying the unit phase ([`PhaseFactor(0)`](@ref `PhaseFactor`)), where `input[begin+i-1]` 
-specifies the single-site Pauli operator acting on site `i`. The resulting string spans 
-`length(input)` sites. When `@pauli_str` is directly invoked, any expression `expr` that 
-evaluates (at runtime in the invoking scope) to either one of the following two types of 
-`input` is accepted:
+A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref). When
+`@pauli_str` is directly invoked, any expression `expr` that evaluates (at runtime in the
+invoking scope) to either one of the following two types of `input` is accepted:
 
-- `input::AbstractString` (the form the `pauli"..."` literal supplies): one character per 
-  site, each being `'I'`, `'X'`, `'Y'`, or `'Z'`.
-- `input::AbstractVector{<:Integer}`: one integer per site, each representing the two-bit 
-  code of a [`PauliSym`](@ref) (`$(Int(symI)) => symI`, `$(Int(symZ)) => symZ`, 
-  `$(Int(symX)) => symX`, `$(Int(symY)) => symY`).
+- `input::AbstractString`: an optional phase marker followed by one character per site, 
+  each being `'I'`, `'X'`, `'Y'`, or `'Z'`. The phase marker is a prefix string (may be 
+  omitted) preceding the first Pauli character and must be one of $ValidPhaseMarkers; any 
+  other prefix throws an `ArgumentError`. Parsing is case-sensitive throughout: Pauli 
+  letters must be uppercase, and a lowercase `'i'` is always parsed as the imaginary unit 
+  of the phase marker.
+- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): one integer per 
+  site, each representing the two-bit code of a [`PauliSym`](@ref) (`$(Int(symI)) => symI`, 
+  `$(Int(symZ)) => symZ`, `$(Int(symX)) => symX`, `$(Int(symY)) => symY`). The resulting 
+  string carries the unit phase ([`PhaseFactor(0)`](@ref `PhaseFactor`)).
+
+!!! info
+    In both forms, the `k`-th Pauli character (or integer) of `input` specifies the 
+    single-site Pauli operator acting on site `k`, and the resulting `PauliStr` spans 
+    (verifiable via `countSites`) as many sites as the count of Pauli letters (or 
+    integers). A phase marker alone (e.g., `pauli"-"`) therefore yields a zero-site string 
+    carrying that phase.
 
 # Example
 ```jldoctest
@@ -293,23 +302,28 @@ true
 
 julia> let str="IX", lst=[0, 2]; (@pauli_str str) == (@pauli_str lst) end
 true
+
+julia> pauli"-iXXIX" == PhaseFactor(3) * pauli"XXIX"
+true
+
+julia> (@pauli_str toString(pauli"-XXIX", denseString=true)) == pauli"-XXIX"
+true
 ```
 """
 macro pauli_str(ex)
     strOrVecExpr = esc(ex)
-    :(genPauliSymVec($strOrVecExpr) |> PauliStr)
-end
-
-function phaseStr(p::PhaseFactor, omitPlusSign::Bool=false)
-    ps = omitPlusSign ? "" : "+"
-    if p === posRea
-        ps
-    elseif p === posImg
-        ps * "im*"
-    elseif p === negRea
-        "-"
-    else
-        "-im*"
+    quote
+        val = $strOrVecExpr
+        if val isa AbstractString
+            iBody = something(findfirst(in(PauliCharacters), val), ncodeunits(val) + 1)
+            marker = SubString(val, firstindex(val), prevind(val, iBody))
+            body = SubString(val, iBody)
+            PauliStr(genPauliSymVec(body), toPhase(marker))
+        elseif val isa AbstractArray{<:Integer}
+            PauliStr(genPauliSymVec(val))
+        else
+            throw("`$val` is not a valid value for `PauliStr` construction.")
+        end
     end
 end
 
@@ -344,17 +358,20 @@ end
     toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString) -> 
     String
 
-Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
-(the default string format), identity sites are omitted and each non-identity Pauli 
-character carries its (1-based) site index as a subscript (e.g., `"+X₁X₂X₄"`). When 
-`denseString=true`, every site in `1:pStr.n` emits one character (`'I'`, `'X'`, `'Y'`, or 
-`'Z'`). The returned `String` is prefixed by the marker of `pStr.phase`, represented by 
-`"+"`, `"+im*"`, `"-"`, or `"-im*"`. When `omitPlusSign=true`, the character `'+'` is 
-omitted. Since `omitPlusSign` defaults to the value of `denseString`, the dense format of a 
-`PauliStr` carrying the unit phase matches the [`@pauli_str`](@ref) input literal by 
-default (as shown in the example below). In both formats, if every site carries the 
-identity (or `pStr` is a zero-site identity), the body (excluding the phase prefix) 
-collapses to `"I"`.
+Return a `String` representation of `pStr::`[`PauliStr`](@ref). The returned `String` is 
+prefixed by the marker of `pStr.phase`, represented by `"+"`, `"+i"`, `"-"`, or `"-i"`. 
+When `omitPlusSign=true`, the character `'+'` is omitted. 
+
+When `denseString=false` (the default sparse representation), identity sites are omitted 
+and each non-identity Pauli character carries its (1-based) site index as a subscript 
+(e.g., `"+X₁X₂X₄"`). The body (excluding the phase prefix) also collapses to `"I"` whenever 
+every site carries the identity (including the zero-site case). 
+
+When `denseString=true` (the dense representation), every site in `1:pStr.n` emits one 
+character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value can be 
+directly passed to the constructor [`PauliStr(::AbstractString)`](@ref `PauliStr`) or 
+accepted by [`@pauli_str`](@ref) as a string literal. In both cases, the string is reset to 
+a single-site identity if `pStr` is a zero-site string. 
 
 # Example
 ```jldoctest
@@ -363,6 +380,12 @@ julia> toString(pauli"XXIX")
 
 julia> toString(pauli"XXIX", denseString=true)
 "XXIX"
+
+julia> toString(pauli"-iXXIX", denseString=true)
+"-iXXIX"
+
+julia> let s = pauli"-XXIX"; (@pauli_str toString(s, denseString=true)) == s end
+true
 ```
 """
 function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)
@@ -374,7 +397,7 @@ function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=de
 
     body = String(take!(buffer))
     isempty(body) && (body = "I")
-    phaseStr(pStr.phase, omitPlusSign) * body
+    toString(pStr.phase; omitPlusSign) * body
 end
 
 """
@@ -390,14 +413,14 @@ function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     sym = indexSite(pStr, i)
 
     if sym == symI
-        denseString ? "I" : ""
+        denseString ? string(PauliCharacters[begin]) : ""
     else
-        char = if sym == symY
-            'Y'
-        elseif sym == symZ
-            'Z'
-        else #> symX
-            'X'
+        char = if sym == symZ
+            PauliCharacters[begin+1]
+        elseif sym == symX
+            PauliCharacters[begin+2]
+        else #> symY
+            PauliCharacters[begin+3]
         end
         char * (denseString ? "" : getSubscriptStr(i|>Int))
     end
@@ -421,7 +444,7 @@ printed (in the default format).
 """
 function Base.show(io::IO, op::PauliStr)
     if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
-        print(io, phaseStr(op.phase))
+        print(io, toString(op.phase))
 
         edgeOpNum = CONSTVAR!!minimalKeptShowSize ÷ 2
         nSite = countSites(op)

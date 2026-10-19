@@ -8,6 +8,58 @@ m = "X"
 @test (@pauli_str "$m") == pauli"X" == pauli"X"
 @test (@pauli_str [2,3,2,0,1]) == pauli"XYXIZ" #> 0->I, 1->Z, 2->X, 3->Y
 
+@testset "`@pauli_str` phase marker" begin
+    #> Every marker `toString` can emit is accepted, with `"+"` optional
+    @test pauli"+XXIX" == pauli"XXIX"
+    @test pauli"iXXIX" == pauli"+iXXIX" == mul(pauli"XXIX", posImg)
+    @test pauli"-XXIX" == mul(pauli"XXIX", negRea)
+    @test pauli"-iXXIX" == mul(pauli"XXIX", negImg)
+
+    #> Dense-format round trip for every phase, with either value of `omitPlusSign`
+    for p in (posRea, posImg, negRea, negImg)
+        s = mul(pauli"XZIY", p)
+        @test (@pauli_str toString(s, denseString=true)) == s
+        @test (@pauli_str toString(s, denseString=true, omitPlusSign=false)) == s
+    end
+
+    #> A marker alone yields the zero-site unit carrying that phase
+    @test pauli"" == PauliStr()
+    @test pauli"-" == PauliStr(0, symI, negRea)
+    @test pauli"i" == PauliStr(0, symI, posImg)
+
+    #> A runtime `String` goes through the same parser as the literal
+    @test (@pauli_str "-" * "i" * "ZZ") == mul(pauli"ZZ", negImg)
+
+    #> Case-sensitive: a lowercase `i` is the imaginary unit, never an identity site
+    @test pauli"iIXZ" == mul(pauli"IXZ", posImg) && countSites(pauli"iIXZ") == 3
+    @test pauli"-iXZ" == mul(pauli"XZ", negImg) && countSites(pauli"-iXZ") == 2
+    @test_throws "phase marker" pauli"xXZ" #> Lowercase body letters are not Pauli letters
+    @test_throws "valid letter" pauli"Xx"
+
+    #> The marker is the prefix preceding the first Pauli letter: anything after that
+    #> point is a Pauli letter, or else fails as one
+    @test_throws "valid letter" pauli"XXIX-"
+    @test_throws "valid letter" pauli"X-X"
+    @test_throws "valid letter" pauli"XXIXi"
+
+    #> Prefixes that are not one of the six markers fail as a phase marker
+    @test_throws "phase marker" pauli"-1XX"
+    @test_throws "phase marker" pauli"imXX"
+    @test_throws "phase marker" pauli"im*XX"
+    @test_throws "phase marker" pauli"i*XX"
+    @test_throws "phase marker" pauli"+-XX"
+    @test_throws "phase marker" pauli"--XX"
+    @test_throws "phase marker" pauli"ii XX"
+    @test_throws "phase marker" pauli"*XX"
+    @test_throws "phase marker" pauli"i-XX"
+    @test_throws "phase marker" pauli" -XX"
+    @test_throws "phase marker" pauli"garbage"
+    @test_throws ArgumentError pauli"-1XX" #> Same error type as an invalid Pauli letter
+
+    #> The integer-vector form carries the unit phase only
+    @test (@pauli_str [2, 2, 0, 2]) == pauli"+XXIX"
+end
+
 @testset "toString" begin
     @testset "full-string method" begin
         #> Sparse (default) format: identity sites omitted, subscripted site indices
@@ -21,14 +73,14 @@ m = "X"
         @test toString(pauli"XXIX", denseString=true, omitPlusSign=false) == "+XXIX"
 
         #> Phase prefixes in both formats
-        @test toString(PauliStr(2, symX, posImg)) == "+im*X₁X₂"
-        @test toString(PauliStr(2, symX, posImg), denseString=true) == "im*XX"
+        @test toString(PauliStr(2, symX, posImg)) == "+iX₁X₂"
+        @test toString(PauliStr(2, symX, posImg), denseString=true) == "iXX"
 
         #> All-identity strings: sparse body collapses to "I"; dense body emits every site
         @test toString(PauliStr(3, symI, negRea)) == "-I"
         @test toString(PauliStr(3, symI, negRea), denseString=true) == "-III"
         @test toString(PauliStr(0, symI, negImg)) == 
-            toString(PauliStr(0, symI, negImg), denseString=true) == "-im*I"
+            toString(PauliStr(0, symI, negImg), denseString=true) == "-iI"
     end
 
     @testset "per-site method" begin

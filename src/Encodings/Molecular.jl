@@ -131,7 +131,7 @@ tensor `inte` that matches this operator-string ordering is named the **index-pa
 \\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N},
 ```
 
-where the index ``c_k`` (or ``a_k``) labels the mode ``i_k`` (or ``j_k``).
+where the value of ``c_k`` (or ``a_k``) labels the mode ``i_k`` (or ``j_k``).
 """
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 

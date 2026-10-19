@@ -273,10 +273,11 @@ end
     @pauli_str expr -> PauliStr
 
 A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
-carrying the unit phase `posRea` (`+1`), where `input[begin+i-1]` specifies the single-site 
-Pauli operator acting on site `i`. The resulting string spans `length(input)` sites. When 
-`@pauli_str` is directly invoked, any expression `expr` that evaluates (at runtime in the 
-invoking scope) to either one of the following two types of `input` is accepted:
+carrying the unit phase ([`PhaseFactor`](@ref)`(0)`), where `input[begin+i-1]` specifies 
+the single-site Pauli operator acting on site `i`. The resulting string spans 
+`length(input)` sites. When `@pauli_str` is directly invoked, any expression `expr` that 
+evaluates (at runtime in the invoking scope) to either one of the following two types of 
+`input` is accepted:
 
 - `input::AbstractString` (the form the `pauli"..."` literal supplies): one character per 
   site, each being `'I'`, `'X'`, `'Y'`, or `'Z'`.
@@ -820,7 +821,7 @@ end
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
 multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
-`posRea`. Both `strs` and `storage` are mutated and must share the same length.
+`PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex}

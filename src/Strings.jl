@@ -29,9 +29,10 @@ bitstring),
 ```
 
 and `phase` is the complex coefficient encoded by the field `.phase::`[`PhaseFactor`](@ref) 
-(i.e., [`evalPhase`](@ref)`(.phase)`), one of `+1`, `+im`, `-1`, and `-im`. Carrying the 
-phase coefficient keeps `PauliStr` a member of the Pauli group under multiplication. The 
-phase generated when two `PauliStr` are multiplied is absorbed into the result's `.phase`.
+(i.e., [`evalPhase(.phase)`](@ref `evalPhase`)), one of `+1`, `+im`, `-1`, and `-im`. 
+Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
+multiplication. The phase generated when two `PauliStr` are multiplied is absorbed into the 
+result's `.phase`.
 
 # Bit layout
 With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
@@ -273,8 +274,8 @@ end
     @pauli_str expr -> PauliStr
 
 A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
-carrying the unit phase ([`PhaseFactor`](@ref)`(0)`), where `input[begin+i-1]` specifies 
-the single-site Pauli operator acting on site `i`. The resulting string spans 
+carrying the unit phase ([`PhaseFactor(0)`](@ref PhaseFactor)`), where `input[begin+i-1]` 
+specifies the single-site Pauli operator acting on site `i`. The resulting string spans 
 `length(input)` sites. When `@pauli_str` is directly invoked, any expression `expr` that 
 evaluates (at runtime in the invoking scope) to either one of the following two types of 
 `input` is accepted:
@@ -318,9 +319,9 @@ end
 
 Return the single-site Pauli operator acting on site `i` of `str` as a 
 [`PauliSym`](@ref). When `indexImplicitSite=false` (default), `i` must be in 
-`1:`[`countSites`](@ref)`(str)`; when `indexImplicitSite=true`, any `i` beyond the 
-explicit site count returns the implicit identity `symI`, hence `i` need only be positive. 
-The phase of `str` (`str.phase`) does not affect the returned value.
+`1:`[`countSites(str)`](@ref `countSites`); when `indexImplicitSite=true`, any `i` beyond 
+the explicit site count returns the implicit identity `symI`, hence `i` need only be 
+positive. The phase of `str` (`str.phase`) does not affect the returned value.
 """
 function indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false)
     nSite = countSites(str)
@@ -383,7 +384,7 @@ Return the `String` representation of the single-site Pauli operator acting on s
 `pStr::`[`PauliStr`](@ref), i.e., the portion of `toString(pStr; denseString)` that site 
 `i` contributes to the string body (except for an all-identity string which collapses to 
 `"I"`). The phase of `pStr` (`pStr.phase`) does not affect the returned value. `i` must be 
-in `1:`[`countSites`](@ref)`(pStr)`.
+in `1:`[`countSites(pStr)`](@ref `countSites`).
 """
 function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     sym = indexSite(pStr, i)
@@ -410,12 +411,13 @@ const CONSTVAR!!minimalKeptShowSize = CONSTVAR!!maximalFullShowSize - 2
 """
     Base.show(io::IO, op::PauliStr) -> Nothing
 
-Print the output `String` from [`toString`](@ref)`(op::`[`PauliStr`](@ref)`)` to `io`. When 
+Print the output `String` from [`toString(op::PauliStr)`](@ref `toString`) to `io`. When 
 `io` carries the `IOContext` property `:limit=>true` (i.e., `true === get(io, :limit, 
-false)`), e.g., the REPL's default display buffer, and [`countWeight`](@ref)`(op) > 
-$CONSTVAR!!maximalFullShowSize`, only the first and last $(CONSTVAR!!minimalKeptShowSize÷2) 
-non-identity single-site operators are printed, with the omitted operators replaced by 
-`" … "`. Otherwise, the complete string is always printed (in the default format).
+false)`), e.g., the REPL's default display buffer, and 
+[`countWeight(op)`](@ref `countWeight`)` > $CONSTVAR!!maximalFullShowSize`, only the first 
+and last $(CONSTVAR!!minimalKeptShowSize÷2) non-identity single-site operators are printed, 
+with the omitted operators replaced by `" … "`. Otherwise, the complete string is always 
+printed (in the default format).
 """
 function Base.show(io::IO, op::PauliStr)
     if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
@@ -456,9 +458,9 @@ end
 
 Print the rich display of `op::`[`PauliStr`](@ref) to `io`: the printed output of 
 `show(io, op)`, followed by the annotation `"  (\$n sites)"` with 
-`n=`[`countSites`](@ref)`(op)`, whenever `n > 1`. When `io` carries the `IOContext` 
-property `:compact=>true`, the annotation is omitted and the display output falls back to 
-`show(io, op)`.
+`n=`[`countSites(op)`](@ref `countSites`), whenever `n > 1`. When `io` carries the 
+`IOContext` property `:compact=>true`, the annotation is omitted and the display output 
+falls back to `show(io, op)`.
 """
 function Base.show(io::IO, ::MIME"text/plain", op::PauliStr)
     show(io, op)
@@ -515,9 +517,9 @@ able to scale a coefficient by `±1` and `±im`, which `Complex{Bool}` cannot re
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
-(equal to [`countSites`](@ref)`(res)`). Each string's phase is absorbed into its matching 
-coefficient, so even with a `coeffs::C`, the stored coefficients may differ term by term. 
-When `simplification=true` (by default), equal strings — including strings that 
+(equal to [`countSites(res)`](@ref `countSites`)). Each string's phase is absorbed into its 
+matching coefficient, so even with a `coeffs::C`, the stored coefficients may differ term 
+by term. When `simplification=true` (by default), equal strings — including strings that 
 become equal only after the rebuild (e.g., `X` and `XI`) — are merged into one term and any 
 term whose coefficient is exactly zero is removed. The equal terms' coefficients are 
 accumulated on the precision level of `$(extendType|>repr)(T, complex(C))`. For 
@@ -526,7 +528,8 @@ summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Comp
 For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
 addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
 strings are retained. In both cases the terms in `res` are stored in a deterministic 
-canonical order such that for `res2=`[`canonicalize!`](@ref)`(deepcopy(res))`, 
+canonical order such that for 
+`res2=`[`canonicalize!(deepcopy(res))`](@ref `canonicalize!`), 
 
     res2.str == res.str && res2.coeff == res.coeff
 
@@ -750,8 +753,8 @@ end
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
-`i`-th element equals [`indexTerm`](@ref)`(ham, i, copyStr)`. When `copyStr=true` (by 
-default), the returned strings hold no reference to the data in `ham`.
+`i`-th element equals [`indexTerm(ham, i, copyStr)`](@ref `indexTerm`). When `copyStr=true` 
+(by default), the returned strings hold no reference to the data in `ham`.
 
 !!! warning
     When `copyStr=false`, mutating any returned string modifies `ham` in place and can 
@@ -801,7 +804,8 @@ end
 
 Return the Pauli weight of `str`, i.e., the number of sites on which `str` acts as a 
 non-identity single-site Pauli operator. The returned value is unaffected by any site 
-beyond the explicit site count, so it is bounded from above by [`countSites`](@ref)`(str)`.
+beyond the explicit site count, so it is bounded from above by 
+[`countSites(str)`](@ref `countSites`).
 """
 function countWeight(str::PauliStr)
     weight = zero(Int)
@@ -820,8 +824,9 @@ end
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
-multiply `storage[i]` by [`evalPhase`](@ref)`(strs[i].phase)` and reset `strs[i].phase` to 
-`PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share the same length.
+multiply `storage[i]` by [`evalPhase(strs[i].phase)`](@ref `evalPhase`) and reset 
+`strs[i].phase` to `PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share 
+the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex}
@@ -1360,12 +1365,12 @@ When `lowToHigh=true` (default), each single-site operator from the original str
 placed site-by-site starting from the frame's low edge: the site-`k` operator of the 
 reframed string `strR` is set to be the operator acting on site `k` in the original string 
 `strO`. Conversely, when `lowToHigh=false`, the site-`k` operator in `strR` is set to be 
-the operator acting on site [`countSites`](@ref)`(strO) - nSite + k` in `strO`. In either 
-case, every site in the frame not covered by the operators (including single-site 
-identities) in the original string is assigned a `filler::`[`PauliSym`](@ref) operator, 
-while any of those operators falling outside the frame is cropped away. Regardless of the 
-value of `nSite`, each original string's phase information is transferred to the 
-corresponding reframed string.
+the operator acting on site [`countSites(strO)`](@ref `countSites`)` - nSite + k` in 
+`strO`. In either case, every site in the frame not covered by the operators (including 
+single-site identities) in the original string is assigned a `filler::`[`PauliSym`](@ref) 
+operator, while any of those operators falling outside the frame is cropped away. 
+Regardless of the value of `nSite`, each original string's phase information is transferred 
+to the corresponding reframed string.
 
 After the reframed strings are constructed, they are then collected (along with the 
 coefficients associated with their respective original strings held by `ham`) to construct 

@@ -378,9 +378,9 @@ end
     scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
 
 Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
-[`evalPhase`](@ref)`(p)`, then absorbed into `h.coeff`. This is to match the canonical form 
-of `PauliSum` in which its phases are carried by coefficients rather than the stored 
-`PauliStr`.
+[`evalPhase(p)`](@ref `evalPhase`), then absorbed into `h.coeff`. This is to match the 
+canonical form of `PauliSum` in which its phases are carried by coefficients rather than 
+the stored `PauliStr`.
 """
 scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
 

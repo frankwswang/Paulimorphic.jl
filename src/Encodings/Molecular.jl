@@ -573,10 +573,11 @@ Hamiltonian
 
 where ``\\hat{c}_{i,s} = \\hat{a}_{i,s}^\\dagger`` is the Dirac creation operator for 
 mode `i` in spin sector `s`, represented by products of single-mode fermionic operators 
-from the input encoding `enc` reordered by [`formatSpinSectoredEnc`](@ref)`(enc)` whose 
-validity checking is controlled by the same-named argument `checkEncoding`; `inte2BCross` 
-is the cross-spin-sector two-body spatial molecular integral tensor and ``\\hat{H}_s`` is 
-a per-spin-sector Hamiltonian fragment 
+from the input encoding `enc` reordered by 
+[`formatSpinSectoredEnc(enc)`](@ref `formatSpinSectoredEnc`) whose validity checking is 
+controlled by the same-named argument `checkEncoding`; `inte2BCross` is the 
+cross-spin-sector two-body spatial molecular integral tensor and ``\\hat{H}_s`` is a 
+per-spin-sector Hamiltonian fragment
 
 ```math
 \\hat{H}_s = \\sum_{i,j} h^{(1)}_s[i,j] \\, \\hat{c}_{i,s} \\hat{a}_{j,s}

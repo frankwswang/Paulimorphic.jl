@@ -58,7 +58,7 @@ end
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
 index-pair layout (axes `(2k-1, 2k)` host the index pair ``(\\mathtt{c_k}, \\mathtt{a_k})`` 
 of the `k`-th particle), is invariant under exchanging the index pairs of the two particles 
-`k` and `l` specified by `posPair`: 
+`k` and `l` with `(k, l) = posPair`: 
 
 ```math
 \\mathtt{inte}[\\ldots, \\mathtt{c_k}, \\mathtt{a_k}, \\ldots, \\mathtt{c_l}, 
@@ -69,9 +69,9 @@ of the `k`-th particle), is invariant under exchanging the index pairs of the tw
 
 An integral tensor may hold this symmetry when the underlying core operator 
 ``\\hat{O}(x_1, \\ldots, x_N)`` is invariant under exchanging the respective coordinates of 
-particles `k` and `l`, ``x_{\\mathtt{k}}`` and ``x_{\\mathtt{l}}``. In other words, these 
-`N` particles are considered **identical** with respect to operations (e.g., interactions) 
-characterized by ``\\hat{O}``.
+particles `k` and `l`, ``x_k`` and ``x_l``. In other words, these `N` particles are 
+considered **identical** with respect to operations (e.g., interactions) characterized by 
+``\\hat{O}``.
 
 If `inte` does not hold this symmetry, `checkInteParticleExchange` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 

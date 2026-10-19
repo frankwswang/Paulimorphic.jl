@@ -283,10 +283,11 @@ invoking scope) to either one of the following two types of `input` is accepted:
   other prefix throws an `ArgumentError`. Parsing is case-sensitive throughout: Pauli 
   letters must be uppercase, and a lowercase `'i'` is always parsed as the imaginary unit 
   of the phase marker.
-- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): one integer per 
-  site, each representing the two-bit code of a [`PauliSym`](@ref) (`$(Int(symI)) => symI`, 
-  `$(Int(symZ)) => symZ`, `$(Int(symX)) => symX`, `$(Int(symY)) => symY`). The resulting 
-  string carries the unit phase ([`PhaseFactor(0)`](@ref `PhaseFactor`)).
+- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): construct a 
+  `PauliStr` carrying a unit phase (+1) in which the Pauli operator at each site is 
+  specified by an element in `input` as a two-bit code of [`PauliSym`](@ref), equivalent to 
+  [`toPauliStr(input, PhaseFactor(0))`](@ref 
+   `toPauliStr(::AbstractVector{<:Integer}, ::PhaseFactor)`).
 
 !!! info
     In both forms, the `k`-th Pauli character (or integer) of `input` specifies the 
@@ -317,10 +318,9 @@ macro pauli_str(ex)
         if val isa AbstractString
             iBody = something(findfirst(in(PauliCharacters), val), ncodeunits(val) + 1)
             marker = SubString(val, firstindex(val), prevind(val, iBody))
-            body = SubString(val, iBody)
-            PauliStr(genPauliSymVec(body), toPhase(marker))
+            PauliStr([genPauliSym(c) for c in SubString(val, iBody)], toPhase(marker))
         elseif val isa AbstractArray{<:Integer}
-            PauliStr(genPauliSymVec(val))
+            toPauliStr(val, posRea)
         else
             throw("`$val` is not a valid value for `PauliStr` construction.")
         end
@@ -1552,6 +1552,34 @@ function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
     end
 
     mul(str, phase)
+end
+
+"""
+    toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor, 
+               fallbackStr::Union{Missing, PauliStr}=missing) -> PauliStr
+
+Convert a `code` where each element can represent the two-bit code of a 
+[`PauliSym`](@ref) (`$(Int(symI)) => symI`, `$(Int(symZ)) => symZ`, `$(Int(symX)) => symX`, 
+`$(Int(symY)) => symY`) to a `PauliStr` with `phase::`[`PhaseFactor`](@ref). When the 
+conversion is impossible, an error identifying the violated condition is thrown if 
+`fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
+"""
+function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor, 
+                    fallbackStr::Union{Missing, PauliStr}=missing)
+    valPool = map(UInt8, instances(PauliSym))
+
+    for (i, val) in enumerate(code)
+        if !(val in valPool)
+            if fallbackStr
+                return fallbackStr
+            else
+                throw(ArgumentError("`code[begin+$i-1]=$val` does not evaluate to one of "*
+                                    "the valid integer codes for `PauliSym`: `$valPool`."))
+            end
+        end
+    end
+
+    PauliStr([genPauliSym(val) for val in code], phase)
 end
 
 

@@ -21,8 +21,7 @@ an annihilation operator. In other words, `inte` must satisfy
 ```
 
 where ``{}^{*}`` denotes the complex conjugate and ``[\\ldots,\\ldots]`` represents the 
-multi-dimensional index for `inte`, following the default [array-indexing 
-style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
+multi-dimensional index for `inte`.
 
 If `inte` does not hold this symmetry, `checkInteHermiticity` returns `false`, or throws 
 an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must be 

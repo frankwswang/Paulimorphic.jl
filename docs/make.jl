@@ -10,6 +10,7 @@ makedocs(
     format = HTML(
         canonical = "https://frankwswang.github.io/Paulimorphic.jl", 
         edit_link = "dev", 
+        assets = ["assets/custom.css"], 
     ), 
     pages = [
         "Home" => "index.md", 

@@ -348,8 +348,9 @@ end
 Convert a valid Majorana fermionic encoding `enc` (verified via [`checkMajoranaEnc`](@ref) 
 with argument `explicitError=true`) of `length(enc.first)` fermionic modes to a Dirac 
 fermionic encoding returned as `res`, whose stored annihilation operators ``\\hat{a}_p`` 
-(at `res.first[begin+p-1]`) and creation operators ``\\hat{c}_p`` 
-(at `res.second[begin+p-1]`) obey the following anticommutation relations: 
+(at `res.first[begin+p-1]`) and creation operators ``\\hat{c}_p`` (at 
+`res.second[begin+p-1]`) obey the following adjoint condition and anticommutation 
+relations: 
 
 ```math
 \\hat{c}_p = \\hat{a}_p^\\dagger, \\qquad
@@ -464,11 +465,11 @@ end
     Bool
 
 Return `true` if `enc` forms a valid Dirac fermionic encoding. It must contain a `Pair` of 
-`AbstractVector`, each holding `nMode` operators (`nMode > 0`) represented by `PauliSum`. 
-Specifically, `enc.first` and `enc.second` must respectively store the annihilation 
-operators ``\\hat{a}_p`` (`enc.first[begin+p-1]`) and the creation operators ``\\hat{c}_p`` 
-(at `enc.second[begin+p-1]`), which obey the following adjoint condition and 
-anticommutation relations: 
+`AbstractVector`, each holding `nMode = length(enc.first)` operators (`nMode > 0`) 
+represented by `PauliSum`. Specifically, `enc.first` and `enc.second` must respectively 
+store the annihilation operators ``\\hat{a}_p`` (at `enc.first[begin+p-1]`) and the 
+creation operators ``\\hat{c}_p`` (at `enc.second[begin+p-1]`), which obey the following 
+adjoint condition and anticommutation relations: 
 
 ```math
 \\hat{c}_p = \\hat{a}_p^\\dagger, \\qquad
@@ -626,9 +627,9 @@ end
 
 Convert a valid Dirac fermionic encoding `enc` (verified via [`checkDiracEnc`](@ref)) of 
 `length(enc.first)` fermionic modes back to a Majorana encoding returned as `res`, acting 
-as the inverse transformation of [`toDiracEnc`](@ref). With ``\\hat{a}_p`` 
-at `enc.first[begin+p-1]` and ``\\hat{c}_p=\\hat{a}_p^\\dagger`` at 
-`enc.second[begin+p-1]`, the recovered Majorana operators are constructed as
+as the inverse transformation of [`toDiracEnc`](@ref). With ``\\hat{a}_p`` at 
+`enc.first[begin+p-1]` and ``\\hat{c}_p = \\hat{a}_p^\\dagger`` at 
+`enc.second[begin+p-1]`, the recovered Majorana operators are constructed as 
 
 ```math
 \\hat{\\gamma}_{2p-1} = \\hat{c}_p + \\hat{a}_p, \\qquad

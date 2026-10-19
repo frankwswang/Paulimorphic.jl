@@ -10,9 +10,10 @@ using LinearAlgebra: Symmetric, Hermitian
 
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`), whose axes follow the 
 index-pair layout, is Hermitian under simultaneously transposing every index pair 
-`(c_k, a_k)`. Specifically, axes `(2k-1, 2k)` of `inte` must host `(c_k, a_k)` for the 
-`k`-th particle, with the value of `c_k` labeling a creation operator and the value of 
-`a_k` labeling an annihilation operator.
+``(\\mathtt{c_k}, \\mathtt{a_k})``. Specifically, axes `(2k-1, 2k)` of `inte` must host 
+``(\\mathtt{c_k}, \\mathtt{a_k})`` for the `k`-th particle, with the value of 
+``\\mathtt{c_k}`` labeling a creation operator and the value of ``\\mathtt{a_k}`` labeling 
+an annihilation operator. In other words, `inte` must satisfy 
 
 ```math
 \\mathtt{inte}[\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, \\mathtt{c_N}, \\mathtt{a_N}]
@@ -55,9 +56,9 @@ end
     Bool
 
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
-index-pair layout (axes `(2k-1, 2k)` host the index pair `(c_k, a_k)` of the 
-`k`-th particle), is invariant under exchanging the index pairs of the two particles `k` 
-and `l` specified by `posPair`: 
+index-pair layout (axes `(2k-1, 2k)` host the index pair ``(\\mathtt{c_k}, \\mathtt{a_k})`` 
+of the `k`-th particle), is invariant under exchanging the index pairs of the two particles 
+`k` and `l` specified by `posPair`: 
 
 ```math
 \\mathtt{inte}[\\ldots, \\mathtt{c_k}, \\mathtt{a_k}, \\ldots, \\mathtt{c_l}, 
@@ -118,9 +119,9 @@ end
     Bool
 
 Return `true` if `inte`, an `N`-particle integral tensor (`N=D÷2`) whose axes follow the 
-index-pair layout (axes `(2k-1, 2k)` host the index pair `(c_k, a_k)` of the `k`-th 
-particle), is invariant under transposing the index pair of particle `k = pos` 
-(`1 <= k <= N`): 
+index-pair layout (axes `(2k-1, 2k)` host the index pair ``(\\mathtt{c_k}, \\mathtt{a_k})`` 
+of the `k`-th particle), is invariant under transposing the index pair of particle 
+`k = pos` (`1 <= k <= N`): 
 
 ```math
 \\mathtt{inte}[\\ldots, \\mathtt{c_k}, \\mathtt{a_k}, \\ldots] = 
@@ -138,15 +139,16 @@ An integral tensor
 ```
 
 may hold such a symmetry when the action of the underlying core operator ``\\hat{O}`` onto 
-all the basis wavefunctions ``f`` indexed by ``(\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, 
-\\mathtt{c_N}, \\mathtt{a_N})`` is invariant under the transposition of `(c_k, a_k)` inside 
-the integration expression. For example, when ``\\hat{O}`` is the Coulomb operator 
-(``1/r_{12}``), its corresponding two-particle integral tensor holds a four-fold symmetry 
-of this type as long as all the basis wavefunctions used for the integration are real.
+all the basis wavefunctions ``f`` indexed by 
+``(\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, \\mathtt{c_N}, \\mathtt{a_N})`` is invariant 
+under the transposition of ``(\\mathtt{c_k}, \\mathtt{a_k})`` inside the integration 
+expression. For example, when ``\\hat{O}`` is the Coulomb operator (``1/r_{12}``), its 
+corresponding two-particle integral tensor holds a four-fold symmetry of this type as long 
+as all the basis wavefunctions used for the integration are real.
 
 If `inte` does not hold this symmetry, `checkIntePairTransposition` returns `false`, or 
 throws an error when `explicitError` is set to `true`. The tensor rank of `inte`, `D`, must 
-be even; the axes corresponding to `(c_k, a_k)` must have equal extents.
+be even; the axes hosting ``(\\mathtt{c_k}, \\mathtt{a_k})`` must have equal extents.
 """
 function checkIntePairTransposition(inte::AbstractArray{<:RealOrComplex, D}, pos::Integer, 
                                     explicitError::Bool=false)::Bool where {D}
@@ -184,13 +186,14 @@ end
     Bool
 
 Return `true` if `inte` is an `N`-particle integral tensor (`N == D÷2 >= 1`), given a tuple 
-of orbital-sector extents `nOrb` (i.e., `nOrb[begin+k-1]` specifies the mode count for 
-the `k`-th particle), and the index-pair transposition symmetry flags. More specifically, 
-`idxPairSymm[begin+k-1]` indicates whether ``\\mathtt{inte}[\\ldots, c_k, a_k, \\ldots]`` 
-is invariant under the transposition of the index pair `(c_k, a_k)`. For `inte` to be a 
+of orbital-sector extents `nOrb` (i.e., `nOrb[begin+k-1]` specifies the mode count for the 
+`k`-th particle), and the index-pair transposition symmetry flags. More specifically, 
+`idxPairSymm[begin+k-1]` indicates whether 
+``\\mathtt{inte}[\\ldots, \\mathtt{c_k}, \\mathtt{a_k}, \\ldots]`` is invariant under the 
+transposition of the index pair ``(\\mathtt{c_k}, \\mathtt{a_k})``. For `inte` to be a 
 valid integral tensor, its axes must follow the index-pair layout: axes `(2k-1, 2k)` host 
-the index pair `(c_k, a_k)` of the `k`-th particle (`1 <= k <= N`). Therefore, the size of 
-`inte` must satisfy 
+the index pair ``(\\mathtt{c_k}, \\mathtt{a_k})`` of the `k`-th particle (`1 <= k <= N`). 
+Therefore, the size of `inte` must satisfy 
 
     size(inte) == Tuple(repeat(collect(nOrb), inner=2))
 

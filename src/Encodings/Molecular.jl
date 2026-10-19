@@ -120,14 +120,18 @@ creation-annihilation operator pair stays adjacent:
 ```
 
 where ``\\hat{c}_p = \\hat{a}_p^\\dagger`` for any mode ``p``; ``i_k`` and ``j_k`` 
-(``1 \\le k \\le N``) are the modes for the creation and annihilation operators of the 
-``k``-th particle, respectively. The indexing layout of any associated coefficient tensor 
-`inte` that matches this operating-string style is named the **index-pair layout**:
+(``1 \\le k \\le N``) are the modes of the creation and annihilation operators associated 
+with the ``k``-th particle, respectively. The indexing layout of any associated coefficient 
+tensor `inte` that matches this operator-string ordering is named the **index-pair layout**:
+
 ```math
-    \\mathtt{inte}[\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, \\mathtt{c_N}, \\mathtt{a_N}] 
-    \\leftrightarrow
-    \\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N}
+\\mathtt{inte}[\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, \\mathtt{c_N}, \\mathtt{a_N}]
+\\leftrightarrow
+\\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N},
 ```
+
+where the index ``\\mathtt{c_k}`` (or ``\\mathtt{a_k}``) labels the mode ``i_k`` (or 
+``j_k``).
 """
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 
@@ -171,9 +175,8 @@ Return a spin-1/2 `N`-particle operator monomial as the product of `PauliSum` pr
 the input encoding `enc`. For the `k`-th particle (`1 <= k <= N`), 
 `spinSecConfig[begin+k-1]` specifies its spin `sector` (`false` for the first element of 
 `enc`, `true` for the second), and `(iCre, iAnn) = modeIdxConfig[begin+k-1]` specifies the 
-modes ``i_{\\mathtt{k}}`` and ``j_{\\mathtt{k}}`` of its creation operator 
-``\\hat{c}_{i_{\\mathtt{k}}}`` and annihilation operator ``\\hat{a}_{j_{\\mathtt{k}}}`` 
-within that `sector`, namely `sector.second[begin+iCre-1]` and 
+modes ``i_k`` and ``j_k`` of its creation operator ``\\hat{c}_{i_k}`` and annihilation 
+operator ``\\hat{a}_{j_k}`` within that `sector`, namely `sector.second[begin+iCre-1]` and 
 `sector.first[begin+iAnn-1]`, respectively (with ``\\hat{c}_p = \\hat{a}_p^\\dagger`` for 
 any mode ``p``). 
 
@@ -334,12 +337,13 @@ end
 Return a spin-1/2 `N`-particle operator summation as the linear combination of products of 
 `PauliSum` provided by the input encoding `enc`. The linear coefficients of the `PauliSum` 
 products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`), whose 
-axes follow the index-pair layout: axes `(2k-1, 2k)` host the index pair `(c_k, a_k)` of 
-the `k`-th particle (`1 <= k <= N`), where `c_k` and `a_k` respectively label the modes of 
-its creation and annihilation operators. Specifically, the index `c_k` (or `a_k`) maps to 
-the mode `iModeStart[begin+k-1] + c_k - 1` (or `iModeStart[begin+k-1] + a_k - 1`) in the 
-spin sector specified by `spinSecConfig[begin+k-1]`. Subsequently, the returned summation 
-is evaluated as 
+axes follow the index-pair layout: axes `(2k-1, 2k)` host the index pair 
+``(\\mathtt{c_k}, \\mathtt{a_k})`` of the `k`-th particle (`1 <= k <= N`), where 
+``\\mathtt{c_k}`` and ``\\mathtt{a_k}`` respectively label the modes of its creation and 
+annihilation operators. Specifically, the index ``\\mathtt{c_k}`` (or ``\\mathtt{a_k}``) is 
+incremented by `iModeStart[begin+k-1] - 1` to give the mode (index) of the corresponding 
+operator in the spin sector specified by `spinSecConfig[begin+k-1]`. Subsequently, the 
+returned summation is evaluated as 
 
     prefactor * sum(orbInte[idx] * monomial(idx) for idx in CartesianIndices(orbInte))
 
@@ -588,11 +592,12 @@ tensors of per-spin-sector molecular integrals at different values of ``s``:
 
 - ``s = 2``: `first(inte1B2BSpin2)`, `last(inte1B2BSpin2)`
 
-Both per-spin-sector two-body tensors, as well as `inte2BCross`, follow the 
-index-pair layout (i.e., the Chemist notation for two-body molecular integrals); the 
-numbers of spatial-orbital modes per spin sector `(nMode1, nMode2)` are inferred from 
-`size(inte2BCross)`. Hence, the per-spin-sector tensors must match these counts, whereas 
-the total number of spin-orbital modes covered by `enc` can exceed `nMode1 + nMode12`. 
+Both per-spin-sector two-body tensors, as well as `inte2BCross`, follow the index-pair 
+layout (i.e., the Chemist notation for two-body molecular integrals); the numbers of 
+spatial-orbital modes per spin sector, `nMode1` and `nMode2`, are inferred from 
+`size(inte2BCross) == (nMode1, nMode1, nMode2, nMode2)`. Hence, the per-spin-sector 
+tensors must match these counts, whereas the total number of spin-orbital modes covered by 
+`enc` can exceed `nMode1 + nMode2`. 
 
 ## Deciding the ordering of two-body terms
 

@@ -20,11 +20,12 @@ must obey all the following conditions:
 If any condition fails, `checkSpinSectoredEnc` returns `false`, or throws an error when 
 `explicitError` is set to `true`.
 """
-function checkSpinSectoredEnc((sec1Enc, sec2Enc)::NTuple{2, PairwiseSumEnc}, 
+function checkSpinSectoredEnc(enc::NTuple{2, PairwiseSumEnc}, 
                               explicitError::Bool=false)::Bool
+    sec1Enc, sec2Enc = enc
     if sec1Enc === sec2Enc || sec1Enc == sec2Enc
         if explicitError
-            throw(ArgumentError("`sec1Enc` and `sec2Enc` should not be equal, as they "*
+            throw(ArgumentError("The two elements of `enc` should not be equal, as they "*
                                 "correspond to separate spin sectors."))
         else
             false
@@ -125,13 +126,12 @@ with the ``k``-th particle, respectively. The indexing layout of any associated 
 tensor `inte` that matches this operator-string ordering is named the **index-pair layout**:
 
 ```math
-\\mathtt{inte}[\\mathtt{c_1}, \\mathtt{a_1}, \\ldots, \\mathtt{c_N}, \\mathtt{a_N}]
+\\mathtt{inte}[c_1, a_1, \\ldots, c_N, a_N]
 \\leftrightarrow
 \\hat{c}_{i_1} \\hat{a}_{j_1} \\, \\cdots \\hat{c}_{i_N} \\hat{a}_{j_N},
 ```
 
-where the index ``\\mathtt{c_k}`` (or ``\\mathtt{a_k}``) labels the mode ``i_k`` (or 
-``j_k``).
+where the index ``c_k`` (or ``a_k``) labels the mode ``i_k`` (or ``j_k``).
 """
 struct PairedOrder <: StructuredType end #> (1', 1, 2', 2, ..., N', N)
 
@@ -337,10 +337,9 @@ end
 Return a spin-1/2 `N`-particle operator summation as the linear combination of products of 
 `PauliSum` provided by the input encoding `enc`. The linear coefficients of the `PauliSum` 
 products are specified by the `N`-particle integral tensor `orbInte` (`D == 2N`), whose 
-axes follow the index-pair layout: axes `(2k-1, 2k)` host the index pair 
-``(\\mathtt{c_k}, \\mathtt{a_k})`` of the `k`-th particle (`1 <= k <= N`), where 
-``\\mathtt{c_k}`` and ``\\mathtt{a_k}`` respectively label the modes of its creation and 
-annihilation operators. Specifically, the index ``\\mathtt{c_k}`` (or ``\\mathtt{a_k}``) is 
+axes follow the index-pair layout: axes `(2k-1, 2k)` host the index pair ``(c_k, a_k)`` of 
+the `k`-th particle (`1 <= k <= N`), where ``c_k`` and ``a_k`` respectively label the modes 
+of its creation and annihilation operators. Specifically, the index ``c_k`` (or ``a_k``) is 
 incremented by `iModeStart[begin+k-1] - 1` to give the mode (index) of the corresponding 
 operator in the spin sector specified by `spinSecConfig[begin+k-1]`. Subsequently, the 
 returned summation is evaluated as 
@@ -501,10 +500,10 @@ end
 
 Return a one-particle operator summation as the linear combination of products of 
 `PauliSum` provided by the input encoding `oneSecEnc`. The linear coefficients of the 
-`PauliSum` products are specified by the one-particle integral matrix `orbInte`, for which 
-the elements of each (one-based) index pair `(i, j)` also map to the creation operator 
-`oneSecEnc.second[begin+iModeStart+i-2]` and the annihilation operator 
-`oneSecEnc.first[begin+iModeStart+j-2]`, respectively.
+`PauliSum` products are specified by the one-particle integral matrix `orbInte`, whose 
+element at the (one-based) index pair `(i, j)` is the coefficient of the product of the 
+creation operator `oneSecEnc.second[begin+iModeStart+i-2]` and the annihilation operator 
+`oneSecEnc.first[begin+iModeStart+j-2]`.
 
 This function is a specialization of [`genNBodyOperatorSum`](@ref) in the case of `N=1`, 
 for which the two operator orderings, [`PairedOrder`](@ref) and [`NormalOrder`](@ref), 
@@ -646,7 +645,10 @@ regardless of the value of `format`.
     PauliSum
 
 The single-set form encodes both spin sectors and their coupling from one shared 
-spatial-orbital tensor pair `orbInte1B2B`.
+spatial-orbital tensor pair `orbInte1B2B`, i.e., shorthand for 
+
+    encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), 
+                  checkEncoding; hermiticity, idxPairSymm)
 
 ## Symmetry assertion
 In both method signatures of `encodeElecHam`, keyword argument `hermiticity` (`true` by 

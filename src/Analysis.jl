@@ -15,7 +15,7 @@ structural information:
 where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `ham` and 
 `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
 `(i, j)`, `i < j`, indexing into `vertices`. Such a graph records which terms in a 
-target Hamiltonian fail to commute — e.g. as a basis for partitioning it into mutually 
+target Hamiltonian fail to commute — e.g., as a basis for partitioning it into mutually 
 commuting groups.
 
 # Approximate frustration information

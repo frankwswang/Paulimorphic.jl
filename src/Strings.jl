@@ -9,7 +9,7 @@ using LinearAlgebra: dot
 """
     PauliStr <: $(DiscreteOperator|>repr)
 
-An element of the `n`-site Pauli group, stored in the symplectic `z`-`x`
+An element of the `n`-site Pauli group, stored in the symplectic `x`-`z`
 representation: two bit-packed `Memory{UInt}` buffers plus an overall phase.
 
 Specifically, each element ``\\hat{P}_m`` is represented by 
@@ -28,10 +28,10 @@ bitstring),
 (0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
 ```
 
-and `phase` is the complex coefficient [`evalPhase`](@ref) encoded by the field 
-`.phase::`[`PhaseFactor`](@ref), one of `+1`, `+im`, `-1`, and `-im`. Carrying the phase 
-coefficient keeps `PauliStr` a member of the Pauli group under multiplication. The phase 
-generated when two `PauliStr` are multiplied is absorbed into the result's `.phase`.
+and `phase` is the complex coefficient encoded by the field `.phase::`[`PhaseFactor`](@ref) 
+(i.e., [`evalPhase`](@ref)`(.phase)`), one of `+1`, `+im`, `-1`, and `-im`. Carrying the 
+phase coefficient keeps `PauliStr` a member of the Pauli group under multiplication. The 
+phase generated when two `PauliStr` are multiplied is absorbed into the result's `.phase`.
 
 # Bit layout
 With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
@@ -70,7 +70,7 @@ construction.
     though the two act identically under the padding convention.
 
 !!! warning
-    Direct modifications of field `.z` or `.x` that cause bits above site n to become 
+    Direct modifications of field `.z` or `.x` that cause bits above site `.n` to become 
     non-zero may lead to unexpected behaviors.
 
 ≡≡≡ Initialization Method(s) ≡≡≡
@@ -90,7 +90,7 @@ word are cleared; when it is larger, every site past the capacity (up to `nSite`
 the identity. The components are copied into freshly allocated buffers, so the returned 
 `PauliStr` does not reference `xWords` or `zWords`.
 
-    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=$(posRea|>repr)) -> PauliStr
+    PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=PhaseFactor(0)) -> PauliStr
 
 Build a `PauliStr` from a per-site list of Pauli symbols, one [`PauliSym`](@ref) (`symI`, 
 `symZ`, `symX`, `symY`) per site, with `list[i]` acting on site `i`. The resulting string 
@@ -472,7 +472,7 @@ end
 """
     PauliSum{T<:Real} <: $(DiscreteOperator|>repr)
 
-A linear combination of Pauli strings, i.e. a general operator
+A linear combination of Pauli strings, i.e., a general operator
 
 ```math
 \\sum_k c_k \\, \\hat{P}_k,
@@ -1043,12 +1043,12 @@ end
 
 
 """
-    shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true) -> PauliStr
+    shift!(str::PauliStr, nShift::Integer, lowToHigh::Bool=true) -> PauliStr
 
-Shift the single-site operators in `str` along the site axis by `n` sites, in place,
+Shift the single-site operators in `str` along the site axis by `nShift` sites, in place, 
 and return the mutated `str`. When `lowToHigh=true` (default) the operators move toward 
 higher site indices (i.e., a *right* shift): the operator on site `k` is moved to site 
-`k + n`, and anything pushed above site `str.n` is discarded. Similarly, when 
+`k + nShift`, and anything pushed above site `str.n` is discarded. Similarly, when 
 `lowToHigh=false` the operators move toward lower site indices (a *left* shift). Vacated 
 sites are refilled with the identity, the site count `str.n` is preserved, and the overall 
 `.phase` is left unchanged.
@@ -1062,12 +1062,12 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 +X₆  (6 sites)
 ```
 """
-function shift!(str::PauliStr, n::Integer, lowToHigh::Bool=true)
-    n < 0 && throw(DomainError(n, "`n` must be non-negative."))
-    (iszero(n) || iszero(str.n)) && return str #> Nothing to shift
+function shift!(str::PauliStr, nShift::Integer, lowToHigh::Bool=true)
+    nShift < 0 && throw(DomainError(nShift, "`nShift` must be non-negative."))
+    (iszero(nShift) || iszero(str.n)) && return str #> Nothing to shift
 
     nSitePerWord = 8 * sizeof(UInt)
-    wordShift, bitOffset = divrem(n, nSitePerWord)
+    wordShift, bitOffset = divrem(nShift, nSitePerWord)
     shiftBits!(str.x, wordShift, bitOffset, lowToHigh)
     shiftBits!(str.z, wordShift, bitOffset, lowToHigh)
 

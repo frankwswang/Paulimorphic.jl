@@ -361,10 +361,10 @@ accepted by [`@pauli_str`](@ref) as a string literal.
 
 !!! info
     When `pStr` is a zero-site string, the body of the returned string (after the phase 
-    prefix) is `"I"` , so parsing it back with `@pauli_str` yields a single-site identity 
+    prefix) is `"I"`, so parsing it back with `@pauli_str` yields a single-site identity 
     rather than a zero-site string:
     ```jldoctest
-    julia> countSites(@pauli_str toString(pauli"-")) == 1
+    julia> countSites(@pauli_str toString(pauli"-", denseString=true)) == 1
     true
     ```
 
@@ -1580,14 +1580,15 @@ $(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")). When `str` is not a
 string to be fully parsed, an error identifying the violated condition is thrown if 
 `fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
 
-This method is effectively an inverse mapping to `toString(::PauliStr, denseString=true)`:
+This method is effectively an inverse mapping to 
+[`toString(::PauliStr, denseString=true)`](@ref `toString(::PauliStr)`):
 ```jldoctest
 julia> let str=pauli"-XIZX"; toPauliStr(toString(str, denseString=true)) == str end
 true
 ```
 
 !!! info
-    Parsing is case-sensitive throughout: Pauli characters must be uppercase, and the 
+    The parsing is case-sensitive: all Pauli characters must be uppercase, and the 
     lowercase letter `'i'` is always parsed as the imaginary unit of the phase marker.
 """
 function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing)

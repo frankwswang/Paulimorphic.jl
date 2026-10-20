@@ -6,8 +6,6 @@ const PauliXMatEntries = (0,   1,    1,  0) #> (m11, m21, m12, m22)
 const PauliYMatEntries = (0, 1im, -1im,  0)
 const PauliZMatEntries = (1,   0,    0, -1)
 
-const PauliCharacters = ('I', 'Z', 'X', 'Y')
-
 
 """
     PauliSym <: Enum{UInt8}
@@ -40,20 +38,14 @@ and `PauliSym` also imposes a strict total order: `symI < symZ < symX < symY`.
     symY=3 #> 11
 end
 
-function genPauliSym(ele::AbstractChar)
-    num = if ele == PauliCharacters[begin] #> I
-        0
-    elseif ele == PauliCharacters[begin+1] #> Z
-        1
-    elseif ele == PauliCharacters[begin+2] #> X
-        2
-    elseif ele == PauliCharacters[begin+3] #> Y
-        3
-    else
-        throw(ArgumentError("\'$ele\' is not a valid letter for a Pauli operator"))
-    end
+const PauliCharacters = ('I', 'Z', 'X', 'Y')
 
-    genPauliSym(num)
+function genPauliSym(ele::AbstractChar)
+    idx = findfirst(==(ele), PauliCharacters)
+    if idx === nothing
+        throw(ArgumentError("'$ele' is not a valid character for a Pauli operator."))
+    end
+    genPauliSym(idx - 1)
 end
 
 genPauliSym(num::Integer) = PauliSym(num)
@@ -89,7 +81,7 @@ const PhaseOrCoeff = Union{PhaseFactor, RealOrComplex}
 
 Return the `String` representation of `p::`[`PhaseFactor`](@ref). This method produces the 
 representation consistent with that of the phase showing up in the string returned by 
-[`toString(::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)`](@ref).
+[`toString(::PauliStr)`](@ref).
 """
 function toString(p::PhaseFactor; omitPlusSign::Bool=false)
     ps = omitPlusSign ? "" : "+"
@@ -110,24 +102,23 @@ const ValidPhaseMarkers = unique(
 )
 
 """
-
-    toPhase(input::Union{Real, AbstractString}) -> PhaseFactor
+    toPhase(input::Union{Complex, Real, AbstractString}) -> PhaseFactor
 
 Return a `PhaseFactor` which can be parsed from a valid `input`. If `input` is a `Real`, 
 it should be equal to one of the return values of [`evalPhase(p)`](@ref `evalPhase`), in 
 which case `p` is returned; if `input` is a `AbstractString`, its should be equal to one of 
-the valid markers: $(join((`"\"$s\""` for s in ValidPhaseMarkers), ", ")); otherwise, 
+the valid markers: $(join(("`\"$s\"`" for s in ValidPhaseMarkers), ", ")); otherwise, 
 `input` is not valid, and an `ArgumentError` is thrown.
 """
-function toPhase(input::Real)
+function toPhase(input::RealOrComplex)
     if isone(input)
-        PhaseFactor(0)
+        posRea
     elseif isone(-im * input)
-        PhaseFactor(1)
+        posImg
     elseif isone(-input)
-        PhaseFactor(2)
+        negRea
     elseif isone(im * input)
-        PhaseFactor(3)
+        negImg
     else
         throw(ArgumentError("`input=$input` is not a numerical value representable by "*
                             "`PhaseFactor`."))
@@ -139,7 +130,7 @@ function toPhase(input::AbstractString)
         input == toString(p; omitPlusSign) && (return p)
     end
     throw(ArgumentError("`input=\"$input\"` is not one of valid phase markers:\n" * 
-                        join((`"\"$s\""` for s in ValidPhaseMarkers), ", ") * "."))
+                        join(("`\"$s\"`" for s in ValidPhaseMarkers), ", ") * "."))
 end
 
 

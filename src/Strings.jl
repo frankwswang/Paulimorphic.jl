@@ -1,6 +1,6 @@
-export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
-       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
+export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canonicalize!, 
+       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms, 
+       countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
 
@@ -277,17 +277,14 @@ A custom string literal (and its underlying macro) that builds a [`PauliStr`](@r
 `@pauli_str` is directly invoked, any expression `expr` that evaluates (at runtime in the
 invoking scope) to either one of the following two types of `input` is accepted:
 
-- `input::AbstractString`: an optional phase marker followed by one character per site, 
-  each being `'I'`, `'X'`, `'Y'`, or `'Z'`. The phase marker is a prefix string (may be 
-  omitted) preceding the first Pauli character and must be one of $ValidPhaseMarkers; any 
-  other prefix throws an `ArgumentError`. Parsing is case-sensitive throughout: Pauli 
-  letters must be uppercase, and a lowercase `'i'` is always parsed as the imaginary unit 
-  of the phase marker.
-- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): construct a 
-  `PauliStr` carrying a unit phase (+1) in which the Pauli operator at each site is 
-  specified by an element in `input` as a two-bit code of [`PauliSym`](@ref), equivalent to 
-  [`toPauliStr(input, PhaseFactor(0))`](@ref 
-   `toPauliStr(::AbstractVector{<:Integer}, ::PhaseFactor)`).
+- `input::AbstractString`: an optional phase marker followed by one Pauli character 
+  (`'I'`, `'X'`, `'Y'`, or `'Z'`) per site. The subsequent evaluation is equivalent to 
+  [`toPauliStr(input)`].
+- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): an integer vector 
+  where the `i`-th element is effectively a two-bit code of of [`PauliSym`](@ref) that 
+  specifies the Pauli operator acting on site `i`. The subsequent evaluation is equivalent 
+  to [`toPauliStr(input, PhaseFactor(0))`](@ref 
+      `toPauliStr(::AbstractVector{<:Integer}, ::PhaseFactor)`).
 
 !!! info
     In both forms, the `k`-th Pauli character (or integer) of `input` specifies the 
@@ -312,17 +309,9 @@ true
 ```
 """
 macro pauli_str(ex)
-    strOrVecExpr = esc(ex)
     quote
-        val = $strOrVecExpr
-        if val isa AbstractString
-            iBody = something(findfirst(in(PauliCharacters), val), ncodeunits(val) + 1)
-            marker = SubString(val, firstindex(val), prevind(val, iBody))
-            PauliStr([genPauliSym(c) for c in SubString(val, iBody)], toPhase(marker))
-        elseif val isa AbstractArray{<:Integer}
-            toPauliStr(val, posRea)
-        else
-            throw("`$val` is not a valid value for `PauliStr` construction.")
+        let val=$(esc(ex))
+            val isa AbstractString ? toPauliStr(val) : toPauliStr(val, posRea)
         end
     end
 end
@@ -369,9 +358,8 @@ every site carries the identity (including the zero-site case).
 
 When `denseString=true` (the dense representation), every site in `1:pStr.n` emits one 
 character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value can be 
-directly passed to the constructor [`PauliStr(::AbstractString)`](@ref `PauliStr`) or 
-accepted by [`@pauli_str`](@ref) as a string literal. In both cases, the string is reset to 
-a single-site identity if `pStr` is a zero-site string. 
+accepted by [`@pauli_str`](@ref) as a string literal. In both cases, the returned string is 
+extended to a single-site identity if `pStr` is a zero-site string.
 
 # Example
 ```jldoctest
@@ -415,13 +403,7 @@ function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     if sym == symI
         denseString ? string(PauliCharacters[begin]) : ""
     else
-        char = if sym == symZ
-            PauliCharacters[begin+1]
-        elseif sym == symX
-            PauliCharacters[begin+2]
-        else #> symY
-            PauliCharacters[begin+3]
-        end
+        char = PauliCharacters[begin + Int(sym)]
         char * (denseString ? "" : getSubscriptStr(i|>Int))
     end
 end
@@ -1570,16 +1552,48 @@ function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor,
 
     for (i, val) in enumerate(code)
         if !(val in valPool)
-            if fallbackStr
-                return fallbackStr
-            else
-                throw(ArgumentError("`code[begin+$i-1]=$val` does not evaluate to one of "*
-                                    "the valid integer codes for `PauliSym`: `$valPool`."))
-            end
+            ismissing(fallbackStr) || (return fallbackStr)
+            throw(ArgumentError("`code[begin+$i-1]=$val` does not evaluate to one of "*
+                                "the valid integer codes for `PauliSym`: `$valPool`."))
         end
     end
 
     PauliStr([genPauliSym(val) for val in code], phase)
+end
+
+"""
+
+    toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing) -> PauliStr
+
+Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an optionally 
+empty phase marker concatenated by a string of Pauli characters, each represent one of 
+the four single-site Pauli operators (`'I'```\\mapsto\\hat{I}``, `'Z'```\\mapsto\\hat{Z}``, 
+`'X'```\\mapsto\\hat{X}``, `'Y'```\\mapsto\\hat{Y}``). The phase marker should be a prefix 
+string, equal to be one of `$ValidPhaseMarkers`. If `str` is not a valid string to be fully 
+parsed, an `ArgumentError` is thrown if `fallbackStr` is `missing` (the default); otherwise 
+`fallbackStr` is returned instead.
+
+This method is effectively an inverse mapping to `toString(::PauliStr, denseString=true)`:
+```jldoctest
+julia> let str=pauli"-XIZX"; toPauliStr(toString(str, denseString=true)) == str end
+true
+```
+
+!!! info
+    Parsing is case-sensitive throughout: Pauli characters must be uppercase, and the 
+    lowercase letter `'i'` is always parsed as the imaginary unit of the phase marker.
+"""
+function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing)
+    nStrUnit = ncodeunits(str)
+    body = something(findfirst(in(PauliCharacters), str), nStrUnit+1)
+    head = SubString(str, firstindex(str), prevind(str, body))
+
+    if !(head in ValidPhaseMarkers) || (body == nStrUnit+1 && ncodeunits(head) < nStrUnit)
+        ismissing(fallbackStr) || (return fallbackStr)
+        throw(ArgumentError("`str=\"$str\"` cannot be properly parsed as a `PauliStr`."))
+    end
+
+    PauliStr([genPauliSym(c) for c in SubString(str, body)], toPhase(head))
 end
 
 

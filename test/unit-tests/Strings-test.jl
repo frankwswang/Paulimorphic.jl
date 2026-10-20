@@ -33,27 +33,27 @@ m = "X"
     #> Case-sensitive: a lowercase `i` is the imaginary unit, never an identity site
     @test pauli"iIXZ" == mul(pauli"IXZ", posImg) && countSites(pauli"iIXZ") == 3
     @test pauli"-iXZ" == mul(pauli"XZ", negImg) && countSites(pauli"-iXZ") == 2
-    @test_throws "phase marker" pauli"xXZ" #> Lowercase body letters are not Pauli letters
-    @test_throws "valid letter" pauli"Xx"
+    @test_throws ArgumentError pauli"xXZ" #> Lowercase body letters are not Pauli letters
+    @test_throws ArgumentError pauli"Xx"
 
     #> The marker is the prefix preceding the first Pauli letter: anything after that
     #> point is a Pauli letter, or else fails as one
-    @test_throws "valid letter" pauli"XXIX-"
-    @test_throws "valid letter" pauli"X-X"
-    @test_throws "valid letter" pauli"XXIXi"
+    @test_throws ArgumentError pauli"XXIX-"
+    @test_throws ArgumentError pauli"X-X"
+    @test_throws ArgumentError pauli"XXIXi"
 
     #> Prefixes that are not one of the six markers fail as a phase marker
-    @test_throws "phase marker" pauli"-1XX"
-    @test_throws "phase marker" pauli"imXX"
-    @test_throws "phase marker" pauli"im*XX"
-    @test_throws "phase marker" pauli"i*XX"
-    @test_throws "phase marker" pauli"+-XX"
-    @test_throws "phase marker" pauli"--XX"
-    @test_throws "phase marker" pauli"ii XX"
-    @test_throws "phase marker" pauli"*XX"
-    @test_throws "phase marker" pauli"i-XX"
-    @test_throws "phase marker" pauli" -XX"
-    @test_throws "phase marker" pauli"garbage"
+    @test_throws ArgumentError pauli"-1XX"
+    @test_throws ArgumentError pauli"imXX"
+    @test_throws ArgumentError pauli"im*XX"
+    @test_throws ArgumentError pauli"i*XX"
+    @test_throws ArgumentError pauli"+-XX"
+    @test_throws ArgumentError pauli"--XX"
+    @test_throws ArgumentError pauli"ii XX"
+    @test_throws ArgumentError pauli"*XX"
+    @test_throws ArgumentError pauli"i-XX"
+    @test_throws ArgumentError pauli" -XX"
+    @test_throws ArgumentError pauli"garbage"
     @test_throws ArgumentError pauli"-1XX" #> Same error type as an invalid Pauli letter
 
     #> The integer-vector form carries the unit phase only
@@ -374,6 +374,14 @@ end
     @test_throws "must carry a coefficient" toPauliStr(badCoeff)
     @test (@inferred toPauliStr(PauliSum(Int, [pauli"X"]))) isa PauliStr
     @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
+
+    @test_throws ArgumentError toPauliStr([0, 4], posRea)
+    @test_throws ArgumentError toPauliStr([-1], negRea)
+    @test toPauliStr([0, 4], posRea, pauli"X") == pauli"X"
+    @test_throws ArgumentError (@pauli_str [0, 4])
+    @test toPauliStr([0, 1, 2, 3], posRea) == pauli"IZXY"
+    @test toPauliStr(UInt8[2, 2], negImg) == pauli"-iXX"
+    @test toPauliStr(Int[], negRea) == pauli"-"
 end
 
 @testset "sumCoeffs" begin

@@ -281,8 +281,8 @@ invoking scope) to either one of the following two types of `input` is accepted:
   (`'I'`, `'X'`, `'Y'`, or `'Z'`) per site. The subsequent evaluation is equivalent to 
   [`toPauliStr(input)`].
 - `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): an integer vector 
-  where the `i`-th element is effectively a two-bit code of of [`PauliSym`](@ref) that 
-  specifies the Pauli operator acting on site `i`. The subsequent evaluation is equivalent 
+  where the `k`-th element is effectively a two-bit code of [`PauliSym`](@ref) that 
+  specifies the Pauli operator acting on site `k`. The subsequent evaluation is equivalent 
   to [`toPauliStr(input, PhaseFactor(0))`](@ref `toPauliStr`).
 
 !!! info
@@ -357,8 +357,12 @@ every site carries the identity (including the zero-site case).
 
 When `denseString=true` (the dense representation), every site in `1:pStr.n` emits one 
 character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value can be 
-accepted by [`@pauli_str`](@ref) as a string literal. In both cases, the returned string is 
-extended to a single-site identity if `pStr` is a zero-site string.
+accepted by [`@pauli_str`](@ref) as a string literal. 
+
+
+!!! info
+    The returned string is extended to a single-site identity if `pStr` is a zero-site 
+    string (verifiable via `countSites`).
 
 # Example
 ```jldoctest
@@ -400,9 +404,9 @@ function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     sym = indexSite(pStr, i)
 
     if sym == symI
-        denseString ? string(CONSTVAR!!PauliChars[begin]) : ""
+        denseString ? string(CONSTVAR!!pauliChars[begin]) : ""
     else
-        char = CONSTVAR!!PauliChars[begin + Int(sym)]
+        char = CONSTVAR!!pauliChars[begin + Int(sym)]
         char * (denseString ? "" : getSubscriptStr(i|>Int))
     end
 end
@@ -1561,16 +1565,16 @@ function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor,
 end
 
 """
-
     toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing) -> PauliStr
 
 Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an optionally 
-empty phase marker concatenated by a string of Pauli characters, each represent one of 
-the four single-site Pauli operators (`'I'```\\mapsto\\hat{I}``, `'Z'```\\mapsto\\hat{Z}``, 
-`'X'```\\mapsto\\hat{X}``, `'Y'```\\mapsto\\hat{Y}``). The phase marker should be a prefix 
-string, equal to be one of `$CONSTVAR!!PhaseMarkers`. When `str` is not a valid string to 
-be fully parsed, an error identifying the violated condition is thrown if `fallbackStr` is 
-`missing` (the default); otherwise `fallbackStr` is returned instead.
+empty phase marker concatenated with a string of Pauli characters, each represent one of 
+the four single-site Pauli operators (`'I'` ``\\mapsto \\hat{I}``, 
+`'Z'` ``\\mapsto \\hat{Z}``, `'X'` ``\\mapsto \\hat{X}``, `'Y'` ``\\mapsto \\hat{Y}``). The 
+phase marker should be a prefix string equal to one of the valid markers: 
+$(join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ")). When `str` is not a valid 
+string to be fully parsed, an error identifying the violated condition is thrown if 
+`fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
 
 This method is effectively an inverse mapping to `toString(::PauliStr, denseString=true)`:
 ```jldoctest
@@ -1583,25 +1587,26 @@ true
     lowercase letter `'i'` is always parsed as the imaginary unit of the phase marker.
 """
 function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing)
-    scope = in(CONSTVAR!!PauliChars)
+    scope = in(CONSTVAR!!pauliChars)
     iStartBody = something(findfirst(scope, str), ncodeunits(str)+1)
     head = SubString(str, firstindex(str), prevind(str, iStartBody))
 
-    if !(isempty(head) || head in CONSTVAR!!PhaseMarkers)
+    if !(head in CONSTVAR!!PhaseMarkers)
         ismissing(fallbackStr) || (return fallbackStr)
         throw(ArgumentError("`str=\"$str\"` does not start with a valid phase marker."))
-    else
-        body = SubString(str, iStartBody)
-        offset = findfirst(!scope, body)
-        if offset !== nothing
-            ismissing(fallbackStr) || (return fallbackStr)
-            chr = body[offset]
-            invalidIdx = offset + iStartBody - 1
-            throw(ArgumentError("`str[$(invalidIdx)]=\'$chr\'` is an invalid character."))
-        end
     end
 
-    PauliStr([genPauliSym(c) for c in SubString(str, iStartBody)], toPhase(head))
+    body = SubString(str, iStartBody)
+    offset = findfirst(!scope, body)
+
+    if offset !== nothing
+        ismissing(fallbackStr) || (return fallbackStr)
+        chr = body[offset]
+        invalidIdx = offset + iStartBody - 1
+        throw(ArgumentError("`str[$(invalidIdx)]=\'$chr\'` is an invalid character."))
+    end
+
+    PauliStr([genPauliSym(c) for c in body], toPhase(head))
 end
 
 

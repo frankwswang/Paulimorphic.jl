@@ -381,6 +381,13 @@ end
     @test toPauliStr([0, 1, 2, 3], posRea) == pauli"IZXY"
     @test toPauliStr(UInt8[2, 2], negImg) == pauli"-iXX"
     @test toPauliStr(Int[], negRea) == pauli"-"
+
+    @test (@inferred toPauliStr("-iXZ")) == pauli"-iXZ"
+    @test toPauliStr("-1XX", pauli"Z") == pauli"Z"
+    @test toPauliStr("X-X", pauli"Z") == pauli"Z"
+    @test_throws "phase marker" toPauliStr("-1XX")
+    @test_throws "`str[4]='-'`" toPauliStr("-iX-Z")
+    @test_throws "`str[2]='x'`" toPauliStr("Xx")
 end
 
 @testset "sumCoeffs" begin

@@ -53,11 +53,11 @@ function toMatrix(::Type{T}, sym::PauliSym) where {T<:Real}
     if sym == symI
         matVec[begin] = mat[end] = one(T)
     elseif sym == symX
-        matVec .= CONSTVAR!!PauliXMatEles
+        matVec .= CONSTVAR!!pauliXMatEles
     elseif sym == symY
-        matVec .= CONSTVAR!!PauliYMatEles
+        matVec .= CONSTVAR!!pauliYMatEles
     else
-        matVec .= CONSTVAR!!PauliZMatEles
+        matVec .= CONSTVAR!!pauliZMatEles
     end
 
     mat

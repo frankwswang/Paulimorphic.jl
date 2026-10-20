@@ -399,7 +399,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
                              hermiticity::Bool=true, 
                              idxPairSymm::NonEmptyTuple{Bool, M}=
                                           ntuple(_->false, Val(M+1)), 
-                             checkInput::Bool=true) where {T<:RealOrComplex, D, M}
+                             checkInput::Bool=true) where {T<:SRealOrComplex, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
     for (p, iStart) in enumerate(iModeStart)
@@ -516,7 +516,7 @@ are verified via [`checkNBodyInteTensor`](@ref).
 function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{T}, 
                              iModeStart::Integer=1; hermiticity::Bool=true, 
                              idxPairSymm::Bool=false, checkInput::Bool=true) where 
-                            {T<:RealOrComplex}
+                            {T<:SRealOrComplex}
     idxPairSymm = (idxPairSymm,)
 
     if checkInput
@@ -543,8 +543,8 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
 end
 
 
-const MolInteTensor1B2B{T<:RealOrComplex, T1<:AbstractMatrix{T}, T2<:AbstractArray{T, 4}} = 
-      Tuple{T1, T2}
+const MolInteTensor1B2B{T<:SRealOrComplex, 
+                        T1<:AbstractMatrix{T}, T2<:AbstractArray{T, 4}} = Tuple{T1, T2}
 
 const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
@@ -670,7 +670,7 @@ function encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc,
                        checkEncoding::Bool=true; 
                        hermiticity::Bool=true, 
                        idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)
-                       ) where {T<:RealOrComplex}
+                       ) where {T<:SRealOrComplex}
     nOrbSpin1, nOrbSpin2 = size.(Ref(inte2BCross), (1, 3))
     crossERIShape = (nOrbSpin1, nOrbSpin1, nOrbSpin2, nOrbSpin2)
     if size(inte2BCross) != crossERIShape
@@ -714,7 +714,7 @@ encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc,
               orbInte1B2B::MolInteTensor1B2B{T}, checkEncoding::Bool=true; 
               hermiticity::Bool=true, 
               idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)) where 
-             {T<:RealOrComplex} = 
+             {T<:SRealOrComplex} = 
 encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), checkEncoding; 
               hermiticity, idxPairSymm)
 
@@ -745,7 +745,7 @@ function formatMolecularInteData(::NormalOrder, inteData::MolInteTensor1B2B{T},
                                  nOrbital::Integer=size(first(inteData), 1); 
                                  hermiticity::Bool=true, 
                                  idxPairSymm::Bool=(hermiticity && T<:Real)) where 
-                                {T<:RealOrComplex}
+                                {T<:SRealOrComplex}
     inte1B, inte2B = inteData
     nOrbPair = (nOrbital, nOrbital)
     oneBodyPairSymm = (idxPairSymm,)
@@ -808,7 +808,7 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
                                  nOrbital::Integer=size(first(inteData), 1); 
                                  hermiticity::Bool=true, 
                                  idxPairSymm::Bool=(hermiticity && T<:Real)) where 
-                                {T<:RealOrComplex}
+                                {T<:SRealOrComplex}
     inte1B, inte2B = formatMolecularInteData(NormalOrder(), inteData, nOrbital; 
                                              idxPairSymm, hermiticity)
     eleT = (typeof∘inv∘one)(eltype(inte1B))

@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: PauliCharacters, posRea, posImg, negRea, negImg
+using Paulimorphic: CONSTVAR!!PauliChars, posRea, posImg, negRea, negImg
 
 @testset "Constants.jl" begin
 
@@ -11,7 +11,8 @@ using Paulimorphic: PauliCharacters, posRea, posImg, negRea, negImg
 @test (@inferred evalPhase(negImg)) === Complex( 0, -1)
 
 #> The bindings between Pauli characters and their respective integer codes
-@test map(x->PauliCharacters[begin+Int(x)], instances(PauliSym)) == PauliCharacters
+@test map(x->CONSTVAR!!PauliChars[begin+Int(x)], instances(PauliSym)) == 
+      CONSTVAR!!PauliChars
 
 #> `toPhase`
 for p in instances(PhaseFactor)

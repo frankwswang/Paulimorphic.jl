@@ -401,9 +401,9 @@ function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     sym = indexSite(pStr, i)
 
     if sym == symI
-        denseString ? string(PauliCharacters[begin]) : ""
+        denseString ? string(CONSTVAR!!PauliChars[begin]) : ""
     else
-        char = PauliCharacters[begin + Int(sym)]
+        char = CONSTVAR!!PauliChars[begin + Int(sym)]
         char * (denseString ? "" : getSubscriptStr(i|>Int))
     end
 end
@@ -1569,9 +1569,9 @@ Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an opt
 empty phase marker concatenated by a string of Pauli characters, each represent one of 
 the four single-site Pauli operators (`'I'```\\mapsto\\hat{I}``, `'Z'```\\mapsto\\hat{Z}``, 
 `'X'```\\mapsto\\hat{X}``, `'Y'```\\mapsto\\hat{Y}``). The phase marker should be a prefix 
-string, equal to be one of `$ValidPhaseMarkers`. If `str` is not a valid string to be fully 
-parsed, an `ArgumentError` is thrown if `fallbackStr` is `missing` (the default); otherwise 
-`fallbackStr` is returned instead.
+string, equal to be one of `$CONSTVAR!!PhaseMarkers`. When `str` is not a valid string to 
+be fully parsed, an error identifying the violated condition is thrown if `fallbackStr` is 
+`missing` (the default); otherwise `fallbackStr` is returned instead.
 
 This method is effectively an inverse mapping to `toString(::PauliStr, denseString=true)`:
 ```jldoctest
@@ -1584,16 +1584,25 @@ true
     lowercase letter `'i'` is always parsed as the imaginary unit of the phase marker.
 """
 function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing)
-    nStrUnit = ncodeunits(str)
-    body = something(findfirst(in(PauliCharacters), str), nStrUnit+1)
-    head = SubString(str, firstindex(str), prevind(str, body))
+    scope = in(CONSTVAR!!PauliChars)
+    iStartBody = something(findfirst(scope, str), ncodeunits(str)+1)
+    head = SubString(str, firstindex(str), prevind(str, iStartBody))
 
-    if !(head in ValidPhaseMarkers) || (body == nStrUnit+1 && ncodeunits(head) < nStrUnit)
+    if !(isempty(head) || head in CONSTVAR!!PhaseMarkers)
         ismissing(fallbackStr) || (return fallbackStr)
-        throw(ArgumentError("`str=\"$str\"` cannot be properly parsed as a `PauliStr`."))
+        throw(ArgumentError("`str=\"$str\"` does not start with a valid phase marker."))
+    else
+        body = SubString(str, iStartBody)
+        offset = findfirst(!scope, body)
+        if offset !== nothing
+            ismissing(fallbackStr) || (return fallbackStr)
+            chr = body[offset]
+            invalidIdx = offset + length(head) - firstindex(body) + firstindex(str)
+            throw(ArgumentError("`str[$(invalidIdx)]=\'$chr\'` is an invalid character."))
+        end
     end
 
-    PauliStr([genPauliSym(c) for c in SubString(str, body)], toPhase(head))
+    PauliStr([genPauliSym(c) for c in SubString(str, iStartBody)], toPhase(head))
 end
 
 

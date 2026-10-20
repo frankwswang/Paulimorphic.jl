@@ -33,28 +33,27 @@ m = "X"
     #> Case-sensitive: a lowercase `i` is the imaginary unit, never an identity site
     @test pauli"iIXZ" == mul(pauli"IXZ", posImg) && countSites(pauli"iIXZ") == 3
     @test pauli"-iXZ" == mul(pauli"XZ", negImg) && countSites(pauli"-iXZ") == 2
-    @test_throws ArgumentError pauli"xXZ" #> Lowercase body letters are not Pauli letters
-    @test_throws ArgumentError pauli"Xx"
+    @test_throws "phase marker" pauli"xXZ" #> Lowercase body letters are not Pauli letters
+    @test_throws "character" pauli"Xx"
 
     #> The marker is the prefix preceding the first Pauli letter: anything after that
     #> point is a Pauli letter, or else fails as one
-    @test_throws ArgumentError pauli"XXIX-"
-    @test_throws ArgumentError pauli"X-X"
-    @test_throws ArgumentError pauli"XXIXi"
+    @test_throws "character" pauli"XXIX-"
+    @test_throws "character" pauli"X-X"
+    @test_throws "character" pauli"XXIXi"
 
     #> Prefixes that are not one of the six markers fail as a phase marker
-    @test_throws ArgumentError pauli"-1XX"
-    @test_throws ArgumentError pauli"imXX"
-    @test_throws ArgumentError pauli"im*XX"
-    @test_throws ArgumentError pauli"i*XX"
-    @test_throws ArgumentError pauli"+-XX"
-    @test_throws ArgumentError pauli"--XX"
-    @test_throws ArgumentError pauli"ii XX"
-    @test_throws ArgumentError pauli"*XX"
-    @test_throws ArgumentError pauli"i-XX"
-    @test_throws ArgumentError pauli" -XX"
-    @test_throws ArgumentError pauli"garbage"
-    @test_throws ArgumentError pauli"-1XX" #> Same error type as an invalid Pauli letter
+    @test_throws "phase marker" pauli"-1XX"
+    @test_throws "phase marker" pauli"imXX"
+    @test_throws "phase marker" pauli"im*XX"
+    @test_throws "phase marker" pauli"i*XX"
+    @test_throws "phase marker" pauli"+-XX"
+    @test_throws "phase marker" pauli"--XX"
+    @test_throws "phase marker" pauli"ii XX"
+    @test_throws "phase marker" pauli"*XX"
+    @test_throws "phase marker" pauli"i-XX"
+    @test_throws "phase marker" pauli" -XX"
+    @test_throws "phase marker" pauli"garbage"
 
     #> The integer-vector form carries the unit phase only
     @test (@pauli_str [2, 2, 0, 2]) == pauli"+XXIX"

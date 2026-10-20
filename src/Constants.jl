@@ -2,9 +2,9 @@ export PauliSym, symI, symX, symY, symZ, PhaseFactor, toString, toPhase, evalPha
 
 public mul
 
-const PauliXMatEntries = (0,   1,    1,  0) #> (m11, m21, m12, m22)
-const PauliYMatEntries = (0, 1im, -1im,  0)
-const PauliZMatEntries = (1,   0,    0, -1)
+const CONSTVAR!!PauliXMatEles = (0,   1,    1,  0) #> (m11, m21, m12, m22)
+const CONSTVAR!!PauliYMatEles = (0, 1im, -1im,  0)
+const CONSTVAR!!PauliZMatEles = (1,   0,    0, -1)
 
 
 """
@@ -38,10 +38,10 @@ and `PauliSym` also imposes a strict total order: `symI < symZ < symX < symY`.
     symY=3 #> 11
 end
 
-const PauliCharacters = ('I', 'Z', 'X', 'Y')
+const CONSTVAR!!PauliChars = ('I', 'Z', 'X', 'Y')
 
 function genPauliSym(ele::AbstractChar)
-    idx = findfirst(==(ele), PauliCharacters)
+    idx = findfirst(==(ele), CONSTVAR!!PauliChars)
     if idx === nothing
         throw(ArgumentError("'$ele' is not a valid character for a Pauli operator."))
     end
@@ -97,7 +97,7 @@ function toString(p::PhaseFactor; omitPlusSign::Bool=false)
 end
 
 
-const ValidPhaseMarkers = unique(
+const CONSTVAR!!PhaseMarkers = unique(
     toString(p; omitPlusSign) for p in instances(PhaseFactor), omitPlusSign in (false, true)
 )
 
@@ -107,7 +107,7 @@ const ValidPhaseMarkers = unique(
 Return a `PhaseFactor` which can be parsed from a valid `input`. If `input` is a `Real`, 
 it should be equal to one of the return values of [`evalPhase(p)`](@ref `evalPhase`), in 
 which case `p` is returned; if `input` is a `AbstractString`, its should be equal to one of 
-the valid markers: $(join(("`\"$s\"`" for s in ValidPhaseMarkers), ", ")); otherwise, 
+the valid markers: $(join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ")); otherwise, 
 `input` is not valid, and an `ArgumentError` is thrown.
 """
 function toPhase(input::RealOrComplex)
@@ -130,7 +130,7 @@ function toPhase(input::AbstractString)
         input == toString(p; omitPlusSign) && (return p)
     end
     throw(ArgumentError("`input=\"$input\"` is not one of valid phase markers:\n" * 
-                        join(("`\"$s\"`" for s in ValidPhaseMarkers), ", ") * "."))
+                        join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ") * "."))
 end
 
 

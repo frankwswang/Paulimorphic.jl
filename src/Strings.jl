@@ -524,8 +524,9 @@ Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in th
 signature. When `coeffs` is an `AbstractVector`, it must have the same length as `strs`, 
 and each `coeffs[i]` is the coefficient initially associated with `strs[i]`; when `coeffs` 
 is a `C` (scalar), it is the coefficient initially associated with every string in `strs`. 
-The core data type `T=Bool` is specifically disallowed because phase absorption must be 
-able to scale a coefficient by `±1` and `±im`, which `Complex{Bool}` cannot represent.
+The core data type `T` is restricted to `$SignedReal` (which excludes `Bool`, `Unsigned`, 
+and `Rational{<:Unsigned}`) because phase absorption must be able to scale a coefficient 
+by `±1` and `±im`, which the complex forms of the excluded types cannot represent.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -553,7 +554,7 @@ always returns `true`.
 
 Construct a `PauliSum` with the coefficient of every Pauli string initialized to 
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
-`T=Bool` is disallowed for the same reason as the first Initialization method.
+`T` is subject to the same restriction as in the first initialization method.
 
     PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:$SignedReal} -> 
     PauliSum{T}
@@ -567,7 +568,7 @@ obtain a restored canonical form of a `ham`. Particularly, when `T` is specified
 first argument, the coefficients of `ham` are represented as `Complex{T}` if possible, 
 otherwise an `InexactError` is thrown upon construction. Thus, narrowing floating-point `T` 
 may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
-`T=Bool` is disallowed for the same reason as the first Initialization method.
+`T` is subject to the same restriction as in the first initialization method.
 
     PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:$SignedReal} -> 
     PauliSum{T}
@@ -863,9 +864,9 @@ end
 
 
 """
-    sortStrings!(strs::AbstractVector{PauliStr}, coeffs::AbstractVector{C}, 
-                 considerCoeff::Bool=true) where {C<:$SRealOrComplex} -> 
-    Nothing
+    sortStrings!(strs::AbstractVector{PauliStr}, 
+                 coeffs::AbstractVector{<:Union{T, Complex{T}}}, 
+                 considerCoeff::Bool=true) where {T<:$SignedReal} -> Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
@@ -967,7 +968,7 @@ as a fraction of the largest coefficient when `relative` is set. The `inclusive`
 chooses whether coefficients landing exactly on the threshold are kept (`>=`) or dropped 
 (`>`). For floating-point `T`, the default value of `tolerance` is `8eps(T)`: a small 
 multiple of the machine epsilon, enough to discard the round-off residuals left by operator 
-assembly when the coefficients are well conditioned; for integer `T`, the default value of 
+assembly when the coefficients are well conditioned; otherwise, the default value of 
 `tolerance` is `zero(T)`.
 
 # String ownership

@@ -17,7 +17,7 @@ const PStrCoeffPair{T<:SignedReal} = Pair{PauliStr, <:SRealOrComplex{T}}
 Add two `PauliStr`, returning their sum in which each string initially carries the nominal 
 coefficient `one(Complex{T})` before its phase is absorbed (see the [`PauliSum`](@ref) 
 constructors). When `T` is unspecified (in the case of the second signature), it defaults 
-to `Int`; `T=Bool` is disallowed for the same reason as in the `PauliSum` constructor. If 
+to `Int`; `T` is subject to the same restriction as in the `PauliSum` constructor. If 
 `simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
 (when the same-named argument is set to `true`) is applied to the result. Neither input is 
 mutated, and the result does not reference any data in either input. Using the binary 
@@ -196,12 +196,13 @@ function mul(str1::PauliStr, str2::PauliStr)
 end
 
 """
-    mul(::Type{T}, str::PauliStr, coeff::$SRealOrComplex, 
-        simplification::Bool=true) where {T<:$SignedReal} -> 
+    mul(::Type{T}, str::PauliStr, coeff::Union{T1, Complex{T1}}, 
+        simplification::Bool=true) where {T<:$SignedReal, T1<:$SignedReal} -> 
     PauliSum{T}
 
-    mul(str::PauliStr, coeff::C, simplification::Bool=true) where {C<:$SRealOrComplex} -> 
-    PauliSum{real(C)}
+    mul(str::PauliStr, coeff::Union{T, Complex{T}}, 
+        simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum{T}
 
     str * coeff -> PauliSum
     coeff * str -> PauliSum
@@ -321,9 +322,9 @@ mul(promote_type(T1, T2), h1, h2, simplification)
         ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{T}
 
-    mul(h::PauliSum{T}, coeff::C, simplification::Bool=true
-        ) where {T<:$SignedReal, C<:$SRealOrComplex} -> 
-    PauliSum{promote_type(T, real(C))}
+    mul(h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{promote_type(T1, T2)}
 
     h * coeff -> PauliSum
     coeff * h -> PauliSum
@@ -403,7 +404,7 @@ the stored `PauliStr`.
 scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
 
 """
-    scale!(h::PauliSum, c::$SRealOrComplex) -> PauliSum
+    scale!(h::PauliSum, c::Union{T, Complex{T}}) where {T<:$SignedReal} -> PauliSum
 
 Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff` is scaled 
 in place, thus each product `h.coeff[i] * c` must be able to be converted to 

@@ -41,9 +41,8 @@ const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
 
 Return the 2×2 matrix representation (in the Pauli-Z eigenbasis) of the single-site 
 Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Complex{T}`. When 
-`T` is unspecified, method `toMatrix(sym::PauliSym)` defaults it to `Int`. `T` is 
-disallowed to be `Bool`. The returned matrix is newly allocated on every call and shares no 
-data with any global state.
+`T` is unspecified, method `toMatrix(sym::PauliSym)` defaults it to `Int`. The returned 
+matrix is newly allocated on every call and shares no data with any global state.
 """
 function toMatrix(::Type{T}, sym::PauliSym) where {T<:SignedReal}
     mat = spzeros(Complex{T}, 2, 2)

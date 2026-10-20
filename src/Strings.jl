@@ -279,7 +279,7 @@ invoking scope) to either one of the following two types of `input` is accepted:
 
 - `input::AbstractString`: an optional phase marker followed by one Pauli character 
   (`'I'`, `'X'`, `'Y'`, or `'Z'`) per site. The subsequent evaluation is equivalent to 
-  [`toPauliStr(input)`].
+  [`toPauliStr(input)`](@ref `toPauliStr(::AbstractString)`).
 - `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): an integer vector 
   where the `k`-th element is effectively a two-bit code of [`PauliSym`](@ref) that 
   specifies the Pauli operator acting on site `k`. The subsequent evaluation is equivalent 
@@ -357,12 +357,11 @@ every site carries the identity (including the zero-site case).
 
 When `denseString=true` (the dense representation), every site in `1:pStr.n` emits one 
 character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value can be 
-accepted by [`@pauli_str`](@ref) as a string literal. 
-
+accepted by [`@pauli_str`](@ref) as a string literal.
 
 !!! info
-    The returned string is extended to a single-site identity if `pStr` is a zero-site 
-    string (verifiable via `countSites`).
+    When `pStr` is a zero-site string (verifiable via `countSites`), the returned string is 
+    formatted as a `"I"` following a proper phase prefix (if necessary).
 
 # Example
 ```jldoctest
@@ -1568,11 +1567,11 @@ end
     toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing) -> PauliStr
 
 Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an optionally 
-empty phase marker concatenated with a string of Pauli characters, each represent one of 
+empty phase marker concatenated with a string of Pauli characters, each representing one of 
 the four single-site Pauli operators (`'I'` ``\\mapsto \\hat{I}``, 
 `'Z'` ``\\mapsto \\hat{Z}``, `'X'` ``\\mapsto \\hat{X}``, `'Y'` ``\\mapsto \\hat{Y}``). The 
 phase marker should be a prefix string equal to one of the valid markers: 
-$(join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ")). When `str` is not a valid 
+$(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")). When `str` is not a valid 
 string to be fully parsed, an error identifying the violated condition is thrown if 
 `fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
 
@@ -1591,7 +1590,7 @@ function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missin
     iStartBody = something(findfirst(scope, str), ncodeunits(str)+1)
     head = SubString(str, firstindex(str), prevind(str, iStartBody))
 
-    if !(head in CONSTVAR!!PhaseMarkers)
+    if !(head in CONSTVAR!!phaseMarkers)
         ismissing(fallbackStr) || (return fallbackStr)
         throw(ArgumentError("`str=\"$str\"` does not start with a valid phase marker."))
     end

@@ -96,7 +96,7 @@ function toString(p::PhaseFactor; omitPlusSign::Bool=false)
 end
 
 
-const CONSTVAR!!PhaseMarkers = unique(
+const CONSTVAR!!phaseMarkers = unique(
     toString(p; omitPlusSign) for p in instances(PhaseFactor), omitPlusSign in (false, true)
 )
 
@@ -105,9 +105,9 @@ const CONSTVAR!!PhaseMarkers = unique(
 
 Return a `PhaseFactor` which can be parsed from a valid `input`. If `input` is a 
 `Union{Complex, Real}`, it should be equal to one of the return values of 
-[`evalPhase(p)`](@ref `evalPhase`), in which case `p` is returned; if `input` is a 
+[`evalPhase(p)`](@ref `evalPhase`), in which case `p` is returned; if `input` is an 
 `AbstractString`, it should be equal to one of the valid markers: 
-$(join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ")); otherwise, `input` is not 
+$(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")); otherwise, `input` is not 
 valid, and an `ArgumentError` is thrown.
 """
 function toPhase(input::RealOrComplex)
@@ -130,7 +130,7 @@ function toPhase(input::AbstractString)
         input == toString(p; omitPlusSign) && (return p)
     end
     throw(ArgumentError("`input=\"$input\"` is not one of the valid phase markers:\n" * 
-                        join(("`\"$s\"`" for s in CONSTVAR!!PhaseMarkers), ", ") * "."))
+                        join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ") * "."))
 end
 
 

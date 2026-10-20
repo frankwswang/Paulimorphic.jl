@@ -6,11 +6,11 @@ abstract type StructuredType <: Any end
 #> Types whose instances can properly have methods for negation
 const SignedReal = Union{AbstractFloat, Signed, Rational{<:Signed}}
 
-const RealOrComplex{T<:Real} = Union{T, Complex{T}}
+const RealOrComplex{RN<:Real} = Union{RN, Complex{RN}}
 
-const SRealOrComplex{T<:SignedReal} = Union{T, Complex{T}}
+const SRealOrComplex{SR<:SignedReal} = Union{SR, Complex{SR}}
 
-const FloatOrComplex{T<:AbstractFloat} = SRealOrComplex{T}
+const FloatOrComplex{FN<:AbstractFloat} = SRealOrComplex{FN}
 
 const BitUInteger = Union{UInt8, UInt16, UInt32, UInt64, UInt128}
 

@@ -124,6 +124,7 @@ end
     #>> Intentionally unsupported combinations stay unsupported
     @test_throws MethodError +(pauli"X")            #>> No unary `+`
     @test_throws MethodError pauli"X" + (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+    @test_throws MethodError h + (pauli"Y"=>im)        #>> `im` is a `Complex{Bool}`
 
     #> Type-conversion methods
     h1 = PauliSum([pauli"X"], [3])
@@ -220,7 +221,7 @@ end
     @test bl5
     @test mul(PauliStr(0, symI, posImg), posImg).phase === negRea #> im * im == -1
 
-    #> mul(::PauliStr, ::Union{Real, Complex}) and the reversed order
+    #> mul(::PauliStr, ::SRealOrComplex) and the reversed order
     s = PauliStr([symX, symZ], negRea)
     h = mul(s, 2.0)
     @test h isa PauliSum{Float64}
@@ -286,7 +287,7 @@ end
     end
     @test bl7
 
-    #> mul(::PauliSum, ::Union{Real, Complex}) and the reversed order
+    #> mul(::PauliSum, ::SRealOrComplex) and the reversed order
     hScl = PauliSum([pauli"X"], 2)
     @test mul(hScl, 2.0) == PauliSum([pauli"X"], 4.0)
     @test (hScl * 2.0 == mul(hScl, 2.0)) && (2.0 * hScl == mul(hScl, 2.0)) #> `Base.:*`
@@ -320,6 +321,8 @@ end
     @test mul(hScl, posImg) == PauliSum([pauli"X"], 2im)
     @test mul(hScl, negImg) == PauliSum([pauli"X"], -2im)
     @test mul(hScl, negRea) == PauliSum([pauli"X"], -2)
+    @test_throws MethodError hScl * im #> `im` is a `Complex{Bool}`, not a `Complex{Int}`
+    @test hScl * 1im == mul(hScl, posImg)
 
     #> Non-mutation and deep buffer ownership: the input sum is untouched, and the result
     #> shares neither its coefficient storage nor any string buffer with the input

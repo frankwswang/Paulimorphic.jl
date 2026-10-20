@@ -275,6 +275,11 @@ end
     @test PauliSum(Float64, h) == h #> Equal result for the same `T`
     @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
     @test_throws MethodError PauliSum(Bool, h)
+    @test_throws MethodError PauliSum(UInt8, h)
+    @test_throws MethodError PauliSum(Rational{UInt8}, h)
+    #> Sign-less coefficient inputs are rejected at dispatch (`im` is a `Complex{Bool}`)
+    @test_throws MethodError PauliSum(Float64, [pauli"X"], im)
+    @test_throws MethodError PauliSum([pauli"X"], [true])
 
     #> Coefficient summation accuracy check
     res1 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16])

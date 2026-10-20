@@ -739,7 +739,7 @@ end
 
 
 """
-    setCoeff!(ham::PauliSum{T}, coeff::Union{$SignedReal, Complex}, i::Integer, 
+    setCoeff!(ham::PauliSum{T}, coeff::Union{Complex, Real}, i::Integer, 
               copyStr::Bool=true) where {T<:$SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
@@ -835,7 +835,7 @@ end
 
 """
     absorbPhases!(strs::AbstractVector{PauliStr}, 
-                  storage::AbstractVector{C}) where {C<:Complex} -> Nothing
+                  storage::AbstractVector{C}) where {C<:Complex{<:$SignedReal}} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
@@ -844,7 +844,7 @@ multiply `storage[i]` by [`evalPhase(strs[i].phase)`](@ref `evalPhase`) and rese
 the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
-                       storage::AbstractVector{C}) where {C<:Complex}
+                       storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}}
     nTerm = length(strs)
     if nTerm != length(storage)
         throw(ArgumentError("`strs` and `storage` should have the same length."))
@@ -864,7 +864,7 @@ end
 
 """
     sortStrings!(strs::AbstractVector{PauliStr}, coeffs::AbstractVector{C}, 
-                 considerCoeff::Bool=true) where {C<:Union{$SignedReal, Complex}} -> 
+                 considerCoeff::Bool=true) where {C<:$SRealOrComplex} -> 
     Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
@@ -875,7 +875,7 @@ ordered by `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated a
 share the same length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
-                      coeffs::AbstractVector{<:RealOrComplex}, considerCoeff::Bool=true)
+                      coeffs::AbstractVector{<:SRealOrComplex}, considerCoeff::Bool=true)
     nTerm = length(strs)
     if nTerm != length(coeffs)
         throw(ArgumentError("`strs` and `coeffs` should have the same length."))

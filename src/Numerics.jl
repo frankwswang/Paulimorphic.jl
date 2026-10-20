@@ -58,7 +58,7 @@ neumaierSum(T, arr)
 Return a new data type `E::Type` that is always at least as accurate as `T` (hence can 
 losslessly represent `T`) based on a core type `C`.
 
-# Example
+# Examples
 ```jldoctest
 julia> $(extendType|>repr)(Int, Float64)
 Float64

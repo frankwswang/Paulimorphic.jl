@@ -74,7 +74,7 @@ construction.
     Direct modifications of field `.z` or `.x` that cause bits above site `.n` to become 
     non-zero may lead to unexpected behaviors.
 
-≡≡≡ Initialization Method(s) ≡≡≡
+≡≡≡ Constructors ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
              phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords)) -> PauliStr
@@ -229,7 +229,7 @@ Every attribute is defined purely in terms of the operator content of each compa
 regardless of the underlying storage buffers' word size (`8*sizeof(UInt)`). This order 
 underlies the canonical term order of [`PauliSum`](@ref).
 
-# Example
+# Examples
 ```jldoctest
 julia> pauli"II" < pauli"ZI" < pauli"XI" < pauli"IZ" < pauli"IX" < pauli"XX"
 true
@@ -292,7 +292,7 @@ invoking scope) to either one of the following two types of `input` is accepted:
     integers). A phase marker alone (e.g., `pauli"-"`) therefore yields a zero-site string 
     carrying that phase.
 
-# Example
+# Examples
 ```jldoctest
 julia> pauli"IZXY" == (@pauli_str [0, 1, 2, 3]) == @pauli_str([0, 1, 2, 3])
 true
@@ -368,7 +368,7 @@ accepted by [`@pauli_str`](@ref) as a string literal.
     true
     ```
 
-# Example
+# Examples
 ```jldoctest
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
@@ -509,7 +509,7 @@ stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in
     `PauliStr` (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)), it follows the same 
     implicit identity-padding convention for [`PauliStr`](@ref).
 
-≡≡≡ Initialization Method(s) ≡≡≡
+≡≡≡ Constructors ≡≡≡
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
              coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true) where 
@@ -1071,7 +1071,7 @@ higher site indices (i.e., a *right* shift): the operator on site `k` is moved t
 sites are refilled with the identity, the site count `str.n` is preserved, and the overall 
 `.phase` is left unchanged.
 
-# Example
+# Examples
 ```jldoctest
 julia> shift!(pauli"IIXXII", 3, false)   #> left  shift: site 4 → site 1, site 3 dropped
 +X₁  (6 sites)
@@ -1408,7 +1408,7 @@ lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
 The returned sum does not reference any data in `ham`: its coefficients are held in an 
 independent buffer, and its `PauliStr`s are freshly constructed.
 
-# Example
+# Examples
 ```jldoctest
 julia> ham = PauliSum([pauli"XZ", pauli"YIX"], [1, 2]);
 
@@ -1631,7 +1631,7 @@ For floating-point precisions, the selected coefficients are accumulated with Ne
 summation, following the term order of `h`. For exact coefficient types (e.g., `Rational`), 
 the accumulation is carried out by exact addition (no overflow protection for `Integer`).
 
-# Example
+# Examples
 ```jldoctest
 julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16]);
 

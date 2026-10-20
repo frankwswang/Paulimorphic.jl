@@ -423,7 +423,7 @@ act on the same number of sites for the verification to pass. When
 physically meaningful only when the input is a valid Dirac-operator pair. The two operators 
 held by `res` are in the canonical form and do not reference any data in `opPair`.
 
-# Example
+# Examples
 ```jldoctest
 julia> dEnc = toDiracEnc(genJordanWignerEnc(1));
 

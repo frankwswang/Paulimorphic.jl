@@ -283,8 +283,7 @@ invoking scope) to either one of the following two types of `input` is accepted:
 - `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): an integer vector 
   where the `i`-th element is effectively a two-bit code of of [`PauliSym`](@ref) that 
   specifies the Pauli operator acting on site `i`. The subsequent evaluation is equivalent 
-  to [`toPauliStr(input, PhaseFactor(0))`](@ref 
-      `toPauliStr(::AbstractVector{<:Integer}, ::PhaseFactor)`).
+  to [`toPauliStr(input, PhaseFactor(0))`](@ref `toPauliStr`).
 
 !!! info
     In both forms, the `k`-th Pauli character (or integer) of `input` specifies the 
@@ -1597,7 +1596,7 @@ function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missin
         if offset !== nothing
             ismissing(fallbackStr) || (return fallbackStr)
             chr = body[offset]
-            invalidIdx = offset + length(head) - firstindex(body) + firstindex(str)
+            invalidIdx = offset + iStartBody - 1
             throw(ArgumentError("`str[$(invalidIdx)]=\'$chr\'` is an invalid character."))
         end
     end

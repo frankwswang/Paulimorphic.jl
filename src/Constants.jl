@@ -72,7 +72,7 @@ Use [`evalPhase`](@ref) to obtain the value for the corresponding complex coeffi
     negImg=3 #> i^3 == -im
 end
 
-const PhaseOrCoeff = Union{PhaseFactor, RealOrComplex}
+const PhaseOrCoeff = Union{PhaseFactor, SRealOrComplex}
 
 
 """

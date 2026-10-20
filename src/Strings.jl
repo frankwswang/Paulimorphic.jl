@@ -485,7 +485,7 @@ end
 
 
 """
-    PauliSum{T<:Real} <: $(DiscreteOperator|>repr)
+    PauliSum{T<:$SignedReal} <: $(DiscreteOperator|>repr)
 
 A linear combination of Pauli strings, i.e., a general operator
 
@@ -512,12 +512,12 @@ stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in
 ≡≡≡ Constructors ≡≡≡
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
-             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true) where 
-            {T<:Real, C<:Union{Complex, Real}} -> 
+             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true
+             ) where {T<:$SignedReal, C<:Union{Complex, $SignedReal}} -> 
     PauliSum{T}
 
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
-             simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+             simplification::Bool=true) where {T<:$SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
 Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in the second 
@@ -548,16 +548,18 @@ canonical order such that for
 always returns `true`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+             simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum{T}
 
 Construct a `PauliSum` with the coefficient of every Pauli string initialized to 
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
 `T=Bool` is disallowed for the same reason as the first Initialization method.
 
-    PauliSum(::Type{T}, ham::PauliSum, 
-             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum{T}
 
-    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
 and does not reference any data in `ham`. These two constructor signatures can be used to 
@@ -567,7 +569,8 @@ otherwise an `InexactError` is thrown upon construction. Thus, narrowing floatin
 may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
 `T=Bool` is disallowed for the same reason as the first Initialization method.
 
-    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
+    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:$SignedReal} -> 
+    PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `ham`'s terms picked out 
 by a callable object `selector`. The predicate is applied (as the first argument) through 
@@ -586,11 +589,11 @@ ordered.
     `ham.str`. To obtain a canonical `PauliSum` unlinked from `ham`, rebuild the filtered 
     result via `PauliSum(res, simplification)` instead.
 """
-struct PauliSum{T<:Real} <: DiscreteOperator
+struct PauliSum{T<:SignedReal} <: DiscreteOperator
     str::Memory{PauliStr}
     coeff::Memory{Complex{T}}
 
-    function PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real}
+    function PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:SignedReal}
         strs = ham.str
         coeffs = ham.coeff
         indices = findall(selector, (byCoeff ? coeffs : strs))
@@ -599,7 +602,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 
     function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
                       coeffs::Union{AbstractVector{C}, C}, 
-                      simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
+                      simplification::Bool=true) where {T<:SignedReal, C<:SRealOrComplex}
         inputSize = length(strs)
         checkCoreDataTypeForPauliSum(T)
         if (coeffs isa AbstractVector) && inputSize != length(coeffs)
@@ -672,31 +675,30 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 end
 
 function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
-    if T <: Union{} || !(T <: Real)
-        throw(ArgumentError("`$typeStr = $T` is not a valid core data type."))
-    elseif T <: Bool
-        throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
-                            "`PauliSum{Bool}` cannot be realized."))
+    if T <: Union{} || !(T <: SignedReal)
+        throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
+                            "(non-bottom) subtype of `$SignedReal`."))
     end
 
     nothing
 end
 
 function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
-                  simplification::Bool=true) where {C<:RealOrComplex}
+                  simplification::Bool=true) where {C<:SRealOrComplex}
     PauliSum(real(C), strs, coeffs, simplification)
 end
 
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-                  simplification::Bool=true) where {T<:Real}
+                  simplification::Bool=true) where {T<:SignedReal}
     PauliSum(strs, one(Complex{T}), simplification)
 end
 
-function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
+function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:SignedReal}
     PauliSum(T, ham.str, ham.coeff, simplification)
 end
 
-function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}
+function PauliSum(ham::PauliSum{T}, simplification::Bool=true
+                  )::PauliSum{T} where {T<:SignedReal}
     PauliSum(T, ham, simplification)
 end
 
@@ -710,12 +712,12 @@ function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
 end
 
 
-getCoreDataType(::Type{PauliSum{T}}) where {T<:Real} = T
-getCoreDataType(::Type{<:PauliSum}) = Real
+getCoreDataType(::Type{PauliSum{T}}) where {T<:SignedReal} = T
+getCoreDataType(::Type{<:PauliSum}) = SignedReal
 
 
 """
-    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
+    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:$SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
 Return the `i`-th term of `ham` as `res::Pair`. Specifically, `res.first` corresponds to 
@@ -737,8 +739,9 @@ end
 
 
 """
-    setCoeff!(ham::PauliSum{T}, coeff::Union{Real, Complex}, i::Integer, 
-              copyStr::Bool=true) where {T<:Real} -> Pair{PauliStr, Complex{T}}
+    setCoeff!(ham::PauliSum{T}, coeff::Union{$SignedReal, Complex}, i::Integer, 
+              copyStr::Bool=true) where {T<:$SignedReal} -> 
+    Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
 `Complex{T}`, then return the updated term `res::Pair{PauliStr, Complex{T}}`. Same as for 
@@ -761,7 +764,7 @@ end
 
 
 """
-    collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:Real} -> 
+    collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:$SignedReal} -> 
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
@@ -861,7 +864,8 @@ end
 
 """
     sortStrings!(strs::AbstractVector{PauliStr}, coeffs::AbstractVector{C}, 
-                 considerCoeff::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
+                 considerCoeff::Bool=true) where {C<:Union{$SignedReal, Complex}} -> 
+    Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
@@ -947,8 +951,8 @@ end
 
 
 """
-    curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-            relative::Bool=false, inclusive::Bool=false) where {T<:Real} -> 
+    curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
+            relative::Bool=false, inclusive::Bool=false) where {T<:$SignedReal} -> 
     PauliSum{T}
 
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
@@ -972,8 +976,8 @@ an independent buffer. Its `PauliStr`s, however, are NOT reconstructed (deep-cop
 other words, the returned sum's `.str` entries are the same (subsets of) `PauliStr` held 
 by `ham.str`.
 """
-function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-                 relative::Bool=false, inclusive::Bool=false) where {T<:Real}
+function curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
+                 relative::Bool=false, inclusive::Bool=false) where {T<:SignedReal}
     tolerance < 0 && throw(DomainError(tolerance, "`tolerance` must be non-negative."))
 
     coeffs = ham.coeff
@@ -1364,7 +1368,7 @@ end
 
 """
     reframe(ham::PauliSum{T}, nSite::Integer=countSites(ham); lowToHigh::Bool=true, 
-            filler::PauliSym=symI, simplification::Bool=true) where {T<:Real} -> 
+            filler::PauliSym=symI, simplification::Bool=true) where {T<:$SignedReal} -> 
     PauliSum{T}
 
 Return a `res::PauliSum{T}` by rebuilding each `PauliStr` in `ham.str` as a `PauliStr` in 
@@ -1616,9 +1620,12 @@ end
 
 
 """
-    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T
+              ) where {T<:$SignedReal, R<:$SignedReal} -> 
+    Complex{R}
 
-    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:$SignedReal, R<:$SignedReal} -> 
+    Complex{R}
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
 string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
@@ -1642,11 +1649,13 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 1.0 + 0.0im
 ```
 """
-function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T) where {F, T<:Real, R<:Real}
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T
+                   ) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
 end
 
-sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} = sumCoeffs(_->true, h, R)
+sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} = 
+sumCoeffs(_->true, h, R)

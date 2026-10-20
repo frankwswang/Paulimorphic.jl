@@ -343,7 +343,7 @@ end
 
 """
     toDiracEnc(::Type{T}, enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}} 
-               ) where {T<:Real} -> 
+               ) where {T<:$SignedReal} -> 
     Pair{Vector{ PauliSum{T} }, Vector{ PauliSum{T} }}
 
     toDiracEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}) -> 
@@ -377,7 +377,7 @@ represent `1//2` (e.g., a concrete `AbstractFloat` or `Rational` subtype); the s
 method falls back to the first method with `T=Rational{Int}`. The result in both methods 
 does not reference any data in `enc`.
 """
-function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:Real}
+function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:SignedReal}
     oneHalf = one(T) / 2
     if !(oneHalf isa T) || oneHalf + oneHalf != one(T)
         throw(ArgumentError("`T` must be able to exactly represent one half (`1//2`)."))
@@ -433,8 +433,10 @@ julia> mPair == (PauliSum(Int, [pauli"X"]) => PauliSum(Int, [pauli"Y"]))
 true
 ```
 """
-function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair::Bool=true)
+function toMajoranaPair(opPair::Pair{T1, T2}, checkForDiracPair::Bool=true
+                        ) where {T1<:PauliSum, T2<:PauliSum}
     annOp, creOp = opPair
+    unit = (one∘promote_type)(getCoreDataType(T1), getCoreDataType(T2))
 
     if checkForDiracPair
         if PauliSum(creOp) != toAdjoint(annOp)
@@ -456,7 +458,7 @@ function toMajoranaPair(opPair::Pair{<:PauliSum, <:PauliSum}, checkForDiracPair:
     end
 
     gOdd = add(annOp, creOp)
-    gEve = mul(add(creOp, mul(annOp, -1)), im)
+    gEve = mul(add(creOp, mul(annOp, -unit)), unit*im)
     gOdd => gEve
 end
 
@@ -700,7 +702,7 @@ toMajoranaEnc(enc::PairwiseSumEnc) = toMajoranaEnc(PauliStr, enc)
 """
     buildMajoranaFrame(enc::Pair{<:AbstractVector{<:PauliSum}, 
                                  <:AbstractVector{<:PauliSum}}) -> 
-    Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:Real}
+    Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:$SignedReal}
 
 Given a valid `PauliSum`-based Majorana encoding `enc` (verified via the matching method 
 of [`checkMajoranaEnc`](@ref)) of `nMode = length(enc.first)` fermionic modes, attempt to 

@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posImg, negRea, negImg, mul, toAdjoint
+using Paulimorphic: posImg, negRea, negImg, mul, add, toAdjoint
 
 @testset "Fermionic.jl" begin
 
@@ -198,8 +198,8 @@ end
     @test_throws ArgumentError toDiracEnc(PauliStr[] => PauliStr[])
 
     #> Pin current abstract-`T` behavior: respect abstract `T`
-    resAbs = toDiracEnc(Rational, genJordanWignerEnc(1))
-    @test resAbs.first isa Vector{PauliSum{Rational}}
+    resAbs = toDiracEnc(Rational{Int}, genJordanWignerEnc(1))
+    @test resAbs.first isa Vector{PauliSum{ Rational{Int} }}
 end
 
 @testset "checkDiracEnc" begin
@@ -348,8 +348,8 @@ end
     @test mPair == (PauliSum(Int, [pauli"X"]) => PauliSum(Int, [pauli"Y"]))
 
     #> Inverse identities: a == (γ_odd + im γ_even)/2, c == (γ_odd - im γ_even)/2
-    @test a1 == mul(add(mPair.first, mul(mPair.second,  im)), 1//2)
-    @test c1 == mul(add(mPair.first, mul(mPair.second, -im)), 1//2)
+    @test a1 == mul(add(mPair.first, mul(mPair.second,  1im)), 1//2)
+    @test c1 == mul(add(mPair.first, mul(mPair.second, -1im)), 1//2)
 
     #> Rotated two-term pair converts and stays valid
     ann2, _ = toDiracEnc(genJordanWignerEnc(2))

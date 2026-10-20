@@ -34,7 +34,7 @@ end
 const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
 
 """
-    toMatrix(::Type{T}, sym::PauliSym) where {T<:Real} -> 
+    toMatrix(::Type{T}, sym::PauliSym) where {T<:$SignedReal} -> 
     $(SparseMatrixCSC|>repr){Complex{T}, Int}
 
     toMatrix(sym::PauliSym) -> $(SparseMatrixCSC|>repr){Complex{Int}, Int}
@@ -45,8 +45,7 @@ Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Comple
 disallowed to be `Bool`. The returned matrix is newly allocated on every call and shares no 
 data with any global state.
 """
-function toMatrix(::Type{T}, sym::PauliSym) where {T<:Real}
-    (T <: Bool) && throw(ArgumentError("T = $T is disallowed."))
+function toMatrix(::Type{T}, sym::PauliSym) where {T<:SignedReal}
     mat = spzeros(Complex{T}, 2, 2)
     matVec = vec(mat)
 

@@ -274,7 +274,7 @@ end
     @test r.str[1] !== h.str[2]     #> Strings are rebuilt
     @test PauliSum(Float64, h) == h #> Equal result for the same `T`
     @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
-    @test_throws ArgumentError PauliSum(Bool, h)
+    @test_throws MethodError PauliSum(Bool, h)
 
     #> Coefficient summation accuracy check
     res1 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16])

@@ -4,11 +4,11 @@ public add, mul, toAdjoint
 
 const PauliStrOrSum = Union{PauliStr, PauliSum}
 
-const PauliStrToVal{T<:Real} = Pair{PauliStr, <:RealOrComplex{T}}
+const PStrCoeffPair{T<:Real} = Pair{PauliStr, <:SRealOrComplex{T}}
 
 """
-    add(::Type{T}, str1::PauliStr, str2::PauliStr, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> PauliSum{T}
 
     add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) -> PauliSum{Int}
 
@@ -24,18 +24,20 @@ mutated, and the result does not reference any data in either input. Using the b
 operator `+` is equivalent to invoking the second method signature (with the default 
 value of `simplification`).
 """
-add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true) where {T<:Real} = 
+add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
+    ) where {T<:SignedReal} = 
 PauliSum(T, [str1, str2], simplification)
 
 add(str1::PauliStr, str2::PauliStr, simplification::Bool=true) = 
 add(Int, str1, str2, simplification)
 
 """
-    add(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
-        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
+    add(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{T}
 
-    add(h1::PauliSum{T1}, h2::PauliSum{T2}, 
-        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
     h1 + h2 -> PauliSum
@@ -50,23 +52,25 @@ result does not reference any data in either `h1` or `h2`.
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
     procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
-function add(::Type{T}, h1::PauliSum, h2::PauliSum, 
-             simplification::Bool=true) where {T<:Real}
+function add(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     PauliSum(T, vcat(h1.str, h2.str), vcat(h1.coeff, h2.coeff), simplification)
 end
 
 add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
-   {T1<:Real, T2<:Real} = 
+   {T1<:SignedReal, T2<:SignedReal} = 
 add(promote_type(T1, T2), h1, h2, simplification)
 
 """
     add(::Type{T}, h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
-        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> 
+        simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{T}
 
     add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
-        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+        simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
     h + term -> PauliSum
@@ -84,21 +88,23 @@ applied to the result. The result does not reference any data in either `h` or `
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
     procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
-function add(::Type{T}, h::PauliSum, term::PauliStrToVal, 
-             simplification::Bool=true) where {T<:Real}
+function add(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     PauliSum(T, vcat(h.str, term.first), vcat(h.coeff, term.second), simplification)
 end
 
-add(h::PauliSum{T1}, term::PauliStrToVal{T2}, simplification::Bool=true) where 
-   {T1<:Real, T2<:Real} = 
+add(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
+   {T1<:SignedReal, T2<:SignedReal} = 
 add(promote_type(T1, T2), h, term, simplification)
 
 """
-    add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real} -> 
+    add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
-    add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} -> 
+    add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
     h + s -> PauliSum
@@ -110,14 +116,15 @@ Add a single `PauliStr` to `h`, i.e., shorthand for `add(h, s=>one(T), simplific
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h` or `s`.
 """
-add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real} = 
+add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+    ) where {T<:SignedReal} = 
 add(T, h, s=>one(T), simplification)
 
-add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} = 
+add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 add(T, h, s, simplification)
 
-Base.:+(h::PauliSum, obj::Union{PauliStrToVal, PauliStrOrSum}) = add(h, obj)
-Base.:+(obj::Union{PauliStrToVal, PauliStr}, h::PauliSum) = add(h, obj)
+Base.:+(h::PauliSum, obj::Union{PStrCoeffPair, PauliStrOrSum}) = add(h, obj)
+Base.:+(obj::Union{PStrCoeffPair, PauliStr}, h::PauliSum) = add(h, obj)
 Base.:+(s1::PauliStr, s2::PauliStr, s3::PauliStr...) = PauliSum(Int, [s1, s2, s3...])
 
 
@@ -190,10 +197,12 @@ end
 
 """
     mul(::Type{T}, str::PauliStr, coeff::Union{Real, Complex}, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+        simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum{T}
 
     mul(str::PauliStr, coeff::C, 
-        simplification::Bool=true) where {C<:Union{Real, Complex}} -> PauliSum{real(C)}
+        simplification::Bool=true) where {C<:Union{$SignedReal, Complex}} -> 
+    PauliSum{real(C)}
 
     str * coeff -> PauliSum
     coeff * str -> PauliSum
@@ -205,26 +214,30 @@ promoted to a `PauliSum`. If `simplification=true`, the same simplification proc
 by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
 the result. The result does not reference any data in `str`.
 """
-function mul(::Type{T}, str::PauliStr, coeff::RealOrComplex, 
-             simplification::Bool=true) where {T<:Real}
+function mul(::Type{T}, str::PauliStr, coeff::SRealOrComplex, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     PauliSum([str], Complex{T}(coeff), simplification)
 end
 
-mul(str::PauliStr, coeff::C, simplification::Bool=true) where {C<:RealOrComplex} = 
+mul(str::PauliStr, coeff::C, simplification::Bool=true) where {C<:SRealOrComplex} = 
 mul(real(C), str, coeff, simplification)
 
 """
-    mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:Real} -> 
+    mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
-    mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real} -> 
+    mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
-    mul(s::PauliStr, h::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> 
+    mul(s::PauliStr, h::PauliSum{T}, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
-    mul(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} -> 
+    mul(h::PauliSum{T}, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
     PauliSum{T}
 
     s * h -> PauliSum
@@ -236,30 +249,34 @@ is multiplied by `s` on the matching side while the coefficients are carried ove
 (when the same-named argument is set to `true`) is applied to the result. The result does 
 not reference any data in either `s` or `h`.
 """
-function mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:Real}
+function mul(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     newStrs = map(ele->mul(s, ele), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
 
-function mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:Real}
+function mul(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     newStrs = map(ele->mul(ele, s), h.str)
     PauliSum(newStrs, convert(Memory{Complex{T}}, h.coeff), simplification)
 end
 
-mul(s::PauliStr, h::PauliSum{T}, simplification::Bool=true) where {T<:Real} = 
+mul(s::PauliStr, h::PauliSum{T}, simplification::Bool=true
+    ) where {T<:SignedReal} = 
 mul(T, s, h, simplification)
 
-mul(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:Real} = 
+mul(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 mul(T, h, s, simplification)
 
 """
-    mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
-        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
+    mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{T}
 
-    mul(h1::PauliSum{T1}, h2::PauliSum{T2}, 
-        simplification::Bool=true) where {T1<:Real, T2<:Real} -> 
+    mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
     h1 * h2 -> PauliSum
@@ -275,8 +292,8 @@ either `h1` or `h2`.
     of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
     for `Integer`) and then converted to `Complex{T}`.
 """
-function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, 
-             simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
+function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+             ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
 
     cL, sL = h1.coeff, h1.str
@@ -296,16 +313,17 @@ function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2},
     PauliSum(ss, cs, simplification)
 end
 
-mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
-   {T1<:Real, T2<:Real} = 
+mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+    ) where {T1<:SignedReal, T2<:SignedReal} = 
 mul(promote_type(T1, T2), h1, h2, simplification)
 
 """
-    mul(::Type{T}, h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, 
-        simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real} -> PauliSum{T}
+    mul(::Type{T}, h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{T}
 
-    mul(h::PauliSum{T}, coeff::C, 
-        simplification::Bool=true) where {T<:Real, C<:Union{Real, Complex}} -> 
+    mul(h::PauliSum{T}, coeff::C, simplification::Bool=true
+        ) where {T<:$SignedReal, C<:Union{$SignedReal, Complex}} -> 
     PauliSum{promote_type(T, real(C))}
 
     h * coeff -> PauliSum
@@ -322,8 +340,9 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
     of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
     for `Integer`) and then converted to `Complex{T}`.
 """
-function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2}, 
-             simplification::Bool=true) where {T<:Real, T1<:Real, T2<:Real}
+function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2}, 
+             simplification::Bool=true
+             ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     tempC = extendType(T, complex( promote_type(T1, T2) ))
     tempCoeff = tempC(coeff)
@@ -331,16 +350,16 @@ function mul(::Type{T}, h::PauliSum{T1}, coeff::RealOrComplex{T2},
     PauliSum(h.str, coeffs, simplification)
 end
 
-mul(h::PauliSum{T}, coeff::C, simplification::Bool=true) where 
-   {T<:Real, C<:RealOrComplex} = 
+mul(h::PauliSum{T}, coeff::C, simplification::Bool=true
+    ) where {T<:SignedReal, C<:SRealOrComplex} = 
 mul(promote_type(T, real(C)), h, coeff, simplification)
 
 """
     mul(::Type{T}, h::PauliSum, phase::PhaseFactor, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+        simplification::Bool=true) where {T<:$SignedReal} -> PauliSum{T}
 
     mul(h::PauliSum{T}, phase::PhaseFactor, 
-        simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+        simplification::Bool=true) where {T<:$SignedReal} -> PauliSum{T}
 
     h * phase -> PauliSum
     phase * h -> PauliSum
@@ -350,11 +369,11 @@ Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical for
 (when the same-named argument is set to `true`) is applied to the result. The result does 
 not reference any data in `h`.
 """
-mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true) where 
-   {T<:Real} = 
+mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true
+    ) where {T<:SignedReal} = 
 mul(T, h, evalPhase(phase), simplification)
 
-mul(h::PauliSum{T}, phase::PhaseFactor, simplification::Bool=true) where {T<:Real} = 
+mul(h::PauliSum{T}, phase::PhaseFactor, simplification::Bool=true) where {T<:SignedReal} = 
 mul(T, h, phase, simplification)
 
 
@@ -385,13 +404,13 @@ the stored `PauliStr`.
 scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
 
 """
-    scale!(h::PauliSum, c::Union{Real, Complex}) -> PauliSum
+    scale!(h::PauliSum, c::Union{$SignedReal, Complex}) -> PauliSum
 
 Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff` is scaled 
 in place, thus each product `h.coeff[i] * c` must be able to be converted to 
 `eltype(h.coeff)`. No re-canonicalization is performed.
 """
-scale!(h::PauliSum, c::RealOrComplex) = (h.coeff .*= c; h)
+scale!(h::PauliSum, c::SRealOrComplex) = (h.coeff .*= c; h)
 
 
 """
@@ -449,11 +468,12 @@ checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, 
 """
     evalCommute(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
 
-    evalCommute(op1::PauliStr, op2::PauliSum{T}) where {T<:Real} -> PauliSum{T}
+    evalCommute(op1::PauliStr, op2::PauliSum{T}) where {T<:$SignedReal} -> PauliSum{T}
 
-    evalCommute(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
+    evalCommute(op1::PauliSum{T}, op2::PauliStr) where {T<:$SignedReal} -> PauliSum{T}
 
-    evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}
+                ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
 Return the commutator 
@@ -481,11 +501,12 @@ end
 """
     evalAntiCom(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
 
-    evalAntiCom(op1::PauliStr, op2::PauliSum{T}) where {T<:Real} -> PauliSum{T}
+    evalAntiCom(op1::PauliStr, op2::PauliSum{T}) where {T<:$SignedReal} -> PauliSum{T}
 
-    evalAntiCom(op1::PauliSum{T}, op2::PauliStr) where {T<:Real} -> PauliSum{T}
+    evalAntiCom(op1::PauliSum{T}, op2::PauliStr) where {T<:$SignedReal} -> PauliSum{T}
 
-    evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}) where {T1<:Real, T2<:Real} -> 
+    evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}
+                ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
 Return the anticommutator 
@@ -525,7 +546,7 @@ function toAdjoint(str::PauliStr)
 end
 
 """
-    toAdjoint(h::PauliSum{T}) where {T<:Real} -> PauliSum{T}
+    toAdjoint(h::PauliSum{T}) where {T<:$SignedReal} -> PauliSum{T}
 
     h' -> PauliSum
 

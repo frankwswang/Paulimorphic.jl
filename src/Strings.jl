@@ -676,9 +676,9 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
 end
 
 function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
-    if T <: Union{} || !(T <: SignedReal)
+    if !(isconcretetype(T) && (T <: SignedReal))
         throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
-                            "(non-bottom) subtype of `$SignedReal`."))
+                            "concrete subtype of `$SignedReal`."))
     end
 
     nothing

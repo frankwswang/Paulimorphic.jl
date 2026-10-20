@@ -360,8 +360,13 @@ character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value ca
 accepted by [`@pauli_str`](@ref) as a string literal.
 
 !!! info
-    When `pStr` is a zero-site string (verifiable via `countSites`), the returned string is 
-    formatted as a `"I"` following a proper phase prefix (if necessary).
+    When `pStr` is a zero-site string, the body of the returned string (after the phase 
+    prefix) is `"I"` , so parsing it back with `@pauli_str` yields a single-site identity 
+    rather than a zero-site string:
+    ```jldoctest
+    julia> countSites(@pauli_str toString(pauli"-")) == 1
+    true
+    ```
 
 # Example
 ```jldoctest

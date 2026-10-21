@@ -2,7 +2,7 @@ export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canon
        curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms, 
        countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
-public sortStrings!, setCoeff!, swapPhase!
+public sortStrings!, setCoeff!
 
 using LinearAlgebra: dot
 
@@ -835,21 +835,6 @@ end
 
 
 """
-    swapPhase!(str::PauliStr, newPhase::PhaseFactor=mul(PhaseFactor(2), str.phase)) -> 
-    PhaseFactor
-
-Swap the phase of `str` with `newPhase` and return swapped one. The default value of 
-`newPhase` is the additive inverse of the original phase such that `swapPhase!(::PauliStr)` 
-is an involution.
-"""
-function swapPhase!(str::PauliStr, newPhase::PhaseFactor=mul(negRea, str.phase))
-    oldPhase = str.phase
-    oldPhase == newPhase || (str.phase = newPhase)
-    oldPhase
-end
-
-
-"""
     absorbPhases!(strs::AbstractVector{PauliStr}, 
                   storage::AbstractVector{C}) where {C<:Complex{<:$SignedReal}} -> Nothing
 
@@ -867,8 +852,11 @@ function absorbPhases!(strs::AbstractVector{PauliStr},
     end
 
     for (i, str) in enumerate(strs)
-        phase = swapPhase!(str, posRea) #>> Reset the phase to be one
-        phase == posRea || (storage[begin+i-1] *= evalPhase(phase))
+        phase = str.phase
+        if phase != posRea
+            str.phase = posRea
+            storage[begin+i-1] *= evalPhase(phase)
+        end
     end
 
     nothing

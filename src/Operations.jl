@@ -145,9 +145,7 @@ equivalent to invoking the second method signature (with the default value of
 """
 function sub(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
              ) where {T<:SignedReal}
-    str2sub = PauliStr(str2)
-    swapPhase!(str2sub)
-    PauliSum(T, [str1, str2sub], simplification)
+    PauliSum(T, [str1, scale!(PauliStr(str2), negRea)], simplification)
 end
 
 sub(str1::PauliStr, str2::PauliStr, simplification::Bool=true) = 
@@ -179,7 +177,7 @@ function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
     checkCoreDataTypeForPauliSum(T)
     strs = vcat(h1.str, h2.str)
     half = @view strs[begin+countTerms(h1):end]
-    map!(s->let sN=PauliStr(s); swapPhase!(sN); sN end, half)
+    map!(s->scale!(PauliStr(s), negRea), half)
     PauliSum(T, strs, vcat(h1.coeff, h2.coeff), simplification)
 end
 
@@ -216,9 +214,7 @@ in either `h` or `term`.
 """
 function sub(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
              ) where {T<:SignedReal}
-    str = PauliStr(term.first)
-    swapPhase!(str)
-    add(T, h, str=>term.second, simplification)
+    add(T, h, scale!(PauliStr(term.first), negRea)=>term.second, simplification)
 end
 
 sub(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
@@ -259,7 +255,7 @@ function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
     checkCoreDataTypeForPauliSum(T)
     strs = vcat(s, h.str)
     body = @view strs[begin+1:end]
-    map!(s->let sN=PauliStr(s); swapPhase!(sN); sN end, body)
+    map!(s->scale!(PauliStr(s), negRea), body)
     PauliSum(T, strs, vcat(one(T), h.coeff), simplification)
 end
 

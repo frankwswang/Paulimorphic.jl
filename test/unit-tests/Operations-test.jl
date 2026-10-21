@@ -191,7 +191,14 @@ end
     @test PauliSum(resDup, true) == PauliSum(Int)
     @test length(sub(h1, h1, false).str) == 2
     @test length(sub(h1, pauli"XZ", false).str) == 2
+    @test length(sub(pauli"XZ", h1, false).str) == 2
     @test length(sub(h1, pauli"XZ"=>1, false).str) == 2
+
+    #>> 10b. Unsimplified `s - h` keeps the canonical tie-break order among equal strings
+    hOne = PauliSum([pauli"X"], [1])
+    resRev = sub(pauli"X", hOne, false)
+    @test resRev.coeff == Complex{Int}[-1, 1]
+    @test resRev == PauliSum(resRev, false)
 
     #>> 11. Round trip with indexTerm: removing a sum's own term cancels it exactly
     h3 = PauliSum([pauli"XZ"], [0.5])
@@ -207,6 +214,8 @@ end
     @test sub(hNarrow, pauli"Z"=>Int8(1)) isa PauliSum{Int8}
     hMin = PauliSum([pauli"Z"], [typemin(Int8)])
     @test_throws InexactError sub(PauliSum(Int8), hMin)
+    @test_throws InexactError sub(pauli"X", hMin)
+    @test sub(PauliSum(Int), hMin) == PauliSum([pauli"Z"], [128]) #> Negated after widening
     @test sub(hMin, PauliSum(Int8)) == hMin
     @test sub(hMin, pauli"X") == PauliSum([pauli"X", pauli"Z"], Int8[-1, typemin(Int8)])
 

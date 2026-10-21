@@ -165,10 +165,9 @@ sub(Int, str1, str2, simplification)
     h1 - h2 -> PauliSum
 
 Subtract `h2` from `h1`, returning their difference with the coefficient type 
-automatically promoted. Each coefficient of `h2` is negated as a `Complex{T2}` before any 
-type promotion. If `simplification=true`, the same simplification procedure used by the 
-[`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is applied 
-to the result. The result does not reference any data in either `h1` or `h2`.
+automatically promoted.  If `simplification=true`, the same simplification procedure used 
+by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
+the result. The result does not reference any data in either `h1` or `h2`.
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
@@ -211,7 +210,7 @@ argument is set to `true`) is applied to the result. The result does not referen
 in either `h` or `term`.
 
 !!! info
-    For the first two method signatures where `T` specifies the core type of the returned 
+    For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, when `simplification=true`, the precision level of the simplification 
     procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
 """
@@ -247,16 +246,22 @@ sub(promote_type(T1, T2), h, term, simplification)
     s - h -> PauliSum
 
 Subtract a single `PauliStr` `s` from `h`, or `h` from `s`, where `s` is treated 
-effectively as a term whose associated coefficient being phase of `s`. 
-If `simplification=true`, the same simplification procedure used by the `PauliSum` 
-constructor (when the same-named argument is set to `true`) is applied to the result. The 
-result does not reference any data in either `h` or `s`.
+effectively as a term whose associated coefficient being phase of `s`. If 
+`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
+(when the same-named argument is set to `true`) is applied to the result. The result does 
+not reference any data in either `h` or `s`.
 """
 sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 sub(T, h, s=>one(T), simplification)
 
-sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:SignedReal} = 
-let res=sub(T, h, s, simplification); map!(-, res.coeff); res end
+function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
+             ) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
+    strs = vcat(s, h.str)
+    body = @view strs[begin+1:end]
+    map!(s->let sN=PauliStr(s); swapPhase!(sN); sN end, body)
+    PauliSum(T, strs, vcat(one(T), h.coeff), simplification)
+end
 
 sub(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 sub(T, h, s, simplification)

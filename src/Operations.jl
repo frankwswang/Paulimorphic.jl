@@ -160,8 +160,8 @@ sub(Int, str1, str2, simplification)
     h1 - h2 -> PauliSum
 
 Subtract `h2` from `h1`, returning their difference with the coefficient type 
-automatically promoted.  If `simplification=true`, the same simplification procedure used 
-by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
+automatically promoted. If `simplification=true`, the same simplification procedure used by 
+the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
 the result. The result does not reference any data in either `h1` or `h2`.
 
 !!! info
@@ -174,7 +174,7 @@ function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
     checkCoreDataTypeForPauliSum(T)
     strs = vcat(h1.str, h2.str)
     half = @view strs[begin+countTerms(h1):end]
-    map!(s->scale!(PauliStr(s), negRea), half)
+    map!(x->scale!(PauliStr(x), negRea), half)
     PauliSum(T, strs, vcat(h1.coeff, h2.coeff), simplification)
 end
 
@@ -237,10 +237,11 @@ sub(promote_type(T1, T2), h, term, simplification)
     s - h -> PauliSum
 
 Subtract a single `PauliStr` `s` from `h`, or `h` from `s`, where `s` is treated 
-effectively as a term whose associated coefficient being phase of `s`. If 
-`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
-(when the same-named argument is set to `true`) is applied to the result. The result does 
-not reference any data in either `h` or `s`.
+effectively as a term whose associated coefficient is the phase value of `s` 
+([`evalPhase(s.phase)`](@ref `evalPhase`)). If `simplification=true`, the same 
+simplification procedure used by the `PauliSum` constructor (when the same-named argument 
+is set to `true`) is applied to the result. The result does not reference any data in 
+either `h` or `s`.
 """
 sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 sub(T, h, s=>one(T), simplification)
@@ -250,7 +251,7 @@ function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
     checkCoreDataTypeForPauliSum(T)
     strs = vcat(s, h.str)
     body = @view strs[begin+1:end]
-    map!(s->scale!(PauliStr(s), negRea), body)
+    map!(x->scale!(PauliStr(x), negRea), body)
     PauliSum(T, strs, vcat(one(T), h.coeff), simplification)
 end
 

@@ -250,18 +250,19 @@ end
     #>> Chained subtraction is left-associative (binary folds only, unlike n-ary `+`)
     @test pauli"X" - pauli"Y" - pauli"X" == PauliSum([pauli"Y"], [-1])
 
-    #>> Sum ↔ Str and Sum ↔ Pair in both orders are distinct; Sum - Sum routes through `sub`
+    #>> Sum ↔ Str in both orders are distinct; Sum - Sum routes through `sub`
     h = PauliSum([pauli"Z"], [1.0])
     @test pauli"X" - h == PauliSum([pauli"X", pauli"Z"], [1.0, -1.0])
     @test h - pauli"X" == PauliSum([pauli"X", pauli"Z"], [-1.0, 1.0])
-    @test h - (pauli"X"=>2.0im) == PauliSum([pauli"X", pauli"Z"], [-2.0im, 1.0])
     @test h1 - h2 == sub(h1, h2)
 
     #>> Mixed chain folds pairwise with correct promotion
     @test (PauliSum(Float64) - pauli"X" - pauli"Y") isa PauliSum{Float64}
 
     #>> Intentionally unsupported combinations stay unsupported
-    @test_throws MethodError pauli"X" - (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+    @test_throws MethodError h - (pauli"Y"=>2.0)        #>> `Pair` terms are not operators
+    @test_throws MethodError (pauli"Y"=>2.0) - h
+    @test_throws MethodError pauli"X" - (pauli"Y"=>2.0)
 
     #> Type-conversion methods
     h1 = PauliSum([pauli"X"], [3])

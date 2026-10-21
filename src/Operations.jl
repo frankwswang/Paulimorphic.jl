@@ -194,8 +194,6 @@ sub(promote_type(T1, T2), h1, h2, simplification)
         ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
-    h - term -> PauliSum
-
 Subtract a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) from 
 `h`, returning the difference with the coefficient type automatically promoted. The string 
 of `term` is `term.first`, whose phase is absorbed into its associated coefficient 
@@ -263,7 +261,6 @@ sub(s::PauliStr, h::PauliSum{T}, simplification::Bool=true) where {T<:SignedReal
 sub(T, s, h, simplification)
 
 Base.:-(h::PauliStrOrSum, obj::PauliStrOrSum) = sub(h, obj)
-Base.:-(h::PauliSum, obj::PStrCoeffPair) = sub(h, obj)
 
 
 """

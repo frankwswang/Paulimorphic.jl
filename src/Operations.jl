@@ -1,6 +1,6 @@
 export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
 
-public add, mul, toAdjoint
+public add, sub, mul, toAdjoint
 
 const PauliStrOrSum = Union{PauliStr, PauliSum}
 
@@ -14,15 +14,13 @@ const PStrCoeffPair{T<:SignedReal} = Pair{PauliStr, <:SRealOrComplex{T}}
 
     str1 + str2 -> PauliSum{Int}
 
-Add two `PauliStr`, returning their sum in which each string initially carries the nominal 
-coefficient `one(Complex{T})` before its phase is absorbed (see the [`PauliSum`](@ref) 
-constructors). When `T` is unspecified (in the case of the second signature), it defaults 
-to `Int`; `T` is subject to the same restriction as in the `PauliSum` constructor. If 
-`simplification=true`, the same simplification procedure used by the `PauliSum` constructor 
-(when the same-named argument is set to `true`) is applied to the result. Neither input is 
-mutated, and the result does not reference any data in either input. Using the binary 
-operator `+` is equivalent to invoking the second method signature (with the default 
-value of `simplification`).
+Add two `PauliStr`, returning their sum as a [`PauliSum`](@ref). When `T` is unspecified 
+(in the case of the second signature), it defaults to `Int`; `T` is subject to the same 
+restriction as in the `PauliSum` constructor. If `simplification=true`, the same 
+simplification procedure used by the `PauliSum` constructor (when the same-named argument 
+is set to `true`) is applied to the result. Neither input is mutated, and the result does 
+not reference any data in either input. Using the binary operator `+` is equivalent to 
+invoking the second method signature (with the default value of `simplification`).
 """
 add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
     ) where {T<:SignedReal} = 
@@ -126,6 +124,148 @@ add(T, h, s, simplification)
 Base.:+(h::PauliSum, obj::Union{PStrCoeffPair, PauliStrOrSum}) = add(h, obj)
 Base.:+(obj::Union{PStrCoeffPair, PauliStr}, h::PauliSum) = add(h, obj)
 Base.:+(s1::PauliStr, s2::PauliStr, s3::PauliStr...) = PauliSum(Int, [s1, s2, s3...])
+
+
+"""
+    sub(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> PauliSum{T}
+
+    sub(str1::PauliStr, str2::PauliStr, simplification::Bool=true) -> PauliSum{Int}
+
+    str1 - str2 -> PauliSum{Int}
+
+Subtract `str2` from `str1`, returning their difference as a [`PauliSum`](@ref). When `T` 
+is unspecified (in the case of the second signature), it defaults to `Int`; `T` is subject 
+to the same restriction as in the `PauliSum` constructor. If `simplification=true`, the 
+same simplification procedure used by the `PauliSum` constructor (when the same-named 
+argument is set to `true`) is applied to the result. Neither input is mutated, and the 
+result does not reference any data in either input. Using the binary operator `-` is 
+equivalent to invoking the second method signature (with the default value of 
+`simplification`).
+"""
+function sub(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal}
+    str2sub = PauliStr(str2)
+    swapPhase!(str2sub)
+    PauliSum(T, [str1, str2sub], simplification)
+end
+
+sub(str1::PauliStr, str2::PauliStr, simplification::Bool=true) = 
+sub(Int, str1, str2, simplification)
+
+"""
+    sub(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{T}
+
+    sub(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{promote_type(T1, T2)}
+
+    h1 - h2 -> PauliSum
+
+Subtract `h2` from `h1`, returning their difference with the coefficient type 
+automatically promoted. Each coefficient of `h2` is negated as a `Complex{T2}` before any 
+type promotion. If `simplification=true`, the same simplification procedure used by the 
+[`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is applied 
+to the result. The result does not reference any data in either `h1` or `h2`.
+
+!!! info
+    For the first method signature where `T` specifies the core type of the returned 
+    `PauliSum`, when `simplification=true`, the precision level of the simplification 
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+"""
+function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
+             ) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
+    strs = vcat(h1.str, h2.str)
+    half = @view strs[begin+countTerms(h1):end]
+    map!(s->let sN=PauliStr(s); swapPhase!(sN); sN end, half)
+    PauliSum(T, strs, vcat(h1.coeff, h2.coeff), simplification)
+end
+
+sub(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
+   {T1<:SignedReal, T2<:SignedReal} = 
+sub(promote_type(T1, T2), h1, h2, simplification)
+
+
+"""
+    sub(::Type{T}, h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true
+        ) where {T<:$SignedReal, T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{T}
+
+    sub(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
+        simplification::Bool=true
+        ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
+    PauliSum{promote_type(T1, T2)}
+
+    h - term -> PauliSum
+
+Subtract a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) from 
+`h`, returning the difference with the coefficient type automatically promoted. The string 
+of `term` is `term.first`, whose phase is absorbed into its associated coefficient 
+`term.second` by the `PauliSum` constructor. If `simplification=true`, the same 
+simplification procedure used by the [`PauliSum`](@ref) constructor (when the same-named 
+argument is set to `true`) is applied to the result. The result does not reference any data 
+in either `h` or `term`.
+
+!!! info
+    For the first two method signatures where `T` specifies the core type of the returned 
+    `PauliSum`, when `simplification=true`, the precision level of the simplification 
+    procedure is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+"""
+function sub(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
+             ) where {T<:SignedReal}
+    str = PauliStr(term.first)
+    swapPhase!(str)
+    add(T, h, str=>term.second, simplification)
+end
+
+sub(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
+   {T1<:SignedReal, T2<:SignedReal} = 
+sub(promote_type(T1, T2), h, term, simplification)
+
+"""
+    sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
+    PauliSum{T}
+
+    sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
+    PauliSum{T}
+
+    sub(h::PauliSum{T}, s::PauliStr, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
+    PauliSum{T}
+
+    sub(s::PauliStr, h::PauliSum{T}, simplification::Bool=true
+        ) where {T<:$SignedReal} -> 
+    PauliSum{T}
+
+    h - s -> PauliSum
+    s - h -> PauliSum
+
+Subtract a single `PauliStr` `s` from `h`, or `h` from `s`, where `s` is treated 
+effectively as a term whose associated coefficient being phase of `s`. 
+If `simplification=true`, the same simplification procedure used by the `PauliSum` 
+constructor (when the same-named argument is set to `true`) is applied to the result. The 
+result does not reference any data in either `h` or `s`.
+"""
+sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
+sub(T, h, s=>one(T), simplification)
+
+sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true) where {T<:SignedReal} = 
+let res=sub(T, h, s, simplification); map!(-, res.coeff); res end
+
+sub(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
+sub(T, h, s, simplification)
+
+sub(s::PauliStr, h::PauliSum{T}, simplification::Bool=true) where {T<:SignedReal} = 
+sub(T, s, h, simplification)
+
+Base.:-(h::PauliStrOrSum, obj::PauliStrOrSum) = sub(h, obj)
+Base.:-(h::PauliSum, obj::PStrCoeffPair) = sub(h, obj)
 
 
 """

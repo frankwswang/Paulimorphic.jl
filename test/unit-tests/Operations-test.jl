@@ -2,7 +2,7 @@ using Test
 using Random: Xoshiro
 using LinearAlgebra: kron
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, toAdjoint
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, sub, toAdjoint
 
 @testset "Operations.jl" begin
 
@@ -131,6 +131,141 @@ end
     h2 = PauliSum([pauli"Z"], [0.5])
     @test add(Float32, h1, h2) isa PauliSum{Float32}
     @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
+end
+
+@testset "sub" begin
+    rng = Xoshiro(20261019)
+
+    #> `sub`: named-function layer
+    #>> 1. Str - Str: self-difference cancels to the empty (zero) operator; default `Int`
+    resCancel = sub(pauli"X", pauli"X")
+    @test resCancel == PauliSum(Int)
+    @test resCancel isa PauliSum{Int}
+    @test isempty(resCancel.str)
+
+    #>> 2. Distinct strings, with and without an explicit coefficient type (value and type)
+    @test sub(pauli"X", pauli"Z") == PauliSum([pauli"X", pauli"Z"], [1, -1])
+    @test sub(Float64, pauli"X", pauli"Z") == PauliSum([pauli"X", pauli"Z"], [1.0, -1.0])
+    @test sub(Float64, pauli"X", pauli"Z") isa PauliSum{Float64}
+
+    #>> 3. Subtrahend phase absorbed before merging: X - (-X) == 2X, X - (im X) == (1-im)X
+    @test sub(pauli"X", mul(pauli"X", negRea)) == PauliSum([pauli"X"], [2])
+    @test sub(pauli"X", mul(pauli"X", posImg)) == PauliSum([pauli"X"], [1 - im])
+
+    #>> 4. Identity-padding rebuild: `X` and `XI` become equal after site-count promotion
+    @test sub(pauli"X", pauli"XI") == PauliSum(Int)
+    @test sub(pauli"XI", mul(pauli"X", negRea)) == PauliSum([pauli"XI"], [2])
+
+    #>> 5. Sum - Sum in both orders with cross-type promotion (Int ∪ Float64 -> Float64)
+    h1 = PauliSum([pauli"XZ"], [2])
+    h2 = PauliSum([pauli"XZ", pauli"YI"], [1.0, 0.5])
+    @test sub(h1, h2) == PauliSum([pauli"XZ", pauli"YI"], [1.0, -0.5])
+    @test sub(h1, h2) isa PauliSum{Float64}
+    @test sub(h2, h1) == PauliSum([pauli"XZ", pauli"YI"], [-1.0, 0.5])
+
+    #>> 6. The zero operator as minuend/subtrahend (empty-buffer `vcat` edge), and h - h
+    @test sub(h2, PauliSum(Int)) == h2
+    @test sub(PauliSum(Int), h2) == mul(h2, negRea)
+    @test sub(h2, h2) == PauliSum(Float64)
+
+    #>> 7. Pair methods in only one order, incl. phase absorption of the subtracted term
+    hZero = PauliSum(Float64)
+    @test sub(hZero, mul(pauli"X", negImg)=>2.0) == PauliSum([pauli"X"], [ 2.0im])
+    @test sub(h1, pauli"X"=>0.5) == PauliSum([pauli"XZ", pauli"XI"], [ 2.0, -0.5])
+    @test sub(h1, pauli"X"=>0.5) isa PauliSum{Float64}
+
+    #>> 8. Str methods in both orders: nominal coefficient `one(T)` merged into the match
+    @test sub(h2, pauli"YI") == PauliSum([pauli"XZ", pauli"YI"], [1.0, -0.5])
+    @test sub(pauli"YI", h2) == PauliSum([pauli"XZ", pauli"YI"], [-1.0, 0.5])
+
+    #>> 9. Consistency with the phase-multiplication route for every method shape
+    @test sub(h1, h2) == add(h1, mul(h2, negRea))
+    @test sub(h2, h1) == add(h2, mul(h1, negRea))
+    @test sub(h1, pauli"X"=>0.5) == add(h1, pauli"X"=>-0.5)
+    @test sub(h2, pauli"YI") == add(h2, mul(pauli"YI", negRea))
+    @test sub(pauli"YI", h2) == add(mul(h2, negRea), pauli"YI")
+
+    #>> 10. simplification=false retains duplicates (still canonically sorted), per method
+    resDup = sub(pauli"X", pauli"X", false)
+    @test resDup.coeff == Complex{Int}[-1, 1] #> Equal strings tie-broken by `real(c)`
+    @test PauliSum(resDup, true) == PauliSum(Int)
+    @test length(sub(h1, h1, false).str) == 2
+    @test length(sub(h1, pauli"XZ", false).str) == 2
+    @test length(sub(h1, pauli"XZ"=>1, false).str) == 2
+
+    #>> 11. Round trip with indexTerm: removing a sum's own term cancels it exactly
+    h3 = PauliSum([pauli"XZ"], [0.5])
+    @test sub(h3, indexTerm(h3, 1)) == PauliSum(Float64)
+
+    #>> 12. Narrow integer coefficients: promoted as in `add`, no spurious type widening
+    hNarrow = PauliSum([pauli"Z"], [Int8(3)])
+    @test hNarrow isa PauliSum{Int8}
+    @test sub(PauliSum(Int), hNarrow) == PauliSum([pauli"Z"], [-3])
+    @test sub(PauliSum(Int), hNarrow) isa PauliSum{Int}
+    @test sub(hNarrow, hNarrow) == PauliSum(Int8)
+    @test sub(hNarrow, pauli"Z"=>Int8(1)) == PauliSum([pauli"Z"], [Int8(2)])
+    @test sub(hNarrow, pauli"Z"=>Int8(1)) isa PauliSum{Int8}
+    hMin = PauliSum([pauli"Z"], [typemin(Int8)])
+    @test_throws InexactError sub(PauliSum(Int8), hMin)
+    @test sub(hMin, PauliSum(Int8)) == hMin
+    @test sub(hMin, pauli"X") == PauliSum([pauli"X", pauli"Z"], Int8[-1, typemin(Int8)])
+
+    #>> 13. Ownership: result must not reference either input's data (buffer level)
+    resOwn = sub(h1, h2)
+    @test all(s -> all(t -> s.x !== t.x && s.z !== t.z, vcat(h1.str, h2.str)), resOwn.str)
+    @test (resOwn.coeff !== h1.coeff) && (resOwn.coeff !== h2.coeff)
+
+    #>> 14. Random sums with mixed site counts against the matrix reference
+    bl1 = true
+    for _ in 1:50
+        nA = rand(rng, 1:3)
+        nB = rand(rng, 1:3)
+        n  = max(nA, nB)
+        hA = randSum(rng, nA, 4)
+        hB = randSum(rng, nB, 4)
+        sB = randStr(rng, nB)
+        bl1 &= (sumToMat(sub(hA, hB), n) ≈ sumToMat(hA, n) - sumToMat(hB, n))
+        bl1 &= (sumToMat(sub(hA, sB), n) ≈ sumToMat(hA, n) - strToMat(sB, n))
+        bl1 &= (sumToMat(sub(sB, hA), n) ≈ strToMat(sB, n) - sumToMat(hA, n))
+        bl1 &= (countSites(sub(hA, hB)) == n)
+    end
+    @test bl1
+
+    #> `Base.:-`: operator layer
+    #>> Binary `-` on strings is equivalent to the default-`T` `sub` method
+    @test pauli"X" - pauli"Z" == sub(pauli"X", pauli"Z")
+    @test pauli"X" - pauli"Z" == PauliSum([pauli"X", pauli"Z"], [1, -1])
+    @test pauli"X" - pauli"X" == PauliSum(Int)
+
+    #>> Chained subtraction is left-associative (binary folds only, unlike n-ary `+`)
+    @test pauli"X" - pauli"Y" - pauli"X" == PauliSum([pauli"Y"], [-1])
+
+    #>> Sum ↔ Str and Sum ↔ Pair in both orders are distinct; Sum - Sum routes through `sub`
+    h = PauliSum([pauli"Z"], [1.0])
+    @test pauli"X" - h == PauliSum([pauli"X", pauli"Z"], [1.0, -1.0])
+    @test h - pauli"X" == PauliSum([pauli"X", pauli"Z"], [-1.0, 1.0])
+    @test h - (pauli"X"=>2.0im) == PauliSum([pauli"X", pauli"Z"], [-2.0im, 1.0])
+    @test h1 - h2 == sub(h1, h2)
+
+    #>> Mixed chain folds pairwise with correct promotion
+    @test (PauliSum(Float64) - pauli"X" - pauli"Y") isa PauliSum{Float64}
+
+    #>> Intentionally unsupported combinations stay unsupported
+    @test_throws MethodError pauli"X" - (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
+
+    #> Type-conversion methods
+    h1 = PauliSum([pauli"X"], [3])
+    h2 = PauliSum([pauli"Z"], [0.5])
+    @test sub(Float32, h1, h2) isa PauliSum{Float32}
+    @test sub(Float32, h1, h2) == PauliSum([pauli"X", pauli"Z"], Float32[3, -0.5])
+    @test sub(Float32, h2, pauli"X") == sub(PauliSum(Float32, h2), pauli"X")
+    @test sub(Float32, pauli"X", h2) == pauli"X" - PauliSum(Float32, h2)
+    @test sub(Float32, h2, pauli"X"=>1) == sub(PauliSum(Float32, h2), pauli"X"=>1)
+    @test_throws MethodError sub(Bool, pauli"X", pauli"Z")
+    @test_throws MethodError sub(UInt8, h1, h2)
+    @test_throws MethodError sub(h1, pauli"X"=>im) #> `im` is a `Complex{Bool}`
+    @test_throws ArgumentError sub(AbstractFloat, pauli"X", pauli"Z") #> Non-concrete `T`
+    @test_throws ArgumentError sub(Signed, h1, h2)
 end
 
 @testset "mul" begin

@@ -111,11 +111,10 @@ end
     @test pauli"X" + pauli"Y" + pauli"Z" + pauli"X" == 
           PauliSum([pauli"X", pauli"Y", pauli"Z"], [2, 1, 1])
 
-    #>> Sum ↔ Str and Sum ↔ Pair in both orders; Sum + Sum routes through `add`
+    #>> Sum ↔ Str in both orders; Sum + Sum routes through `add`
     h = PauliSum([pauli"Z"], [1.0])
     @test pauli"X" + h == PauliSum([pauli"X", pauli"Z"], [1.0, 1.0])
     @test h + pauli"X" == pauli"X" + h
-    @test h + (pauli"X"=>2.0im) == (pauli"X"=>2.0im) + h
     @test h1 + h2 == add(h1, h2)
 
     #>> Mixed chain falls back to Base's pairwise fold with correct promotion
@@ -123,8 +122,10 @@ end
 
     #>> Intentionally unsupported combinations stay unsupported
     @test_throws MethodError +(pauli"X")            #>> No unary `+`
-    @test_throws MethodError pauli"X" + (pauli"Y"=>2.0) #>> Pair terms attach only to a sum
-    @test_throws MethodError h + (pauli"Y"=>im)        #>> `im` is a `Complex{Bool}`
+    @test_throws MethodError h + (pauli"Y"=>2.0)        #>> `Pair` terms are not operators
+    @test_throws MethodError (pauli"Y"=>2.0) + h
+    @test_throws MethodError pauli"X" + (pauli"Y"=>2.0)
+    @test_throws MethodError add(h, pauli"Y"=>im)      #>> `im` is a `Complex{Bool}`
 
     #> Type-conversion methods
     h1 = PauliSum([pauli"X"], [3])

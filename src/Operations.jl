@@ -71,9 +71,6 @@ add(promote_type(T1, T2), h1, h2, simplification)
         ) where {T1<:$SignedReal, T2<:$SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
-    h + term -> PauliSum
-    term + h -> PauliSum
-
 Add a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) to `h`, 
 returning the sum with the coefficient type automatically promoted. The added string is 
 `term.first`, whose phase is absorbed into its associated coefficient `term.second` by the 
@@ -121,8 +118,8 @@ add(T, h, s=>one(T), simplification)
 add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 add(T, h, s, simplification)
 
-Base.:+(h::PauliSum, obj::Union{PStrCoeffPair, PauliStrOrSum}) = add(h, obj)
-Base.:+(obj::Union{PStrCoeffPair, PauliStr}, h::PauliSum) = add(h, obj)
+Base.:+(h::PauliSum, obj::PauliStrOrSum) = add(h, obj)
+Base.:+(s::PauliStr, h::PauliSum) = add(h, s)
 Base.:+(s1::PauliStr, s2::PauliStr, s3::PauliStr...) = PauliSum(Int, [s1, s2, s3...])
 
 

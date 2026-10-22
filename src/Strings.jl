@@ -1,5 +1,5 @@
 export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canonicalize!, 
-       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, collectTerms, 
+       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, listTerms, 
        countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
@@ -765,7 +765,7 @@ end
 
 
 """
-    collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:$SignedReal} -> 
+    listTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:$SignedReal} -> 
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
@@ -776,7 +776,7 @@ Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, 
     When `copyStr=false`, mutating any returned string modifies `ham` in place and can 
     disturb its canonical layout.
 """
-function collectTerms(ham::PauliSum, copyStr::Bool=true)
+function listTerms(ham::PauliSum, copyStr::Bool=true)
     map(ham.str, ham.coeff) do str, coeff
         (copyStr ? PauliStr(str) : str) => coeff
     end

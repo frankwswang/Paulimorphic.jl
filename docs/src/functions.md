@@ -61,7 +61,7 @@ countWeight
 countTerms
 indexSite
 indexTerm
-collectTerms
+listTerms
 sumCoeffs
 isIdentity
 isHermitian

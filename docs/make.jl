@@ -14,8 +14,10 @@ makedocs(
     ), 
     pages = [
         "Home" => "index.md", 
-        "Core Types" => "types.md", 
-        "Core Functions" => "functions.md", 
+        "Examples" => "examples.md", 
+        "Types" => "types.md", 
+        "Functions" => "functions.md", 
+        "Development Guide" => "development.md", 
     ], 
     checkdocs = :public, 
 )

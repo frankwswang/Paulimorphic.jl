@@ -1,16 +1,129 @@
-# Core Functions
+```@meta
+CurrentModule = Paulimorphic
+```
+
+# Functions
+
+## Manipulations
+
+### Algebra
+
+```@docs
+add
+sub
+mul
+scale!
+toAdjoint
+evalCommute
+evalAntiCom
+```
+
+### Modifications
+
+```@docs
+canonicalize!
+sanitize!
+sortStrings!
+setCoeff!
+curtail
+reframe
+shift!
+paste!
+stamp!
+```
+
+## Inspections
+
+### Graphs
+
+```@docs
+countVertices
+countEdges
+containEdge
+getDegree
+listDegrees
+listEdges
+listComponents
+attachEdge!
+removeEdge!
+breadthFirstSearch
+isIsomorphic
+genLineGraph
+genRootGraph
+decompose
+```
+
+### Operators
+
+```@docs
+countSites
+countWeight
+countTerms
+indexSite
+indexTerm
+collectTerms
+sumCoeffs
+isIdentity
+isHermitian
+checkCommute
+checkAntiCom
+getFrustrationInfo
+checkMajoranaEnc
+checkDiracEnc
+checkSpinSectoredEnc
+```
+
+### Structures
+
+```@docs
+isIndexLabel
+findAxisPermViolation
+checkInteHermiticity
+checkInteParticleExchange
+checkIntePairTransposition
+checkNBodyInteTensor
+```
+
+## Representations
+
+### Text serialization
 
 ```@docs
 @pauli_str
+toPauliStr
+toString
+toPhase
 ```
 
-```@autodocs
-Modules = [Paulimorphic]
-Order   = [:function]
-Private = false
+### Qubits encoding
+
+```@docs
+genJordanWignerEnc
+genParityEnc
+genBravyiKitaevEnc
+toMajoranaPair
+toDiracEnc
+toMajoranaEnc
+buildMajoranaFrame
+formatSpinSectoredEnc
+formatMolecularInteData
+genNBodyOperator
+gen1BodyOperatorSum
+genNBodyOperatorSum
+encodeElecHam
 ```
 
-## Extended `Base` methods
+### Numerical computation
+
+```@docs
+evalPhase
+toMatrix
+extendType
+```
+
+## Extensions
+
+### `Base` methods
 
 ```@docs
 Base.isless(::PauliStr, ::PauliStr)

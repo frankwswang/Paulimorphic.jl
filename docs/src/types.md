@@ -1,7 +1,28 @@
-# Core Types
+```@meta
+CurrentModule = Paulimorphic
+```
 
-```@autodocs
-Modules = [Paulimorphic]
-Order   = [:type, :constant]
-Private = false
+# Types
+
+## Operators
+
+```@docs
+PauliSym
+PhaseFactor
+PauliStr
+PauliSum
+```
+
+## Collections
+
+```@docs
+StrictGraph
+```
+
+## Labels
+
+```@docs
+NBodyOrdering
+PairedOrder
+NormalOrder
 ```

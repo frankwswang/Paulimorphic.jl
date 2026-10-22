@@ -79,8 +79,8 @@ A public object is also exported unless it is one of the following:
   i.e., the extension is a thin wrapper of at least one of its methods. For instance, 
   `Base.:*` forwards to [`Paulimorphic.mul`](@ref), thus `mul` is public but not exported.
 
-* A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but does 
-  not necessarily preserve or restore their canonical forms (e.g., 
+* A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but  
+  does not necessarily preserve or restore their canonical forms (e.g., 
   [`Paulimorphic.setCoeff!`](@ref)).
 
 * A function that is designed as a lower-level building block for exported functions 

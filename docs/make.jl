@@ -11,6 +11,7 @@ makedocs(
         canonical = "https://frankwswang.github.io/Paulimorphic.jl", 
         edit_link = "dev", 
         assets = ["assets/custom.css"], 
+        collapselevel = 1, 
     ), 
     pages = [
         "Home" => "index.md", 

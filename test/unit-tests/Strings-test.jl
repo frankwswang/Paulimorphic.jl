@@ -320,6 +320,30 @@ end
     @test_throws DomainError indexTerm(PauliSum(Float64), 1) #> Empty sum: domain is `1:0`
 end
 
+@testset "listTerms" begin
+    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0im, 3.0])
+    #> Canonical order (weight, then highest differing site): ZI, IZ, XX
+    terms = listTerms(ham)
+    @test terms isa Vector{Pair{PauliStr, ComplexF64}}
+    @test terms == [pauli"ZI" => 3.0, pauli"IZ" => 2.0im, pauli"XX" => 1.0]
+    @test length(terms) == countTerms(ham)
+
+    #> Element-wise agreement with `indexTerm`
+    @test all(terms[i] == indexTerm(ham, i) for i in eachindex(terms))
+
+    #> Rebuilding from the listed terms recovers an equal sum
+    @test PauliSum(first.(terms), last.(terms)) == ham
+
+    #> `copyStr=true` (default): equal content, but fresh copies holding no reference
+    @test all(t.first == s && t.first !== s for (t, s) in zip(terms, ham.str))
+
+    #> `copyStr=false`: aliases the stored strings
+    @test all(t.first === s for (t, s) in zip(listTerms(ham, false), ham.str))
+
+    #> Empty sum: an empty `Vector` of the documented element type
+    @test listTerms(PauliSum(Float64)) == Pair{PauliStr, ComplexF64}[]
+end
+
 @testset "setCoeff!" begin
     ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
     #> Canonical order (weight, then highest differing site): ZI, IZ, XX

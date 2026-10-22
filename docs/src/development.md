@@ -44,7 +44,8 @@ Types and type aliases are in PascalCase (e.g., [`PauliStr`](@ref)). In particul
 following types should obey additional rules:
 
 * The members of an [`enum`](https://docs.julialang.org/en/v1/base/base/#Base.Enums.@enum) 
-  type should be named in camelCase with at least one upper-case letter (e.g., `symX` under [`PauliSym`](@ref)).
+  type should be named in camelCase with at least one upper-case letter (e.g., `symX` under 
+  [`PauliSym`](@ref)).
 
 ### Non-type constants
 
@@ -74,12 +75,12 @@ capitalized to accommodate the applied letter-case style):
 
 A public object is also exported unless it is one of the following:
 
-* A function to which a method extended from another module directly forwards, i.e., the 
-  extension is a thin wrapper of at least one of its methods. For instance, `Base.:*` 
-  forwards to [`Paulimorphic.mul`](@ref), thus `mul` is public but not exported.
+* A function to which a method extension of another module's function directly forwards, 
+  i.e., the extension is a thin wrapper of at least one of its methods. For instance, 
+  `Base.:*` forwards to [`Paulimorphic.mul`](@ref), thus `mul` is public but not exported.
 
-* A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but does not 
-  necessarily preserve or restore their canonical forms (e.g., 
+* A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but does 
+  not necessarily preserve or restore their canonical forms (e.g., 
   [`Paulimorphic.setCoeff!`](@ref)).
 
 * A function that is designed as a lower-level building block for exported functions 

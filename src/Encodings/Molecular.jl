@@ -163,7 +163,7 @@ const NBodyOrdering = Union{PairedOrder, NormalOrder}
 
 
 """
-    genNBodyOperator(format::$(NBodyOrdering|>repr), 
+    genNBodyOperator(format::NBodyOrdering, 
                      enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                          <:AbstractVector{<:PauliSum}}}, 
                      spinSecConfig::NTuple{N, Bool}, 
@@ -324,7 +324,7 @@ end
 
 
 """
-    genNBodyOperatorSum(format::$(NBodyOrdering|>repr), 
+    genNBodyOperatorSum(format::NBodyOrdering, 
                         enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                         orbInte::AbstractArray{C, D}, spinSecConfig::NTuple{N, Bool}, 
@@ -552,7 +552,7 @@ const MolInteTensor1B2B{T<:SRealOrComplex,
 const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 """
-    encodeElecHam(format::$(NBodyOrdering|>repr), 
+    encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                              Pair{<:AbstractVector{<:PauliSum}, 
@@ -636,7 +636,7 @@ regardless of the value of `format`.
 
 ## Simplified method
 
-    encodeElecHam(format::$(NBodyOrdering|>repr), 
+    encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                              Pair{<:AbstractVector{<:PauliSum}, 

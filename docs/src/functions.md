@@ -95,7 +95,7 @@ toString
 toPhase
 ```
 
-### Qubits encoding
+### Qubit encoding
 
 ```@docs
 genJordanWignerEnc

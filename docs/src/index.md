@@ -46,8 +46,18 @@ julia> using Paulimorphic
 ## Contents
 
 ```@contents
-Pages = ["examples.md", "types.md", "functions.md", "development.md"]
-Depth = 3
+Pages = [
+    "examples.md", 
+    "types/operators.md", 
+    "types/collections.md", 
+    "types/labels.md", 
+    "functions/manipulations.md", 
+    "functions/inspections.md", 
+    "functions/representations.md", 
+    "functions/extensions.md", 
+    "development.md", 
+]
+Depth = 2
 ```
 
 ## Notation

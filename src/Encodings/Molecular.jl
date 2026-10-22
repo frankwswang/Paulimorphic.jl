@@ -1,7 +1,7 @@
 export checkSpinSectoredEnc, formatSpinSectoredEnc, PairedOrder, NormalOrder, 
-       gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
+       NBodyOrdering, gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
 
-public NBodyOrdering, genNBodyOperator, formatMolecularInteData
+public genNBodyOperator, formatMolecularInteData
 
 """
     checkSpinSectoredEnc(enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 

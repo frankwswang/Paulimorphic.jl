@@ -1,7 +1,7 @@
 export checkSpinSectoredEnc, formatSpinSectoredEnc, PairedOrder, NormalOrder, 
-       gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
+       NBodyOrdering, gen1BodyOperatorSum, genNBodyOperatorSum, encodeElecHam
 
-public NBodyOrdering, genNBodyOperator, formatMolecularInteData
+public genNBodyOperator, formatMolecularInteData
 
 """
     checkSpinSectoredEnc(enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
@@ -163,7 +163,7 @@ const NBodyOrdering = Union{PairedOrder, NormalOrder}
 
 
 """
-    genNBodyOperator(format::$(NBodyOrdering|>repr), 
+    genNBodyOperator(format::NBodyOrdering, 
                      enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                          <:AbstractVector{<:PauliSum}}}, 
                      spinSecConfig::NTuple{N, Bool}, 
@@ -213,7 +213,8 @@ function genNBodyOperatorCore!(::NormalOrder,
                                enc::NTuple{2, PairwiseSumEnc}, 
                                spinSecConfig::NonEmptyTuple{Bool, M}, 
                                modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
-                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+                               checkEncoding::Bool=true
+                               )::PauliSum{T} where {M, T<:SignedReal}
     checkEncoding && checkSpinSectoredEnc(enc, true)
     oddParticleNum = iseven(M)
     boundM = M - oddParticleNum
@@ -264,7 +265,8 @@ function genNBodyOperatorCore!(::PairedOrder,
                                enc::NTuple{2, PairwiseSumEnc}, 
                                spinSecConfig::NonEmptyTuple{Bool, M}, 
                                modeIdxConfig::NonEmptyTuple{NTuple{2, Integer}, M}, 
-                               checkEncoding::Bool=true)::PauliSum{T} where {M, T<:Real}
+                               checkEncoding::Bool=true
+                               )::PauliSum{T} where {M, T<:SignedReal}
     checkEncoding && checkSpinSectoredEnc(enc, true)
 
     mapreduce((lOp, rOp)->mul(T, lOp, rOp), spinSecConfig, modeIdxConfig) do isSec2, idxPair
@@ -276,11 +278,11 @@ function genNBodyOperatorCore!(::PairedOrder,
     end
 end
 
-function genNBodyOperatorCache(::PairedOrder, ::Type{T}) where {T<:Real}
+function genNBodyOperatorCache(::PairedOrder, ::Type{T}) where {T<:SignedReal}
     Dict{PairedOrderOpCacheKey, PauliSum{T}}()
 end
 
-function genNBodyOperatorCache(::NormalOrder, ::Type{T}) where {T<:Real}
+function genNBodyOperatorCache(::NormalOrder, ::Type{T}) where {T<:SignedReal}
     Dict{NormalOrderOpCacheKey, PauliSum{T}}()
 end
 
@@ -322,7 +324,7 @@ end
 
 
 """
-    genNBodyOperatorSum(format::$(NBodyOrdering|>repr), 
+    genNBodyOperatorSum(format::NBodyOrdering, 
                         enc::NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                         orbInte::AbstractArray{C, D}, spinSecConfig::NTuple{N, Bool}, 
@@ -331,7 +333,7 @@ end
                         hermiticity::Bool=true, 
                         idxPairSymm::NTuple{N, Bool}=ntuple(_->false, Val(N)), 
                         checkInput::Bool=true) where 
-                       {T<:Real, C<:Union{Complex{T}, T}, D, N} -> 
+                       {T<:SignedReal, C<:Union{Complex{T}, T}, D, N} -> 
     PauliSum
 
 Return a spin-1/2 `N`-particle operator summation as the linear combination of products of 
@@ -399,7 +401,7 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
                              hermiticity::Bool=true, 
                              idxPairSymm::NonEmptyTuple{Bool, M}=
                                           ntuple(_->false, Val(M+1)), 
-                             checkInput::Bool=true) where {T<:RealOrComplex, D, M}
+                             checkInput::Bool=true) where {T<:SRealOrComplex, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
     for (p, iStart) in enumerate(iModeStart)
@@ -495,7 +497,8 @@ end
                                         <:AbstractVector{<:PauliSum}}, 
                         orbInte::AbstractMatrix{C}, iModeStart::Integer=1; 
                         hermiticity::Bool=true, idxPairSymm::Bool=false, 
-                        checkInput::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+                        checkInput::Bool=true
+                        ) where {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum
 
 Return a one-particle operator summation as the linear combination of products of 
@@ -516,7 +519,7 @@ are verified via [`checkNBodyInteTensor`](@ref).
 function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{T}, 
                              iModeStart::Integer=1; hermiticity::Bool=true, 
                              idxPairSymm::Bool=false, checkInput::Bool=true) where 
-                            {T<:RealOrComplex}
+                            {T<:SRealOrComplex}
     idxPairSymm = (idxPairSymm,)
 
     if checkInput
@@ -543,13 +546,13 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
 end
 
 
-const MolInteTensor1B2B{T<:RealOrComplex, T1<:AbstractMatrix{T}, T2<:AbstractArray{T, 4}} = 
-      Tuple{T1, T2}
+const MolInteTensor1B2B{T<:SRealOrComplex, 
+                        T1<:AbstractMatrix{T}, T2<:AbstractArray{T, 4}} = Tuple{T1, T2}
 
 const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
 
 """
-    encodeElecHam(format::$(NBodyOrdering|>repr), 
+    encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                              Pair{<:AbstractVector{<:PauliSum}, 
@@ -559,7 +562,7 @@ const OptSpinSectoredEnc = Union{NTuple{2, PairwiseSumEnc}, PairwiseSumEnc}
                   inte2BCross::AbstractArray{C, 4}, checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
                   idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)
-                  ) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+                  ) where {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum
 
 Return a `PauliSum`-based encoding (representation) of the molecular electronic 
@@ -633,7 +636,7 @@ regardless of the value of `format`.
 
 ## Simplified method
 
-    encodeElecHam(format::$(NBodyOrdering|>repr), 
+    encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
                                             <:AbstractVector{<:PauliSum}}}, 
                              Pair{<:AbstractVector{<:PauliSum}, 
@@ -642,7 +645,7 @@ regardless of the value of `format`.
                   checkEncoding::Bool=true; 
                   hermiticity::Bool=true, 
                   idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && C<:Real), 2)
-                  ) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+                  ) where {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum
 
 The single-set form encodes both spin sectors and their coupling from one shared 
@@ -670,7 +673,7 @@ function encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc,
                        checkEncoding::Bool=true; 
                        hermiticity::Bool=true, 
                        idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)
-                       ) where {T<:RealOrComplex}
+                       ) where {T<:SRealOrComplex}
     nOrbSpin1, nOrbSpin2 = size.(Ref(inte2BCross), (1, 3))
     crossERIShape = (nOrbSpin1, nOrbSpin1, nOrbSpin2, nOrbSpin2)
     if size(inte2BCross) != crossERIShape
@@ -714,7 +717,7 @@ encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc,
               orbInte1B2B::MolInteTensor1B2B{T}, checkEncoding::Bool=true; 
               hermiticity::Bool=true, 
               idxPairSymm::NTuple{2, Bool}=ntuple(_->(hermiticity && T<:Real), 2)) where 
-             {T<:RealOrComplex} = 
+             {T<:SRealOrComplex} = 
 encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), checkEncoding; 
               hermiticity, idxPairSymm)
 
@@ -725,7 +728,7 @@ encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), checkEnc
                             nOrbital::Integer=size(first(inteData), 1); 
                             hermiticity::Bool=true, 
                             idxPairSymm::Bool=(hermiticity && C<:Real)) where 
-                           {T<:Real, C<:Union{Complex{T}, T}} -> 
+                           {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     Tuple{AbstractMatrix{C}, AbstractArray{C, 4}}
 
 Validate the format of molecular integrals (`first(inteData)` as the one-body matrix and 
@@ -745,7 +748,7 @@ function formatMolecularInteData(::NormalOrder, inteData::MolInteTensor1B2B{T},
                                  nOrbital::Integer=size(first(inteData), 1); 
                                  hermiticity::Bool=true, 
                                  idxPairSymm::Bool=(hermiticity && T<:Real)) where 
-                                {T<:RealOrComplex}
+                                {T<:SRealOrComplex}
     inte1B, inte2B = inteData
     nOrbPair = (nOrbital, nOrbital)
     oneBodyPairSymm = (idxPairSymm,)
@@ -763,7 +766,7 @@ end
                             nOrbital::Integer=size(first(inteData), 1); 
                             hermiticity::Bool=true, 
                             idxPairSymm::Bool=(hermiticity && C<:Real)) where 
-                            {T<:Real, C<:Union{Complex{T}, T}} -> 
+                            {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     Tuple{AbstractMatrix, AbstractArray{C, 4}}
 
 Validate the format of molecular integrals (`first(inteData)` as the one-body matrix and 
@@ -808,7 +811,7 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
                                  nOrbital::Integer=size(first(inteData), 1); 
                                  hermiticity::Bool=true, 
                                  idxPairSymm::Bool=(hermiticity && T<:Real)) where 
-                                {T<:RealOrComplex}
+                                {T<:SRealOrComplex}
     inte1B, inte2B = formatMolecularInteData(NormalOrder(), inteData, nOrbital; 
                                              idxPairSymm, hermiticity)
     eleT = (typeof∘inv∘one)(eltype(inte1B))

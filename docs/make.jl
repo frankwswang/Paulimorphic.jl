@@ -11,11 +11,25 @@ makedocs(
         canonical = "https://frankwswang.github.io/Paulimorphic.jl", 
         edit_link = "dev", 
         assets = ["assets/custom.css"], 
+        collapselevel = 1, 
     ), 
     pages = [
         "Home" => "index.md", 
-        "Core Types" => "types.md", 
-        "Core Functions" => "functions.md", 
+        "Examples" => [
+            "Transverse-field Ising model" => "examples/ising.md",
+        ], 
+        "Types" => [
+            "Operators" => "types/operators.md", 
+            "Collections" => "types/collections.md", 
+            "Labels" => "types/labels.md", 
+        ], 
+        "Functions" => [
+            "Manipulations" => "functions/manipulations.md", 
+            "Inspections" => "functions/inspections.md", 
+            "Representations" => "functions/representations.md", 
+            "Extensions" => "functions/extensions.md", 
+        ], 
+        "Development Guide" => "development.md", 
     ], 
     checkdocs = :public, 
 )

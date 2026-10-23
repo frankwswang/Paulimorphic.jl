@@ -53,12 +53,15 @@ neumaierSum(T, arr)
 
 
 """
-    extendType(::Type{C}, ::Type{T}) where {C<:Real, T<:Union{Real, Complex}} -> Type
+    extendType(::Type{C}, ::Type{T}) where {C<:SignedReal, T<:SignedReal} -> Type
+
+    extendType(::Type{C}, ::Type{Complex{T}}) where {C<:SignedReal, T<:SignedReal} -> 
+    Type
 
 Return a new data type `E::Type` that is always at least as accurate as `T` (hence can 
 losslessly represent `T`) based on a core type `C`.
 
-# Example
+# Examples
 ```jldoctest
 julia> $(extendType|>repr)(Int, Float64)
 Float64
@@ -70,7 +73,7 @@ julia> $(extendType|>repr)(Float64, Rational{Int16})
 Rational{Int16}
 ```
 """
-function extendType(::Type{C}, ::Type{T}) where {C<:Real, T<:Real}
+function extendType(::Type{C}, ::Type{T}) where {C<:SignedReal, T<:SignedReal}
     bl1 = C <: AbstractFloat
     bl2 = T <: AbstractFloat
     if (bl1 && bl2) || (!bl1 && !bl2)
@@ -80,5 +83,5 @@ function extendType(::Type{C}, ::Type{T}) where {C<:Real, T<:Real}
     end
 end
 
-extendType(::Type{C}, ::Type{Complex{T}}) where {C<:Real, T<:Real} = 
+extendType(::Type{C}, ::Type{Complex{T}}) where {C<:SignedReal, T<:SignedReal} = 
 (complex∘extendType)(C, T)

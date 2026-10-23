@@ -11,7 +11,7 @@ and adjacency sets (`.adjacency::Memory{Set{T}}`). The graph is undirected and c
 self-loops or parallel edges. Vertices (if they exist) are labeled by positive integers of 
 type `T` (ranging from `1` to `.order`).
 
-≡≡≡ Initialization Method(s) ≡≡≡
+≡≡≡ Constructors ≡≡≡
 
     StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
     StrictGraph{T}

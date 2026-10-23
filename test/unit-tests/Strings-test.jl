@@ -8,6 +8,57 @@ m = "X"
 @test (@pauli_str "$m") == pauli"X" == pauli"X"
 @test (@pauli_str [2,3,2,0,1]) == pauli"XYXIZ" #> 0->I, 1->Z, 2->X, 3->Y
 
+@testset "`@pauli_str` phase marker" begin
+    #> Every marker `toString` can emit is accepted, with `"+"` optional
+    @test pauli"+XXIX" == pauli"XXIX"
+    @test pauli"iXXIX" == pauli"+iXXIX" == mul(pauli"XXIX", posImg)
+    @test pauli"-XXIX" == mul(pauli"XXIX", negRea)
+    @test pauli"-iXXIX" == mul(pauli"XXIX", negImg)
+
+    #> Dense-format round trip for every phase, with either value of `omitPlusSign`
+    for p in (posRea, posImg, negRea, negImg)
+        s = mul(pauli"XZIY", p)
+        @test (@pauli_str toString(s, denseString=true)) == s
+        @test (@pauli_str toString(s, denseString=true, omitPlusSign=false)) == s
+    end
+
+    #> A marker alone yields the zero-site unit carrying that phase
+    @test pauli"" == PauliStr()
+    @test pauli"-" == PauliStr(0, symI, negRea)
+    @test pauli"i" == PauliStr(0, symI, posImg)
+
+    #> A runtime `String` goes through the same parser as the literal
+    @test (@pauli_str "-" * "i" * "ZZ") == mul(pauli"ZZ", negImg)
+
+    #> Case-sensitive: a lowercase `i` is the imaginary unit, never an identity site
+    @test pauli"iIXZ" == mul(pauli"IXZ", posImg) && countSites(pauli"iIXZ") == 3
+    @test pauli"-iXZ" == mul(pauli"XZ", negImg) && countSites(pauli"-iXZ") == 2
+    @test_throws "phase marker" pauli"xXZ" #> Lowercase body letters are not Pauli letters
+    @test_throws "character" pauli"Xx"
+
+    #> The marker is the prefix preceding the first Pauli letter: anything after that
+    #> point is a Pauli letter, or else fails as one
+    @test_throws "character" pauli"XXIX-"
+    @test_throws "character" pauli"X-X"
+    @test_throws "character" pauli"XXIXi"
+
+    #> Prefixes that are not one of the six markers fail as a phase marker
+    @test_throws "phase marker" pauli"-1XX"
+    @test_throws "phase marker" pauli"imXX"
+    @test_throws "phase marker" pauli"im*XX"
+    @test_throws "phase marker" pauli"i*XX"
+    @test_throws "phase marker" pauli"+-XX"
+    @test_throws "phase marker" pauli"--XX"
+    @test_throws "phase marker" pauli"ii XX"
+    @test_throws "phase marker" pauli"*XX"
+    @test_throws "phase marker" pauli"i-XX"
+    @test_throws "phase marker" pauli" -XX"
+    @test_throws "phase marker" pauli"garbage"
+
+    #> The integer-vector form carries the unit phase only
+    @test (@pauli_str [2, 2, 0, 2]) == pauli"+XXIX"
+end
+
 @testset "toString" begin
     @testset "full-string method" begin
         #> Sparse (default) format: identity sites omitted, subscripted site indices
@@ -21,14 +72,14 @@ m = "X"
         @test toString(pauli"XXIX", denseString=true, omitPlusSign=false) == "+XXIX"
 
         #> Phase prefixes in both formats
-        @test toString(PauliStr(2, symX, posImg)) == "+im*X₁X₂"
-        @test toString(PauliStr(2, symX, posImg), denseString=true) == "im*XX"
+        @test toString(PauliStr(2, symX, posImg)) == "+iX₁X₂"
+        @test toString(PauliStr(2, symX, posImg), denseString=true) == "iXX"
 
         #> All-identity strings: sparse body collapses to "I"; dense body emits every site
         @test toString(PauliStr(3, symI, negRea)) == "-I"
         @test toString(PauliStr(3, symI, negRea), denseString=true) == "-III"
         @test toString(PauliStr(0, symI, negImg)) == 
-            toString(PauliStr(0, symI, negImg), denseString=true) == "-im*I"
+            toString(PauliStr(0, symI, negImg), denseString=true) == "-iI"
     end
 
     @testset "per-site method" begin
@@ -223,7 +274,13 @@ end
     @test r.str[1] !== h.str[2]     #> Strings are rebuilt
     @test PauliSum(Float64, h) == h #> Equal result for the same `T`
     @test_throws InexactError PauliSum(Int, PauliSum([pauli"X"], [0.5]))
-    @test_throws ArgumentError PauliSum(Bool, h)
+    @test_throws MethodError PauliSum(Bool, h)
+    @test_throws MethodError PauliSum(UInt8, h)
+    @test_throws MethodError PauliSum(Rational{UInt8}, h)
+    @test_throws ArgumentError PauliSum(AbstractFloat, [pauli""])
+    #> Sign-less coefficient inputs are rejected at dispatch (`im` is a `Complex{Bool}`)
+    @test_throws MethodError PauliSum(Float64, [pauli"X"], im)
+    @test_throws MethodError PauliSum([pauli"X"], [true])
 
     #> Coefficient summation accuracy check
     res1 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16])
@@ -261,6 +318,30 @@ end
     @test_throws DomainError indexTerm(ham, 0)
     @test_throws DomainError indexTerm(ham, 4)
     @test_throws DomainError indexTerm(PauliSum(Float64), 1) #> Empty sum: domain is `1:0`
+end
+
+@testset "listTerms" begin
+    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0im, 3.0])
+    #> Canonical order (weight, then highest differing site): ZI, IZ, XX
+    terms = listTerms(ham)
+    @test terms isa Vector{Pair{PauliStr, ComplexF64}}
+    @test terms == [pauli"ZI" => 3.0, pauli"IZ" => 2.0im, pauli"XX" => 1.0]
+    @test length(terms) == countTerms(ham)
+
+    #> Element-wise agreement with `indexTerm`
+    @test all(terms[i] == indexTerm(ham, i) for i in eachindex(terms))
+
+    #> Rebuilding from the listed terms recovers an equal sum
+    @test PauliSum(first.(terms), last.(terms)) == ham
+
+    #> `copyStr=true` (default): equal content, but fresh copies holding no reference
+    @test all(t.first == s && t.first !== s for (t, s) in zip(terms, ham.str))
+
+    #> `copyStr=false`: aliases the stored strings
+    @test all(t.first === s for (t, s) in zip(listTerms(ham, false), ham.str))
+
+    #> Empty sum: an empty `Vector` of the documented element type
+    @test listTerms(PauliSum(Float64)) == Pair{PauliStr, ComplexF64}[]
 end
 
 @testset "setCoeff!" begin
@@ -322,6 +403,21 @@ end
     @test_throws "must carry a coefficient" toPauliStr(badCoeff)
     @test (@inferred toPauliStr(PauliSum(Int, [pauli"X"]))) isa PauliStr
     @test (@inferred toPauliStr(badCoeff, pauli"Z")) isa PauliStr
+
+    @test_throws ArgumentError toPauliStr([0, 4], posRea)
+    @test_throws ArgumentError toPauliStr([-1], negRea)
+    @test toPauliStr([0, 4], posRea, pauli"X") == pauli"X"
+    @test_throws ArgumentError (@pauli_str [0, 4])
+    @test toPauliStr([0, 1, 2, 3], posRea) == pauli"IZXY"
+    @test toPauliStr(UInt8[2, 2], negImg) == pauli"-iXX"
+    @test toPauliStr(Int[], negRea) == pauli"-"
+
+    @test (@inferred toPauliStr("-iXZ")) == pauli"-iXZ"
+    @test toPauliStr("-1XX", pauli"Z") == pauli"Z"
+    @test toPauliStr("X-X", pauli"Z") == pauli"Z"
+    @test_throws "phase marker" toPauliStr("-1XX")
+    @test_throws "`str[4]='-'`" toPauliStr("-iX-Z")
+    @test_throws "`str[2]='x'`" toPauliStr("Xx")
 end
 
 @testset "sumCoeffs" begin

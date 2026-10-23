@@ -1,6 +1,6 @@
-export PauliStr, @pauli_str, indexSite, toString, PauliSum, countSites, countWeight, 
-       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       collectTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
+export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canonicalize!, 
+       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, listTerms, 
+       countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
 
@@ -74,7 +74,7 @@ construction.
     Direct modifications of field `.z` or `.x` that cause bits above site `.n` to become 
     non-zero may lead to unexpected behaviors.
 
-≡≡≡ Initialization Method(s) ≡≡≡
+≡≡≡ Constructors ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
              phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords)) -> PauliStr
@@ -229,7 +229,7 @@ Every attribute is defined purely in terms of the operator content of each compa
 regardless of the underlying storage buffers' word size (`8*sizeof(UInt)`). This order 
 underlies the canonical term order of [`PauliSum`](@ref).
 
-# Example
+# Examples
 ```jldoctest
 julia> pauli"II" < pauli"ZI" < pauli"XI" < pauli"IZ" < pauli"IX" < pauli"XX"
 true
@@ -273,43 +273,45 @@ end
 
     @pauli_str expr -> PauliStr
 
-A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref) 
-carrying the unit phase ([`PhaseFactor(0)`](@ref `PhaseFactor`)), where `input[begin+i-1]` 
-specifies the single-site Pauli operator acting on site `i`. The resulting string spans 
-`length(input)` sites. When `@pauli_str` is directly invoked, any expression `expr` that 
-evaluates (at runtime in the invoking scope) to either one of the following two types of 
-`input` is accepted:
+A custom string literal (and its underlying macro) that builds a [`PauliStr`](@ref). When
+`@pauli_str` is directly invoked, any expression `expr` that evaluates (at runtime in the
+invoking scope) to either one of the following two types of `input` is accepted:
 
-- `input::AbstractString` (the form the `pauli"..."` literal supplies): one character per 
-  site, each being `'I'`, `'X'`, `'Y'`, or `'Z'`.
-- `input::AbstractVector{<:Integer}`: one integer per site, each representing the two-bit 
-  code of a [`PauliSym`](@ref) (`$(Int(symI)) => symI`, `$(Int(symZ)) => symZ`, 
-  `$(Int(symX)) => symX`, `$(Int(symY)) => symY`).
+- `input::AbstractString`: an optional phase marker followed by one Pauli character 
+  (`'I'`, `'X'`, `'Y'`, or `'Z'`) per site. The subsequent evaluation is equivalent to 
+  [`toPauliStr(input)`](@ref `toPauliStr(::AbstractString)`).
+- `input::AbstractVector{<:Integer}` (only supported by `@pauli_str`): an integer vector 
+  where the `k`-th element is effectively a two-bit code of [`PauliSym`](@ref) that 
+  specifies the Pauli operator acting on site `k`. The subsequent evaluation is equivalent 
+  to [`toPauliStr(input, PhaseFactor(0))`](@ref `toPauliStr`).
 
-# Example
+!!! info
+    In both forms, the `k`-th Pauli character (or integer) of `input` specifies the 
+    single-site Pauli operator acting on site `k`, and the resulting `PauliStr` spans 
+    (verifiable via `countSites`) as many sites as the count of Pauli letters (or 
+    integers). A phase marker alone (e.g., `pauli"-"`) therefore yields a zero-site string 
+    carrying that phase.
+
+# Examples
 ```jldoctest
 julia> pauli"IZXY" == (@pauli_str [0, 1, 2, 3]) == @pauli_str([0, 1, 2, 3])
 true
 
 julia> let str="IX", lst=[0, 2]; (@pauli_str str) == (@pauli_str lst) end
 true
+
+julia> pauli"-iXXIX" == PhaseFactor(3) * pauli"XXIX"
+true
+
+julia> (@pauli_str toString(pauli"-XXIX", denseString=true)) == pauli"-XXIX"
+true
 ```
 """
 macro pauli_str(ex)
-    strOrVecExpr = esc(ex)
-    :(genPauliSymVec($strOrVecExpr) |> PauliStr)
-end
-
-function phaseStr(p::PhaseFactor, omitPlusSign::Bool=false)
-    ps = omitPlusSign ? "" : "+"
-    if p === posRea
-        ps
-    elseif p === posImg
-        ps * "im*"
-    elseif p === negRea
-        "-"
-    else
-        "-im*"
+    quote
+        let val=$(esc(ex))
+            val isa AbstractString ? toPauliStr(val) : toPauliStr(val, posRea)
+        end
     end
 end
 
@@ -344,25 +346,41 @@ end
     toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString) -> 
     String
 
-Return a `String` representation of `pStr::`[`PauliStr`](@ref). When `denseString=false` 
-(the default string format), identity sites are omitted and each non-identity Pauli 
-character carries its (1-based) site index as a subscript (e.g., `"+X₁X₂X₄"`). When 
-`denseString=true`, every site in `1:pStr.n` emits one character (`'I'`, `'X'`, `'Y'`, or 
-`'Z'`). The returned `String` is prefixed by the marker of `pStr.phase`, represented by 
-`"+"`, `"+im*"`, `"-"`, or `"-im*"`. When `omitPlusSign=true`, the character `'+'` is 
-omitted. Since `omitPlusSign` defaults to the value of `denseString`, the dense format of a 
-`PauliStr` carrying the unit phase matches the [`@pauli_str`](@ref) input literal by 
-default (as shown in the example below). In both formats, if every site carries the 
-identity (or `pStr` is a zero-site identity), the body (excluding the phase prefix) 
-collapses to `"I"`.
+Return a `String` representation of `pStr::`[`PauliStr`](@ref). The returned `String` is 
+prefixed by the marker of `pStr.phase`, represented by `"+"`, `"+i"`, `"-"`, or `"-i"`. 
+When `omitPlusSign=true`, the character `'+'` is omitted. 
 
-# Example
+When `denseString=false` (the default sparse representation), identity sites are omitted 
+and each non-identity Pauli character carries its (1-based) site index as a subscript 
+(e.g., `"+X₁X₂X₄"`). The body (excluding the phase prefix) also collapses to `"I"` whenever 
+every site carries the identity (including the zero-site case). 
+
+When `denseString=true` (the dense representation), every site in `1:pStr.n` emits one 
+character (`'I'`, `'X'`, `'Y'`, or `'Z'`). In this format, the returned value can be 
+accepted by [`@pauli_str`](@ref) as a string literal.
+
+!!! info
+    When `pStr` is a zero-site string, the body of the returned string (after the phase 
+    prefix) is `"I"`, so parsing it back with `@pauli_str` yields a single-site identity 
+    rather than a zero-site string:
+    ```jldoctest
+    julia> countSites(@pauli_str toString(pauli"-", denseString=true)) == 1
+    true
+    ```
+
+# Examples
 ```jldoctest
 julia> toString(pauli"XXIX")
 "+X₁X₂X₄"
 
 julia> toString(pauli"XXIX", denseString=true)
 "XXIX"
+
+julia> toString(pauli"-iXXIX", denseString=true)
+"-iXXIX"
+
+julia> let s = pauli"-XXIX"; (@pauli_str toString(s, denseString=true)) == s end
+true
 ```
 """
 function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=denseString)
@@ -374,7 +392,7 @@ function toString(pStr::PauliStr; denseString::Bool=false, omitPlusSign::Bool=de
 
     body = String(take!(buffer))
     isempty(body) && (body = "I")
-    phaseStr(pStr.phase, omitPlusSign) * body
+    toString(pStr.phase; omitPlusSign) * body
 end
 
 """
@@ -390,15 +408,9 @@ function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
     sym = indexSite(pStr, i)
 
     if sym == symI
-        denseString ? "I" : ""
+        denseString ? string(CONSTVAR!!pauliChars[begin]) : ""
     else
-        char = if sym == symY
-            'Y'
-        elseif sym == symZ
-            'Z'
-        else #> symX
-            'X'
-        end
+        char = CONSTVAR!!pauliChars[begin + Int(sym)]
         char * (denseString ? "" : getSubscriptStr(i|>Int))
     end
 end
@@ -421,7 +433,7 @@ printed (in the default format).
 """
 function Base.show(io::IO, op::PauliStr)
     if get(io, :limit, false) === true && countWeight(op) > CONSTVAR!!maximalFullShowSize
-        print(io, phaseStr(op.phase))
+        print(io, toString(op.phase))
 
         edgeOpNum = CONSTVAR!!minimalKeptShowSize ÷ 2
         nSite = countSites(op)
@@ -473,7 +485,7 @@ end
 
 
 """
-    PauliSum{T<:Real} <: $(DiscreteOperator|>repr)
+    PauliSum{T<:SignedReal} <: $(DiscreteOperator|>repr)
 
 A linear combination of Pauli strings, i.e., a general operator
 
@@ -497,23 +509,24 @@ stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in
     `PauliStr` (e.g., [`$(mul|>repr)`](@ref), [`checkCommute`](@ref)), it follows the same 
     implicit identity-padding convention for [`PauliStr`](@ref).
 
-≡≡≡ Initialization Method(s) ≡≡≡
+≡≡≡ Constructors ≡≡≡
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
-             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true) where 
-            {T<:Real, C<:Union{Complex, Real}} -> 
+             coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true
+             ) where {T<:SignedReal, C<:Union{Complex, SignedReal}} -> 
     PauliSum{T}
 
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
-             simplification::Bool=true) where {T<:Real, C<:Union{Complex{T}, T}} -> 
+             simplification::Bool=true) where {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
 Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in the second 
 signature. When `coeffs` is an `AbstractVector`, it must have the same length as `strs`, 
 and each `coeffs[i]` is the coefficient initially associated with `strs[i]`; when `coeffs` 
 is a `C` (scalar), it is the coefficient initially associated with every string in `strs`. 
-The core data type `T=Bool` is specifically disallowed because phase absorption must be 
-able to scale a coefficient by `±1` and `±im`, which `Complex{Bool}` cannot represent.
+The core data type `T` is restricted to [`SignedReal`](@ref) (which excludes `Bool`, 
+`Unsigned`, and `Rational{<:Unsigned}`) because phase absorption must be able to scale a 
+coefficient by `1`, `im`, `-1` or `-im`.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -536,16 +549,18 @@ canonical order such that for
 always returns `true`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+             simplification::Bool=true) where {T<:SignedReal} -> 
+    PauliSum{T}
 
 Construct a `PauliSum` with the coefficient of every Pauli string initialized to 
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
-`T=Bool` is disallowed for the same reason as the first Initialization method.
+`T` is subject to the same restriction as in the first initialization method.
 
-    PauliSum(::Type{T}, ham::PauliSum, 
-             simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:SignedReal} -> 
+    PauliSum{T}
 
-    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:Real} -> PauliSum{T}
+    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:SignedReal} -> 
+    PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
 and does not reference any data in `ham`. These two constructor signatures can be used to 
@@ -553,9 +568,10 @@ obtain a restored canonical form of a `ham`. Particularly, when `T` is specified
 first argument, the coefficients of `ham` are represented as `Complex{T}` if possible, 
 otherwise an `InexactError` is thrown upon construction. Thus, narrowing floating-point `T` 
 may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
-`T=Bool` is disallowed for the same reason as the first Initialization method.
+`T` is subject to the same restriction as in the first initialization method.
 
-    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real} -> PauliSum{T}
+    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:SignedReal} -> 
+    PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `ham`'s terms picked out 
 by a callable object `selector`. The predicate is applied (as the first argument) through 
@@ -574,11 +590,11 @@ ordered.
     `ham.str`. To obtain a canonical `PauliSum` unlinked from `ham`, rebuild the filtered 
     result via `PauliSum(res, simplification)` instead.
 """
-struct PauliSum{T<:Real} <: DiscreteOperator
+struct PauliSum{T<:SignedReal} <: DiscreteOperator
     str::Memory{PauliStr}
     coeff::Memory{Complex{T}}
 
-    function PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:Real}
+    function PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:SignedReal}
         strs = ham.str
         coeffs = ham.coeff
         indices = findall(selector, (byCoeff ? coeffs : strs))
@@ -587,7 +603,7 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 
     function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
                       coeffs::Union{AbstractVector{C}, C}, 
-                      simplification::Bool=true) where {T<:Real, C<:RealOrComplex}
+                      simplification::Bool=true) where {T<:SignedReal, C<:SRealOrComplex}
         inputSize = length(strs)
         checkCoreDataTypeForPauliSum(T)
         if (coeffs isa AbstractVector) && inputSize != length(coeffs)
@@ -660,31 +676,30 @@ struct PauliSum{T<:Real} <: DiscreteOperator
 end
 
 function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
-    if T <: Union{} || !(T <: Real)
-        throw(ArgumentError("`$typeStr = $T` is not a valid core data type."))
-    elseif T <: Bool
-        throw(ArgumentError("`$typeStr = Bool` is disallowed because phase absorption for "*
-                            "`PauliSum{Bool}` cannot be realized."))
+    if !(isconcretetype(T) && (T <: SignedReal))
+        throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
+                            "concrete subtype of $SignedReal."))
     end
 
     nothing
 end
 
 function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
-                  simplification::Bool=true) where {C<:RealOrComplex}
+                  simplification::Bool=true) where {C<:SRealOrComplex}
     PauliSum(real(C), strs, coeffs, simplification)
 end
 
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-                  simplification::Bool=true) where {T<:Real}
+                  simplification::Bool=true) where {T<:SignedReal}
     PauliSum(strs, one(Complex{T}), simplification)
 end
 
-function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:Real}
+function PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:SignedReal}
     PauliSum(T, ham.str, ham.coeff, simplification)
 end
 
-function PauliSum(ham::PauliSum{T}, simplification::Bool=true)::PauliSum{T} where {T<:Real}
+function PauliSum(ham::PauliSum{T}, simplification::Bool=true
+                  )::PauliSum{T} where {T<:SignedReal}
     PauliSum(T, ham, simplification)
 end
 
@@ -698,12 +713,12 @@ function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
 end
 
 
-getCoreDataType(::Type{PauliSum{T}}) where {T<:Real} = T
-getCoreDataType(::Type{<:PauliSum}) = Real
+getCoreDataType(::Type{PauliSum{T}}) where {T<:SignedReal} = T
+getCoreDataType(::Type{<:PauliSum}) = SignedReal
 
 
 """
-    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:Real} -> 
+    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
 Return the `i`-th term of `ham` as `res::Pair`. Specifically, `res.first` corresponds to 
@@ -725,8 +740,9 @@ end
 
 
 """
-    setCoeff!(ham::PauliSum{T}, coeff::Union{Real, Complex}, i::Integer, 
-              copyStr::Bool=true) where {T<:Real} -> Pair{PauliStr, Complex{T}}
+    setCoeff!(ham::PauliSum{T}, coeff::Union{Complex, Real}, i::Integer, 
+              copyStr::Bool=true) where {T<:SignedReal} -> 
+    Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
 `Complex{T}`, then return the updated term `res::Pair{PauliStr, Complex{T}}`. Same as for 
@@ -749,7 +765,7 @@ end
 
 
 """
-    collectTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:Real} -> 
+    listTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:SignedReal} -> 
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
@@ -760,7 +776,7 @@ Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, 
     When `copyStr=false`, mutating any returned string modifies `ham` in place and can 
     disturb its canonical layout.
 """
-function collectTerms(ham::PauliSum, copyStr::Bool=true)
+function listTerms(ham::PauliSum, copyStr::Bool=true)
     map(ham.str, ham.coeff) do str, coeff
         (copyStr ? PauliStr(str) : str) => coeff
     end
@@ -820,7 +836,7 @@ end
 
 """
     absorbPhases!(strs::AbstractVector{PauliStr}, 
-                  storage::AbstractVector{C}) where {C<:Complex} -> Nothing
+                  storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
@@ -829,17 +845,17 @@ multiply `storage[i]` by [`evalPhase(strs[i].phase)`](@ref `evalPhase`) and rese
 the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
-                       storage::AbstractVector{C}) where {C<:Complex}
+                       storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}}
     nTerm = length(strs)
     if nTerm != length(storage)
         throw(ArgumentError("`strs` and `storage` should have the same length."))
     end
 
     for (i, str) in enumerate(strs)
-        phase = evalPhase(str.phase)
-        if !isone(phase)
-            str.phase = posRea #>> Reset the phase to be one
-            storage[begin+i-1] *= phase
+        phase = str.phase
+        if phase != posRea
+            str.phase = posRea
+            storage[begin+i-1] *= evalPhase(phase)
         end
     end
 
@@ -848,8 +864,9 @@ end
 
 
 """
-    sortStrings!(strs::AbstractVector{PauliStr}, coeffs::AbstractVector{C}, 
-                 considerCoeff::Bool=true) where {C<:Union{Real, Complex}} -> Nothing
+    sortStrings!(strs::AbstractVector{PauliStr}, 
+                 coeffs::AbstractVector{<:Union{T, Complex{T}}}, 
+                 considerCoeff::Bool=true) where {T<:SignedReal} -> Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
@@ -859,7 +876,7 @@ ordered by `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated a
 share the same length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
-                      coeffs::AbstractVector{<:RealOrComplex}, considerCoeff::Bool=true)
+                      coeffs::AbstractVector{<:SRealOrComplex}, considerCoeff::Bool=true)
     nTerm = length(strs)
     if nTerm != length(coeffs)
         throw(ArgumentError("`strs` and `coeffs` should have the same length."))
@@ -935,8 +952,8 @@ end
 
 
 """
-    curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-            relative::Bool=false, inclusive::Bool=false) where {T<:Real} -> 
+    curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
+            relative::Bool=false, inclusive::Bool=false) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
@@ -951,7 +968,7 @@ as a fraction of the largest coefficient when `relative` is set. The `inclusive`
 chooses whether coefficients landing exactly on the threshold are kept (`>=`) or dropped 
 (`>`). For floating-point `T`, the default value of `tolerance` is `8eps(T)`: a small 
 multiple of the machine epsilon, enough to discard the round-off residuals left by operator 
-assembly when the coefficients are well conditioned; for integer `T`, the default value of 
+assembly when the coefficients are well conditioned; otherwise, the default value of 
 `tolerance` is `zero(T)`.
 
 # String ownership
@@ -960,8 +977,8 @@ an independent buffer. Its `PauliStr`s, however, are NOT reconstructed (deep-cop
 other words, the returned sum's `.str` entries are the same (subsets of) `PauliStr` held 
 by `ham.str`.
 """
-function curtail(ham::PauliSum{T}, tolerance::Real=(T<:Integer ? zero(T) : 8eps(T)); 
-                 relative::Bool=false, inclusive::Bool=false) where {T<:Real}
+function curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
+                 relative::Bool=false, inclusive::Bool=false) where {T<:SignedReal}
     tolerance < 0 && throw(DomainError(tolerance, "`tolerance` must be non-negative."))
 
     coeffs = ham.coeff
@@ -1059,7 +1076,7 @@ higher site indices (i.e., a *right* shift): the operator on site `k` is moved t
 sites are refilled with the identity, the site count `str.n` is preserved, and the overall 
 `.phase` is left unchanged.
 
-# Example
+# Examples
 ```jldoctest
 julia> shift!(pauli"IIXXII", 3, false)   #> left  shift: site 4 → site 1, site 3 dropped
 +X₁  (6 sites)
@@ -1352,7 +1369,7 @@ end
 
 """
     reframe(ham::PauliSum{T}, nSite::Integer=countSites(ham); lowToHigh::Bool=true, 
-            filler::PauliSym=symI, simplification::Bool=true) where {T<:Real} -> 
+            filler::PauliSym=symI, simplification::Bool=true) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Return a `res::PauliSum{T}` by rebuilding each `PauliStr` in `ham.str` as a `PauliStr` in 
@@ -1396,7 +1413,7 @@ lowToHigh = true  (nSite=2):    lowToHigh = false (nSite=2):
 The returned sum does not reference any data in `ham`: its coefficients are held in an 
 independent buffer, and its `PauliStr`s are freshly constructed.
 
-# Example
+# Examples
 ```jldoctest
 julia> ham = PauliSum([pauli"XZ", pauli"YIX"], [1, 2]);
 
@@ -1531,11 +1548,85 @@ function toPauliStr(op::PauliSum, fallbackStr::MissingOr{PauliStr}=missing)
     mul(str, phase)
 end
 
+"""
+    toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor, 
+               fallbackStr::Union{Missing, PauliStr}=missing) -> PauliStr
+
+Convert a `code` where each element can represent the two-bit code of a 
+[`PauliSym`](@ref) (`$(Int(symI)) => symI`, `$(Int(symZ)) => symZ`, `$(Int(symX)) => symX`, 
+`$(Int(symY)) => symY`) to a `PauliStr` with `phase::`[`PhaseFactor`](@ref). When the 
+conversion is impossible, an error identifying the violated condition is thrown if 
+`fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
+"""
+function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor, 
+                    fallbackStr::Union{Missing, PauliStr}=missing)
+    valPool = map(UInt8, instances(PauliSym))
+
+    for (i, val) in enumerate(code)
+        if !(val in valPool)
+            ismissing(fallbackStr) || (return fallbackStr)
+            throw(ArgumentError("`code[begin+$i-1]=$val` does not evaluate to one of "*
+                                "the valid integer codes for `PauliSym`: `$valPool`."))
+        end
+    end
+
+    PauliStr([genPauliSym(val) for val in code], phase)
+end
 
 """
-    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+    toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing) -> PauliStr
 
-    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} -> Complex{R}
+Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an optionally 
+empty phase marker concatenated with a string of Pauli characters, each representing one of 
+the four single-site Pauli operators (`'I'` ``\\mapsto \\hat{I}``, 
+`'Z'` ``\\mapsto \\hat{Z}``, `'X'` ``\\mapsto \\hat{X}``, `'Y'` ``\\mapsto \\hat{Y}``). The 
+phase marker should be a prefix string equal to one of the valid markers: 
+$(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")). When `str` is not a valid 
+string to be fully parsed, an error identifying the violated condition is thrown if 
+`fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
+
+This method is effectively an inverse mapping to 
+[`toString(::PauliStr, denseString=true)`](@ref `toString(::PauliStr)`):
+```jldoctest
+julia> let str=pauli"-XIZX"; toPauliStr(toString(str, denseString=true)) == str end
+true
+```
+
+!!! info
+    The parsing is case-sensitive: all Pauli characters must be uppercase, and the 
+    lowercase letter `'i'` is always parsed as the imaginary unit of the phase marker.
+"""
+function toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing)
+    scope = in(CONSTVAR!!pauliChars)
+    iStartBody = something(findfirst(scope, str), ncodeunits(str)+1)
+    head = SubString(str, firstindex(str), prevind(str, iStartBody))
+
+    if !(head in CONSTVAR!!phaseMarkers)
+        ismissing(fallbackStr) || (return fallbackStr)
+        throw(ArgumentError("`str=\"$str\"` does not start with a valid phase marker."))
+    end
+
+    body = SubString(str, iStartBody)
+    offset = findfirst(!scope, body)
+
+    if offset !== nothing
+        ismissing(fallbackStr) || (return fallbackStr)
+        chr = body[offset]
+        invalidIdx = offset + iStartBody - 1
+        throw(ArgumentError("`str[$(invalidIdx)]=\'$chr\'` is an invalid character."))
+    end
+
+    PauliStr([genPauliSym(c) for c in body], toPhase(head))
+end
+
+
+"""
+    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T
+              ) where {T<:SignedReal, R<:SignedReal} -> 
+    Complex{R}
+
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} -> 
+    Complex{R}
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
 string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
@@ -1548,7 +1639,7 @@ For floating-point precisions, the selected coefficients are accumulated with Ne
 summation, following the term order of `h`. For exact coefficient types (e.g., `Rational`), 
 the accumulation is carried out by exact addition (no overflow protection for `Integer`).
 
-# Example
+# Examples
 ```jldoctest
 julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16]);
 
@@ -1559,11 +1650,13 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 1.0 + 0.0im
 ```
 """
-function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T) where {F, T<:Real, R<:Real}
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T
+                   ) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
 end
 
-sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:Real, R<:Real} = sumCoeffs(_->true, h, R)
+sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} = 
+sumCoeffs(_->true, h, R)

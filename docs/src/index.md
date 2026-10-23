@@ -96,4 +96,4 @@ The public docstrings and tutorials in this documentation follow several typeset
 
 * Mathematical variables represented by typewriter symbols (i.e., in a monospace format) stand for identifiers of code objects (e.g., ``\mathtt{inte}`` directly mirrors `inte`). A mathematical variable may still partially reference a code object outside of this format when the code object serves as a decorative symbol within the context. For instance, ``i_k`` appearing in a docstring of code expression may reference `k` in the code.
 
-* Every public type alias is always presented by its name in the docstrings, error messages, and throughout this documentation, regardless of whether that name is the same as its default display (stringification) format (e.g., [`SignedReal`](@ref)).
+* Every public type alias is always presented by its name in the docstrings and throughout this documentation, regardless of whether that name is the same as its default stringification format through functions such as [`print`](https://docs.julialang.org/en/v1/base/io-network/#Base.print) (e.g., [`SignedReal`](@ref)).

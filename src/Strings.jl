@@ -678,7 +678,7 @@ end
 function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
     if !(isconcretetype(T) && (T <: SignedReal))
         throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
-                            "concrete subtype of [`SignedReal`](@ref)."))
+                            "concrete subtype of $SignedReal."))
     end
 
     nothing

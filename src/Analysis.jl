@@ -24,8 +24,8 @@ argument `edgeThreshold::Real`. Specifically, an edge `(i, j)` is included in `e
 if the `i`-th and `j`-th `PauliStr` in `vertices` anticommute *and* the magnitude of their 
 coefficient product `c_ij` clears `edgeThreshold`:
 
-    abs(c_ij) >  edgeThreshold    # `inclusive == false`
-    abs(c_ij) >= edgeThreshold    # `inclusive == true`
+    $(evalMagnitude|>repr)(c_ij) >  edgeThreshold    # `inclusive == false`
+    $(evalMagnitude|>repr)(c_ij) >= edgeThreshold    # `inclusive == true`
 
 Additionally, keyword `inclusive` selects whether the `c_ij` that equals `edgeThreshold` 
 exactly is kept (`>=`) or dropped (`>`). When `edgeThreshold = 0`, `inclusive = true` 
@@ -37,7 +37,7 @@ whereas `inclusive = false` excludes them. A negative `edgeThreshold` throws an
 function getFrustrationInfo(ham::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false)
     edgeThreshold < 0 && throw(ArgumentError("`edgeThreshold` must be non-negative."))
 
-    magnitudes = map(abs, ham.coeff)
+    magnitudes = map(evalMagnitude, ham.coeff)
     validNodes = copy(ham.str)
     nodeNum = length(validNodes)
     validEdges = NTuple{2, Int}[]

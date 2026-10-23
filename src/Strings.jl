@@ -4,8 +4,6 @@ export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canon
 
 public sortStrings!, setCoeff!
 
-using LinearAlgebra: dot
-
 """
     PauliStr <: $(DiscreteOperator|>repr)
 
@@ -539,8 +537,11 @@ accumulated on the precision level of `$(extendType|>repr)(T, complex(C))`. For
 floating-point precisions, the accumulation is realized by [Neumaier 
 summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
 For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
-addition (no overflow protection for `Integer`). When `simplification=false`, such equal 
-strings are retained. In both cases the terms in `res` are stored in a deterministic 
+addition (no overflow protection for `Integer`). Within each sub-multiset of equal strings, 
+the coefficients are accumulated in a fixed order determined by their values (not by their 
+positions in `coeffs`), so the constructed `res` depends only on the multiset of input 
+terms and not on the order in which they are listed. When `simplification=false`, such 
+equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
 canonical order such that for 
 `res2=`[`canonicalize!(deepcopy(res))`](@ref `canonicalize!`), 
 
@@ -625,8 +626,15 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
             dumpTo!(cInput, coeffs)
             absorbPhases!(sInput, cInput)
 
-            perm = sortperm(sInput)     #> Only carries `sInput`-native indices
             shift = -firstindex(sInput) #> Shifts `sInput`-native indices to index offsets
+            #> Equal strings are grouped by the string order to form a list, in which each 
+            #> string is sorted against their associated coefficients so that they can be 
+            #> used as input-order invariant indexers for later coefficient accumulation.
+            sortKeys = map(eachindex(sInput)) do i
+                c = cInput[begin+i+shift]
+                (sInput[i], real(c), imag(c))
+            end
+            perm = sortperm(sortKeys)   #> Only carries `sInput`-native indices
 
             #> Merge equal strings into buffers with upper-bound size, then trim once
             cBuffer = Memory{Complex{T}}(undef, inputSize)
@@ -870,10 +878,11 @@ end
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
-`(abs(c), real(c), imag(c))` of the corresponding coefficient `c`, yielding a total order 
-even when duplicate strings are present; otherwise, the strings alone form the sort key 
-ordered by `isless(::PauliStr, ::PauliStr)`. Both vector arguments are mutated and must 
-share the same length.
+`(`[`$(evalMagnitude|>repr)(c)`](@ref)`, real(c), imag(c))` of the corresponding 
+coefficient `c`, yielding a total order even when duplicate strings are present; otherwise, 
+the strings alone form the sort key ordered by `isless(::PauliStr, ::PauliStr)`, and equal 
+strings keep their relative input order (the sort is stable). Both vector arguments are 
+mutated and must share the same length.
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
                       coeffs::AbstractVector{<:SRealOrComplex}, considerCoeff::Bool=true)
@@ -888,12 +897,13 @@ function sortStrings!(strs::AbstractVector{PauliStr},
         sortFunc = if considerCoeff
             function (i)
                 coeff = coeffs[begin+i-1]
-                (strs[begin+i-1], abs(coeff), real(coeff), imag(coeff))
+                #> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
+                (strs[begin+i-1], evalMagnitude(coeff), real(coeff), imag(coeff))
             end
         else
             i -> strs[begin+i-1]
         end
-        sort!(scope, by=sortFunc)
+        sort!(scope; by=sortFunc, alg=Base.Sort.DEFAULT_STABLE)
 
         #> Update elements in `coeffs` and `strs` using sorted `scope`
         #> `scope` is shifted when `coeffs` & `strs` are not one-based indexed
@@ -959,17 +969,17 @@ end
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
 terms whose coefficient exceeds a threshold. A term with coefficient `c` is kept when
 
-    abs(c) >  tolerance * scale    # `inclusive == false`
-    abs(c) >= tolerance * scale    # `inclusive == true`
+    $(evalMagnitude|>repr)(c) >  tolerance * scale    # `inclusive == false`
+    $(evalMagnitude|>repr)(c) >= tolerance * scale    # `inclusive == true`
 
-where `scale` is `one(T)` when `relative=false` (default) and `maximum(abs, ham.coeff)` 
-when `relative=true`. Thus, `tolerance` acts as an absolute magnitude floor by default, or 
-as a fraction of the largest coefficient when `relative` is set. The `inclusive` keyword 
-chooses whether coefficients landing exactly on the threshold are kept (`>=`) or dropped 
-(`>`). For floating-point `T`, the default value of `tolerance` is `8eps(T)`: a small 
-multiple of the machine epsilon, enough to discard the round-off residuals left by operator 
-assembly when the coefficients are well conditioned; otherwise, the default value of 
-`tolerance` is `zero(T)`.
+where `scale` is `one(T)` when `relative=false` (default) and 
+`maximum($(evalMagnitude|>repr), ham.coeff)` when `relative=true`. Thus, `tolerance` acts 
+as an absolute magnitude floor by default, or as a fraction of the largest coefficient when 
+`relative` is set. The `inclusive` keyword chooses whether coefficients landing exactly on 
+the threshold are kept (`>=`) or dropped (`>`). For floating-point `T`, the default value 
+of `tolerance` is `8eps(T)`: a small multiple of the machine epsilon, enough to discard the 
+round-off residuals left by operator assembly when the coefficients are well conditioned; 
+otherwise, the default value of `tolerance` is `zero(T)`.
 
 # String ownership
 The retained terms remain in `ham`'s order, and the returned sum's coefficients are held in 
@@ -982,13 +992,13 @@ function curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) :
     tolerance < 0 && throw(DomainError(tolerance, "`tolerance` must be non-negative."))
 
     coeffs = ham.coeff
-    scale = relative ? (isempty(coeffs) ? one(T) : maximum(abs, coeffs)) : one(T)
+    scale = relative ? (isempty(coeffs) ? one(T) : maximum(evalMagnitude, coeffs)) : one(T)
     threshold = tolerance * scale
 
     cap = if inclusive
-        (c::Complex{T}) -> abs(c) >= threshold
+        (c::Complex{T}) -> evalMagnitude(c) >= threshold
     else
-        (c::Complex{T}) -> abs(c) >  threshold
+        (c::Complex{T}) -> evalMagnitude(c) >  threshold
     end
 
     PauliSum(cap, true, ham)

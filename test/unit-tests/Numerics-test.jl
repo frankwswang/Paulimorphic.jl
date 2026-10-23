@@ -1,5 +1,5 @@
 using Test
-using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum
+using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
 
 @testset "Numerics.jl" begin
     @testset "neumaierStep" begin
@@ -33,5 +33,40 @@ using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum
         @test_throws ArgumentError let scope = (x for x in Iterators.countfrom(1.0))
             neumaierSum(Float64, scope)
         end
+    end
+
+    @testset "evalMagnitude" begin
+        #> Exact cases, including the real and imaginary axes (where it equals `abs`)
+        @test evalMagnitude(ComplexF64(3, 4)) == evalMagnitude(ComplexF64(-4, 3)) == 5
+        @test evalMagnitude(ComplexF64(-2.0, 0)) == evalMagnitude(ComplexF64(0, -2.0)) == 2
+        @test evalMagnitude(ComplexF64(0, 0)) == 0.0
+
+        #> `Inf` and `NaN` handling
+        @test evalMagnitude(ComplexF64(Inf, NaN)) == Inf
+        @test evalMagnitude(ComplexF64(-Inf,  1)) == Inf
+        @test isnan(evalMagnitude(ComplexF64(NaN, 1)))
+        @test isnan(evalMagnitude(ComplexF64(1, NaN)))
+        @test_throws DomainError evalMagnitude(complex(Inf, NaN), false)
+        @test_throws DomainError evalMagnitude(complex(NaN, 1.0), false)
+
+        #> No spurious overflow or underflow of the squared components
+        @test evalMagnitude(ComplexF64(1e300, 1e300)) == 1e300 * sqrt(2.0)
+        @test evalMagnitude(ComplexF64(1e-300, 1e-300)) == Float64(sqrt(big(2.0)) * 1e-300)
+
+        #> Generic values: within a few ulps of `abs` (`hypot`), whose last bit is 
+        #> hardware-dependent, whereas `evalMagnitude` is reproducible everywhere
+        for c in (0.23665594309283294 + 0.03906366194959983im, 
+                  0.006570505490472972 - 0.01410983396709257im, 1.0 - 1.0im, 1f0 + 2f0im)
+            @test abs(evalMagnitude(c) - abs(c)) <= 2eps(abs(c))
+        end
+
+        #> Exact coefficient types are converted to floating-point numbers first
+        @test evalMagnitude(Complex(3//1, 4//1)) === evalMagnitude(Complex(3, 4)) === 5.0
+
+        #> Data types besides `ComplexF64`
+        @test evalMagnitude(ComplexF16(200, 150)) == Float16(250)
+        @test evalMagnitude(ComplexF32(3, 4)) == 5f0
+        @test evalMagnitude(3) == 3.0
+        @test evalMagnitude(-3.0f0) == 3.0f0
     end
 end

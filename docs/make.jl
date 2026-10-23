@@ -16,7 +16,7 @@ makedocs(
     pages = [
         "Home" => "index.md", 
         "Examples" => [
-            "Transverse-field Ising model" => "ising.md",
+            "Transverse-field Ising model" => "examples/ising.md",
         ], 
         "Types" => [
             "Operators" => "types/operators.md", 

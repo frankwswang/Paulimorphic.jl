@@ -45,8 +45,10 @@ julia> using Paulimorphic
 
 ## Contents
 
+### Examples
+
 ```@contents
-Pages = ["examples.md"]
+Pages = ["examples/ising.md"]
 Depth = 2
 ```
 

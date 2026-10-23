@@ -1,6 +1,4 @@
-# Examples
-
-## Transverse-field Ising model
+# Transverse-field Ising model
 
 The following code builds the transverse-field Ising Hamiltonian on an open chain of `n` sites,
 

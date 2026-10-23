@@ -17,10 +17,10 @@ Hence, `Bool`, `Unsigned`, and `Rational{<:Unsigned}` are excluded.
     literal of its name:
     ```jldoctest
     julia> SignedReal
-    Union{AbstractFloat, Rational{<:Signed}, Signed}
+    Union{AbstractFloat, Signed, Rational{<:Signed}}
     ```
 """
-const SignedReal = Union{AbstractFloat, Rational{<:Signed}, Signed}
+const SignedReal = Union{AbstractFloat, Signed, Rational{<:Signed}}
 
 const RealOrComplex{RN<:Real} = Union{RN, Complex{RN}}
 

@@ -343,7 +343,7 @@ end
 
 """
     toDiracEnc(::Type{T}, enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}} 
-               ) where {T<:$SignedReal} -> 
+               ) where {T<:SignedReal} -> 
     Pair{Vector{ PauliSum{T} }, Vector{ PauliSum{T} }}
 
     toDiracEnc(enc::Pair{<:AbstractVector{PauliStr}, <:AbstractVector{PauliStr}}) -> 
@@ -702,7 +702,7 @@ toMajoranaEnc(enc::PairwiseSumEnc) = toMajoranaEnc(PauliStr, enc)
 """
     buildMajoranaFrame(enc::Pair{<:AbstractVector{<:PauliSum}, 
                                  <:AbstractVector{<:PauliSum}}) -> 
-    Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:$SignedReal}
+    Tuple{Pair{Matrix{T}, Matrix{T}}, Vector{PauliStr}} where {T<:SignedReal}
 
 Given a valid `PauliSum`-based Majorana encoding `enc` (verified via the matching method 
 of [`checkMajoranaEnc`](@ref)) of `nMode = length(enc.first)` fermionic modes, attempt to 

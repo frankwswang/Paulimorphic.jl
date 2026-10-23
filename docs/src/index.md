@@ -95,3 +95,5 @@ The public docstrings and tutorials in this documentation follow several typeset
 * Single square brackets ``[`` and ``]``, as in ``\mathtt{inte}[c_1, a_1, \ldots, c_N, a_N]``, denote the Cartesian indexing of a tensor following the default [array-indexing style](https://docs.julialang.org/en/v1/manual/arrays/#man-array-indexing) in Julia.
 
 * Mathematical variables represented by typewriter symbols (i.e., in a monospace format) stand for identifiers of code objects (e.g., ``\mathtt{inte}`` directly mirrors `inte`). A mathematical variable may still partially reference a code object outside of this format when the code object serves as a decorative symbol within the context. For instance, ``i_k`` appearing in a docstring of code expression may reference `k` in the code.
+
+* Every public type alias is always presented by its name in the docstrings, error messages, and throughout this documentation, regardless of whether that name is the same as its default display (stringification) format (e.g., [`SignedReal`](@ref)).

@@ -53,9 +53,9 @@ neumaierSum(T, arr)
 
 
 """
-    extendType(::Type{C}, ::Type{T}) where {C<:$SignedReal, T<:$SignedReal} -> Type
+    extendType(::Type{C}, ::Type{T}) where {C<:SignedReal, T<:SignedReal} -> Type
 
-    extendType(::Type{C}, ::Type{Complex{T}}) where {C<:$SignedReal, T<:$SignedReal} -> 
+    extendType(::Type{C}, ::Type{Complex{T}}) where {C<:SignedReal, T<:SignedReal} -> 
     Type
 
 Return a new data type `E::Type` that is always at least as accurate as `T` (hence can 

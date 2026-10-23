@@ -1,9 +1,17 @@
+export SignedReal
+
 abstract type LinearOperator <: Any end
 abstract type DiscreteOperator <: LinearOperator end
 
 abstract type StructuredType <: Any end
 
-#> Types whose instances can properly have methods for negation
+"""
+    SignedReal
+
+The (type) union of `AbstractFloat`, `Signed`, and `Rational{<:Signed}`. It is a type 
+alias for the real-number types whose instances are closed under negation (`x -> -x`). 
+Hence, `Bool`, `Unsigned`, and `Rational{<:Unsigned}` are excluded.
+"""
 const SignedReal = Union{AbstractFloat, Signed, Rational{<:Signed}}
 
 const RealOrComplex{RN<:Real} = Union{RN, Complex{RN}}

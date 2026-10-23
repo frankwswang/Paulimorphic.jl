@@ -485,7 +485,7 @@ end
 
 
 """
-    PauliSum{T<:$SignedReal} <: $(DiscreteOperator|>repr)
+    PauliSum{T<:SignedReal} <: $(DiscreteOperator|>repr)
 
 A linear combination of Pauli strings, i.e., a general operator
 
@@ -513,20 +513,20 @@ stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
              coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true
-             ) where {T<:$SignedReal, C<:Union{Complex, $SignedReal}} -> 
+             ) where {T<:SignedReal, C<:Union{Complex, SignedReal}} -> 
     PauliSum{T}
 
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
-             simplification::Bool=true) where {T<:$SignedReal, C<:Union{Complex{T}, T}} -> 
+             simplification::Bool=true) where {T<:SignedReal, C<:Union{Complex{T}, T}} -> 
     PauliSum{T}
 
 Construct a `res::PauliSum{T}` from `strs` and `coeffs`, where `T=real(C)` in the second 
 signature. When `coeffs` is an `AbstractVector`, it must have the same length as `strs`, 
 and each `coeffs[i]` is the coefficient initially associated with `strs[i]`; when `coeffs` 
 is a `C` (scalar), it is the coefficient initially associated with every string in `strs`. 
-The core data type `T` is restricted to `$SignedReal` (which excludes `Bool`, `Unsigned`, 
-and `Rational{<:Unsigned}`) because phase absorption must be able to scale a coefficient 
-by `±1` and `±im`, which the complex forms of the excluded types cannot represent.
+The core data type `T` is restricted to [`SignedReal`](@ref) (which excludes `Bool`, 
+`Unsigned`, and `Rational{<:Unsigned}`) because phase absorption must be able to scale a 
+coefficient by `1`, `im`, `-1` or `-im`.
 
 The strings are deep-copied and rebuilt to have a common site count: the maximum site count 
 over `strs`. Therefore, every string in `res` explicitly acts on the same number of sites 
@@ -549,17 +549,17 @@ canonical order such that for
 always returns `true`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-             simplification::Bool=true) where {T<:$SignedReal} -> 
+             simplification::Bool=true) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Construct a `PauliSum` with the coefficient of every Pauli string initialized to 
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 
 `T` is subject to the same restriction as in the first initialization method.
 
-    PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum(::Type{T}, ham::PauliSum, simplification::Bool=true) where {T<:SignedReal} -> 
     PauliSum{T}
 
-    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:$SignedReal} -> 
+    PauliSum(ham::PauliSum{T}, simplification::Bool=true) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Rebuild `ham` as a new `PauliSum{T}`. The result holds freshly allocated buffers 
@@ -570,7 +570,7 @@ otherwise an `InexactError` is thrown upon construction. Thus, narrowing floatin
 may round a coefficient to exact zero, which is dropped when `simplification=true`. Again, 
 `T` is subject to the same restriction as in the first initialization method.
 
-    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:$SignedReal} -> 
+    PauliSum(selector::F, byCoeff::Bool, ham::PauliSum{T}) where {F, T<:SignedReal} -> 
     PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `ham`'s terms picked out 
@@ -678,7 +678,7 @@ end
 function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
     if !(isconcretetype(T) && (T <: SignedReal))
         throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
-                            "concrete subtype of `$SignedReal`."))
+                            "concrete subtype of [`SignedReal`](@ref)."))
     end
 
     nothing
@@ -718,7 +718,7 @@ getCoreDataType(::Type{<:PauliSum}) = SignedReal
 
 
 """
-    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:$SignedReal} -> 
+    indexTerm(ham::PauliSum{T}, i::Integer, copyStr::Bool=true) where {T<:SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
 Return the `i`-th term of `ham` as `res::Pair`. Specifically, `res.first` corresponds to 
@@ -741,7 +741,7 @@ end
 
 """
     setCoeff!(ham::PauliSum{T}, coeff::Union{Complex, Real}, i::Integer, 
-              copyStr::Bool=true) where {T<:$SignedReal} -> 
+              copyStr::Bool=true) where {T<:SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to 
@@ -765,7 +765,7 @@ end
 
 
 """
-    listTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:$SignedReal} -> 
+    listTerms(ham::PauliSum{T}, copyStr::Bool=true) where {T<:SignedReal} -> 
     Vector{Pair{ PauliStr, Complex{T} }}
 
 Return all terms of `ham` as a `Vector` of `Pair`s in the canonical term order, where the 
@@ -836,7 +836,7 @@ end
 
 """
     absorbPhases!(strs::AbstractVector{PauliStr}, 
-                  storage::AbstractVector{C}) where {C<:Complex{<:$SignedReal}} -> Nothing
+                  storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
@@ -866,7 +866,7 @@ end
 """
     sortStrings!(strs::AbstractVector{PauliStr}, 
                  coeffs::AbstractVector{<:Union{T, Complex{T}}}, 
-                 considerCoeff::Bool=true) where {T<:$SignedReal} -> Nothing
+                 considerCoeff::Bool=true) where {T<:SignedReal} -> Nothing
 
 Sort `strs` into ascending order and apply the same permutation to the parallel `coeffs`, 
 in place. When `considerCoeff=true` (default), ties among equal strings are broken by 
@@ -953,7 +953,7 @@ end
 
 """
     curtail(ham::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
-            relative::Bool=false, inclusive::Bool=false) where {T<:$SignedReal} -> 
+            relative::Bool=false, inclusive::Bool=false) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Return a filtered shallow copy of `ham` with negligible terms removed, retaining only the 
@@ -1369,7 +1369,7 @@ end
 
 """
     reframe(ham::PauliSum{T}, nSite::Integer=countSites(ham); lowToHigh::Bool=true, 
-            filler::PauliSym=symI, simplification::Bool=true) where {T<:$SignedReal} -> 
+            filler::PauliSym=symI, simplification::Bool=true) where {T<:SignedReal} -> 
     PauliSum{T}
 
 Return a `res::PauliSum{T}` by rebuilding each `PauliStr` in `ham.str` as a `PauliStr` in 
@@ -1622,10 +1622,10 @@ end
 
 """
     sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T
-              ) where {T<:$SignedReal, R<:$SignedReal} -> 
+              ) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
-    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:$SignedReal, R<:$SignedReal} -> 
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 

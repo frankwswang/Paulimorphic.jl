@@ -1,8 +1,6 @@
 export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
 
-public add, sub, mul, toAdjoint
-
-const PauliStrOrSum = Union{PauliStr, PauliSum}
+public add, combine, sub, mul, toAdjoint
 
 const PStrCoeffPair{T<:SignedReal} = Pair{PauliStr, <:SRealOrComplex{T}}
 
@@ -116,9 +114,124 @@ add(T, h, s=>one(T), simplification)
 add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 add(T, h, s, simplification)
 
-Base.:+(h::PauliSum, obj::PauliStrOrSum) = add(h, obj)
-Base.:+(s::PauliStr, h::PauliSum) = add(h, s)
-Base.:+(s1::PauliStr, s2::PauliStr, s3::PauliStr...) = PauliSum(Int, [s1, s2, s3...])
+""" 
+    combine(::Type{T}, terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true
+        ) where {T<:SignedReal} -> 
+    PauliSum{T}
+    
+    combine(terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true) -> PauliSum
+
+    t1 + t2 + t3 + ts... -> PauliSum
+
+Sum over all the `PauliStr` or `PauliSum` in `terms` and return the result as a `PauliSum`. 
+In the second method signature, the core data type of returned `PauliSum` (mirroring `T` in 
+the first method) is the promotion of the core data types of all the elements in `terms`. 
+If `simplification=true`, the same simplification procedure used by the [`PauliSum`](@ref) 
+constructor (when the same-named argument is set to `true`) is applied once to the 
+concatenation of all the `PauliStr` (paired with their associated coefficients) extracted 
+from `terms`. A chained summation of three or more terms connected by operator `+` without 
+manual intermediate associations (e.g., `t1 + t2 + t3`) falls back to calling the second 
+method with all the terms encapsulated into the argument `terms` and `simplification=true`.
+
+This function also provides a third method signature:
+
+    combine(f::F, ::Type{T}, terms::AbstractVector{<:$PauliStrOrSum}, 
+            simplification::Bool=true) where {F<:$AbstractCallable, T<:SignedReal} -> 
+    PauliSum{T}
+
+where `f` is a callable object that transforms the coefficient associated with each 
+`PauliStr` embedded in `terms` to a new one. It must have the following method signature:
+
+    f(s::PauliStr, c::Complex{<:SignedReal}) -> T1
+
+where `T1` is convertible to `T` through `Base.convert`; and for any `term` as an element 
+in `terms`, if `term isa PauliStr`, `(s, c) = (term, one(Complex{T}))`, else (i.e., `term 
+isa PauliSum`) `(s, c) = (term.str[i], term.coeff[i])` for all possible values of `i`. 
+Technically, the first method falls back to calling the third method with `f=(_, c)->c`.
+
+# Examples
+```jldoctest
+julia> Paulimorphic.combine((_, c)->abs(c), Float64, [1.5*pauli"XXIX", -2*pauli"XIXX"]) == 
+       1.5*pauli"XXIX" + 2*pauli"XIXX"
+true
+```
+
+!!! info
+    For the methods that requires `T` as a type argument, `T` specifies the core type of 
+    the returned `PauliSum`, when `simplification=true`, the precision level of the 
+    simplification procedure is determined by `$(extendType|>repr)(T, complex(C))`, where 
+    `C` is the promotion of the core types of the elements in `hs`. The returned value of 
+    this function (for any of its methods) is invariant under the permutation of `terms`, 
+    and it also does not reference any data in any element in `terms`.
+"""
+function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
+                 simplification::Bool=true) where {F<:AbstractCallable, T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
+    isempty(terms) && (return PauliSum(T))
+
+    function coeffConverter(term::PauliStr)::Complex{T} #> Conversion, not assertion
+        f(term, one(Complex{T}))
+    end
+    function coeffConverter(term::PauliSum)
+        Iterators.map((x, y)->convert(Complex{T}, f(x, y)), term.str, term.coeff)
+    end
+
+    strs = mapreduce(h->(h isa PauliStr ? h : h.str), vcat, terms)
+    coeffs = Iterators.flatten((coeffConverter(t) for t in terms)) |> collect
+
+    PauliSum(T, strs, coeffs, simplification)
+end
+
+function combine(f::F, ::Type{T}, terms::AbstractVector{PauliStr}, simplification::Bool=true
+                 ) where {F<:AbstractCallable, T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
+    isempty(terms) && (return PauliSum(T))
+    coeff = one(Complex{T})
+    coeffs = map(x->f(x, coeff), terms)
+    PauliSum(T, terms, coeffs, simplification)
+end
+
+function combine(::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
+                 simplification::Bool=true) where {T<:SignedReal}
+    combine((_, c)->c, T, terms, simplification)
+end
+
+function combine(::Type{T}, terms::AbstractVector{PauliStr}, simplification::Bool=true
+                 ) where {T<:SignedReal}
+    PauliSum(T, terms, simplification)
+end
+
+function combine(terms::AbstractVector{<:PauliStrOrSum}, simplification::Bool=true)
+    T = getCoreDataType(eltype(terms))
+    if !isconcretetype(T)
+        if isempty(terms)
+            throw(ArgumentError("`terms` must be non-empty when `eltype(terms)` does not "*
+                                "contain a concrete core type."))
+        end
+        T = mapreduce(getCoreDataType∘typeof, promote_type, terms)
+    end
+    combine(T, terms, simplification)
+end
+
+Base.:+(t1::PauliStr, t2::PauliSum) = add(t2, t1)
+Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
+
+Base.:+(t1::T, t2::T, t3::T, ts::T...) where {T<:PauliStrOrSum} = 
+combine(T[t1, t2, t3, ts...])
+
+Base.:+(t1::PauliSum, t2::PauliStr, t3::PauliStr, ts::PauliStr...) = 
+combine(Union{typeof(t1), PauliStr}[t1, t2, t3, ts...])
+
+function Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum, t3::PauliStrOrSum, 
+                 ts::PauliStrOrSum...)
+    containerT = if all(t->(t isa PauliSum), (t1, t2, t3)) && (eltype(ts) <: PauliSum)
+        PauliSum
+    else
+        PauliStrOrSum
+    end
+
+    combine(containerT[t1, t2, t3, ts...])
+end
 
 
 """

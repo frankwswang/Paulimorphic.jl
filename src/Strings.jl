@@ -720,9 +720,13 @@ function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
 end
 
+const PauliStrOrSum = Union{PauliStr, PauliSum}
 
 getCoreDataType(::Type{PauliSum{T}}) where {T<:SignedReal} = T
 getCoreDataType(::Type{<:PauliSum}) = SignedReal
+getCoreDataType(::Type{PauliStr}) = Int
+getCoreDataType(type::Type{<:PauliStrOrSum}) = 
+promote_type(getCoreDataType(typeintersect(type, PauliSum)), getCoreDataType(PauliStr))
 
 
 """

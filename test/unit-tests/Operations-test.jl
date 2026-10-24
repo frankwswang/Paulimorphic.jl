@@ -2,7 +2,7 @@ using Test
 using Random: Xoshiro
 using LinearAlgebra: kron
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, sub, toAdjoint
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, combine, sub, toAdjoint
 
 @testset "Operations.jl" begin
 
@@ -132,6 +132,39 @@ end
     h2 = PauliSum([pauli"Z"], [0.5])
     @test add(Float32, h1, h2) isa PauliSum{Float32}
     @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
+end
+
+@testset "combine" begin
+    #> n-ary methods: all the terms are merged in one compensated summation
+    s = pauli"X"
+    ha = PauliSum([s], [1.0])
+    hb = PauliSum([s], [1e-17])
+    hc = PauliSum([s], [-1.0])
+    #>> Chained binary additions round the intermediate result after every step, so the 
+    #>> association order decides whether the residual term survives
+    @test countTerms((ha + hb) + hc) == 0
+    @test countTerms((ha + hc) + hb) == 1
+    #>> A chain of three or more `+` is one n-ary call: correctly rounded, order-free
+    nary = ha + hb + hc
+    @test nary == hc + hb + ha == hb + ha + hc
+    @test nary == combine([ha, hb, hc]) == combine(Float64, [ha, hb, hc])
+    @test nary.coeff == ComplexF64[1e-17]
+    @test nary isa PauliSum{Float64}
+    #>> Promotion of mixed core types; exact cancellation drops the term
+    hi = PauliSum([pauli"Z"], [2])
+    @test combine([hi, ha, hc]) == PauliSum([pauli"Z"], [2.0])
+    @test combine([hi, ha, hc]) isa PauliSum{Float64}
+    @test hi + ha + hc == combine([hi, ha, hc])
+    @test combine(Float32, [hi, ha, hc]) isa PauliSum{Float32}
+    #>> Edge cases: empty collections and a single operand (fresh buffers)
+    @test combine(Float64, PauliSum{Float64}[]) == 
+          combine(PauliSum{Float64}[]) == PauliSum(Float64)
+    @test_throws ArgumentError combine(PauliSum[])
+    @test combine([ha]) == ha && combine([ha]).str[begin] !== ha.str[begin]
+    #>> `simplification=false` keeps the concatenated terms (canonically sorted)
+    @test combine([ha, hb, hc], false).coeff == ComplexF64[1e-17, -1.0, 1.0]
+    #>> Mixed chains including a `PauliStr` still fall back to Base's pairwise fold
+    @test ha + hc + pauli"Z" == PauliSum([pauli"Z"], [1.0])
 end
 
 @testset "sub" begin

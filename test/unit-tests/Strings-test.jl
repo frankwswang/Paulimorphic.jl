@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, evalMagnitude
 
 @testset "Strings.jl" begin
 
@@ -298,6 +298,23 @@ end
           Complex{Rational{Int16}}[1//2]
     #> Terms whose `Complex{T}`-converted coefficients are zero are dropped
     @test countTerms(PauliSum(Float32, fill(pauli"X", 2), [1e-50, 1e-50])) == 0
+
+    #> Input-order independence: the same multiset of terms gives an identical sum
+    strs = [pauli"X", pauli"Z", pauli"X", pauli"Y", pauli"X", pauli"Z"]
+    cs = [0.1, -0.7, 0.2, 1e-3, -0.3, 0.7]
+    ref = PauliSum(strs, cs)
+    @test countTerms(ref) == 2 && ref.coeff == ComplexF64[2.0^-55, 1e-3] #> `X`: 2⁻⁵⁵
+    for p in ([2, 1, 3, 6, 5, 4], [6, 5, 4, 3, 2, 1], [3, 1, 5, 2, 6, 4], 
+              [5, 3, 1, 4, 2, 6])
+        @test PauliSum(strs[p], cs[p]) == ref
+    end
+    #> Wide dynamic range: the accumulation order would change the compensated sum's last 
+    #> bit, so the merge must fix the order by the coefficient values, not the input order
+    wide = [2.0^54, -2.0^54, 1.0, 2.0^-53, 2.0^-60]
+    refWide = PauliSum(fill(pauli"X", 5), wide)
+    @test refWide.coeff == ComplexF64[1.0 + 2.0^-52] #> Correctly rounded exact sum
+    @test PauliSum(fill(pauli"X", 5), reverse(wide)) == refWide
+    @test PauliSum(fill(pauli"X", 5), wide[[1, 3, 4, 2, 5]]) == refWide
 end
 
 @testset "indexTerm" begin
@@ -426,6 +443,28 @@ end
     @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
     @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
     @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
+end
+
+@testset "curtail" begin
+    h = PauliSum([pauli"XI", pauli"IZ", pauli"ZZ"], [1.0, 1e-16, -0.5im])
+    @test curtail(h) == PauliSum([pauli"XI", pauli"ZZ"], [1.0, -0.5im]) #> Default: `8eps`
+    @test curtail(h, 0.5) == PauliSum([pauli"XI"], [1.0])
+    @test curtail(h, 0.5; inclusive=true) == PauliSum([pauli"XI", pauli"ZZ"], [1.0, -0.5im])
+    @test curtail(h, 0.4; relative=true) == PauliSum([pauli"XI", pauli"ZZ"], [1.0, -0.5im])
+    @test curtail(h, 0.6; relative=true) == PauliSum([pauli"XI"], [1.0])
+    @test curtail(h, 0; inclusive=true) == h
+    @test_throws DomainError curtail(h, -1.0)
+    @test curtail(PauliSum(Float64)) == PauliSum(Float64)
+    #> Exact coefficient types: the default threshold only removes exact zeros
+    @test curtail(PauliSum([pauli"X"], [1//10^9])) == PauliSum([pauli"X"], [1//10^9])
+
+    #> The threshold test should be platform-independent
+    c = 0.23665594309283294 + 0.03906366194959983im
+    hc = PauliSum([pauli"X"], [c])
+    m = evalMagnitude(c)
+    @test countTerms(curtail(hc, m)) == 0
+    @test countTerms(curtail(hc, m; inclusive=true)) == 1
+    @test countTerms(curtail(hc, prevfloat(m))) == 1
 end
 
 end

@@ -7,6 +7,7 @@ CurrentModule = Paulimorphic
 ## Algebra
 
 ```@docs
+combine
 add
 sub
 mul

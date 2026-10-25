@@ -3,6 +3,7 @@ module Paulimorphic
 include("Types.jl")
 include("Constants.jl")
 include("Numerics.jl")
+include("Query.jl")
 
 include("Strings.jl")
 include("Operations.jl")

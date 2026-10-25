@@ -52,7 +52,8 @@ result does not reference any data in either `h1` or `h2`.
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
              ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
-    PauliSum(T, vcat(h1.str, h2.str), vcat(h1.coeff, h2.coeff), simplification)
+    PauliSum(T, MemoryChain(h1.str, h2.str), MemoryChain(h1.coeff, h2.coeff), 
+             simplification)
 end
 
 add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
@@ -83,7 +84,9 @@ applied to the result. The result does not reference any data in either `h` or `
 function add(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
              ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
-    PauliSum(T, vcat(h.str, term.first), vcat(h.coeff, term.second), simplification)
+    strs = MemoryChain(h.str, genMemory(term.first))
+    coeffs = MemoryChain(h.coeff, genMemory(term.second))
+    PauliSum(T, strs, coeffs, simplification)
 end
 
 add(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
@@ -166,7 +169,7 @@ true
     simplification procedure is determined by `$(extendType|>repr)(T, complex(C))`, where 
     `C` is the promotion of the core types of the elements in `hs`. The returned value of 
     this function (for any of its methods) is invariant under the permutation of `terms`, 
-    and it also does not reference any data in any element in `terms`.
+    and it also does not reference any data in `terms`.
 """
 function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
                  simplification::Bool=true) where {F<:AbstractCallable, T<:SignedReal}
@@ -288,7 +291,7 @@ function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
     strs = vcat(h1.str, h2.str)
     half = @view strs[begin+countTerms(h1):end]
     map!(x->scale!(PauliStr(x), negRea), half)
-    PauliSum(T, strs, vcat(h1.coeff, h2.coeff), simplification)
+    PauliSum(T, strs, MemoryChain(h1.coeff, h2.coeff), simplification)
 end
 
 sub(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
@@ -361,7 +364,7 @@ function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
     strs = vcat(s, h.str)
     body = @view strs[begin+1:end]
     map!(x->scale!(PauliStr(x), negRea), body)
-    PauliSum(T, strs, vcat(one(T), h.coeff), simplification)
+    PauliSum(T, strs, MemoryChain((genMemory∘one)(T), h.coeff), simplification)
 end
 
 sub(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
@@ -739,7 +742,8 @@ end
 function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
     prod1 = mul(op1, op2)::PauliSum
     prod2 = mul(op2, op1)::PauliSum
-    PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, -prod2.coeff))
+    coeffs = MemoryChain(prod1.coeff, map(-, prod2.coeff))
+    PauliSum(MemoryChain(prod1.str, prod2.str), coeffs)
 end
 
 
@@ -772,7 +776,7 @@ end
 function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
     prod1 = mul(op1, op2)::PauliSum
     prod2 = mul(op2, op1)::PauliSum
-    PauliSum(vcat(prod1.str, prod2.str), vcat(prod1.coeff, prod2.coeff))
+    PauliSum(MemoryChain(prod1.str, prod2.str), MemoryChain(prod1.coeff, prod2.coeff))
 end
 
 

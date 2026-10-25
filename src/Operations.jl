@@ -114,11 +114,15 @@ add(T, h, s=>one(T), simplification)
 add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 add(T, h, s, simplification)
 
-""" 
+Base.:+(t1::PauliStr, t2::PauliSum) = add(t2, t1)
+Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
+
+
+"""
     combine(::Type{T}, terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true
         ) where {T<:SignedReal} -> 
     PauliSum{T}
-    
+
     combine(terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true) -> PauliSum
 
     t1 + t2 + t3 + ts... -> PauliSum
@@ -212,9 +216,6 @@ function combine(terms::AbstractVector{<:PauliStrOrSum}, simplification::Bool=tr
     end
     combine(T, terms, simplification)
 end
-
-Base.:+(t1::PauliStr, t2::PauliSum) = add(t2, t1)
-Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
 
 Base.:+(t1::T, t2::T, t3::T, ts::T...) where {T<:PauliStrOrSum} = 
 combine(T[t1, t2, t3, ts...])

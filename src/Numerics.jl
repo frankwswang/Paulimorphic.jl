@@ -65,8 +65,8 @@ neumaierSum(T, arr)
 
     evalMagnitude(c::Union{Complex{T}, T}, allowNaN::Bool=true) where {T<:Real} -> float(T)
 
-Return the absolute value of `c` using an [un-fused error-mitigated method](
-https://doi.org/10.48550/arXiv.1904.09481). 
+Return the absolute value of `c` using an 
+[unfused error-mitigated method](https://doi.org/10.48550/arXiv.1904.09481). 
 Unlike [`Base.abs`](https://docs.julialang.org/en/v1/base/math/#Base.abs), this method only 
 relies on IEEE-754 defined operations separately (with correct rounding behaviors) for 
 the standard numeric types in Julia (e.g., `Float64`, `Int`). Therefore, if no 
@@ -90,7 +90,7 @@ function evalMagnitude(c::Complex{T}, allowNaN::Bool=true) where {T<:AbstractFlo
 
     x, y = abs.(comps)
     x < y && ((x, y) = (y, x))           #> Ensure `x >= y` unless either is `NaN`
-    
+
     iszero(y) && (return x)              #> Early exit 2
     isnan( x) && (return x)              #> Early exit 3
     isnan( y) && (return y)              #> Early exit 4

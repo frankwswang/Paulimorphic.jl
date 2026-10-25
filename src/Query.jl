@@ -87,15 +87,49 @@ end
 
 
 """
-    genMemory(obj) -> Memory
+    genMemory(::T, obj) -> Memory{T}
 
-Return a `Memory{T}` filled with the entires from `obj::AbstractArray{T}`. If `obj::T` is 
-not an `AbstractArray`, a one-element `Memory{T}` encapsulating `obj` will be returned.
+    genMemory(obj::AbstractArray{T}) -> Memory{T}
+
+    genMemory(obj::T) -> Memory{T}
+
+Return a `Memory{T}` filled with the (potentially converted) entires from `obj`. If `obj` 
+is not an `AbstractArray`, a one-element `Memory{T}` encapsulating `obj` will be returned.
 """
-genMemory(arr::AbstractArray) = Memory{eltype(arr)}(arr|>vec)
+genMemory(::Type{T}, arr::AbstractArray) where {T} = Memory{T}(arr|>vec)
 
-function genMemory(obj::T) where {T}
+function genMemory(::Type{T}, obj) where {T}
     mem = Memory{T}(undef, 1)
     mem[] = obj
     mem
+end
+
+genMemory(arr::AbstractArray{T}) where {T} = genMemory(T, arr)
+
+genMemory(arr::T) where {T} = genMemory(T, arr)
+
+
+#> Neumaier-sum accumulator: key => (naiveSum, sumResidue)
+const NeuAccumulator{K, T<:RealOrComplex} = Dict{K, NTuple{2, T}}
+
+function updateNeuAccumulator!(dict::NeuAccumulator{<:Any, T}, 
+                               data::Pair) where {T<:RealOrComplex}
+    zeroVal = zero(T)
+    key, value = data
+    res = get(dict, key, nothing)
+    keyAdded = isnothing(res)
+    naiveSum, sumResidue = keyAdded ? (zeroVal, zeroVal) : res
+    newSumPair = neumaierAdd(naiveSum, T(value), sumResidue)
+    dict[key] = newSumPair
+    keyAdded
+end
+
+
+#> Can be used for array copying when `a .= b` fails for two arrays with mismatched axes
+function dumpTo!(dst::AbstractArray, src, iStart::Integer=firstindex(dst))
+    if src isa AbstractArray
+        copyto!(dst, iStart, src, firstindex(src), length(src))
+    else
+        fill!(dst, src)
+    end
 end

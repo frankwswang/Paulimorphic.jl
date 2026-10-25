@@ -620,75 +620,58 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
             throw(ArgumentError("`strs` and `coeffs` should have the same length."))
         end
 
-        sInput = Memory{PauliStr}(undef, inputSize)
-        nSite = iszero(inputSize) ? 0 : maximum(countSites, strs)
-        for i in 1:inputSize; sInput[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
+        sBuffer = Memory{PauliStr}(undef, inputSize)
 
-        if !simplification || iszero(inputSize) #> No merging subroutine
-            c = Memory{Complex{T}}(undef, inputSize)
-            dumpTo!(c, coeffs)
-            s = sInput
-            absorbPhases!(s, c)
-            sortStrings!(s, c, true)
+        if iszero(inputSize)
+            sRes = sBuffer
+            cRes = Memory{Complex{T}}(undef, inputSize)
         else
-            cInput = Memory{extendType(T, complex(C))}(undef, inputSize)
-            dumpTo!(cInput, coeffs)
-            absorbPhases!(sInput, cInput)
+            nSite = maximum(countSites, strs)
+            for i in 1:inputSize; sBuffer[begin+i-1] = PauliStr(strs[begin+i-1], nSite) end
+            extC = simplification ? extendType(T, complex(C)) : Complex{T}
+            cBuffer = Memory{extC}(undef, inputSize)
+            dumpTo!(cBuffer, coeffs)
 
-            shift = -firstindex(sInput) #> Shifts `sInput`-native indices to index offsets
-            #> Equal strings are grouped by the string order to form a list, in which each 
-            #> string is sorted against their associated coefficients so that they can be 
-            #> used as input-order invariant indexers for later coefficient accumulation.
-            sortKeys = map(eachindex(sInput)) do i
-                c = cInput[begin+i+shift]
-                (sInput[i], real(c), imag(c))
-            end
-            perm = sortperm(sortKeys)   #> Only carries `sInput`-native indices
+            #> Default formatting when no merging is requested
+            absorbPhases!(sBuffer, cBuffer)
+            sortStrings!(sBuffer, cBuffer, true)
 
-            #> Merge equal strings into buffers with upper-bound size, then trim once
-            cBuffer = Memory{Complex{T}}(undef, inputSize)
-            sBuffer = Memory{PauliStr}(undef, inputSize)
-            mergedSize = 0
-            k = 1
+            if simplification
+                termDict = NeuAccumulator{PauliStr, extC}()
 
-            @inbounds while k <= inputSize
-                p = perm[begin+k-1]
-                acc = cInput[begin+p+shift]
-                accResidue = zero(acc)
-                str = sInput[p]
-
-                k += 1
-                while k <= inputSize
-                    sIdx = perm[begin+k-1]
-                    sInput[sIdx] == str || break
-                    val = cInput[begin+sIdx+shift]
-                    acc, accResidue = neumaierAdd(acc, val, accResidue)
-                    k += 1
+                for (str, coeff) in zip(sBuffer, cBuffer)
+                    updateNeuAccumulator!(termDict, str=>coeff)
                 end
 
-                #> Skipped when no rounding residue was collected to keep signed zero 
-                #> intact: `Complex{T}` with `!(T<:AbstractFloat)`, one-term construction
-                iszero(accResidue) || (acc += accResidue)
+                mergedSize = 0
+                for pair in termDict
+                    key = pair.first
+                    coeff = sum(pair.second)
 
-                if Complex{T}(acc) != 0 #>> Drop terms with coefficients exactly equal zero
-                    mergedSize += 1
-                    sBuffer[begin+mergedSize-1] = str
-                    cBuffer[begin+mergedSize-1] = acc
+                    if !iszero(coeff|>Complex{T})
+                        mergedSize += 1
+                        sBuffer[begin+mergedSize-1] = key
+                        cBuffer[begin+mergedSize-1] = coeff
+                    end
                 end
-            end
-
-            if mergedSize == inputSize #>> No duplicates and no cancellation
-                c = cBuffer
-                s = sBuffer
             else
-                c = Memory{Complex{T}}(undef, mergedSize)
-                s = Memory{PauliStr}(undef, mergedSize)
-                copyto!(c, firstindex(c), cBuffer, firstindex(cBuffer), mergedSize)
-                copyto!(s, firstindex(s), sBuffer, firstindex(sBuffer), mergedSize)
+                mergedSize = inputSize
             end
+
+            if mergedSize == inputSize
+                sRes = sBuffer
+                cRes = cBuffer
+            else
+                sRes = Memory{PauliStr}(undef, mergedSize)
+                cRes = Memory{Complex{T}}(undef, mergedSize)
+                copyto!(sRes, firstindex(sRes), sBuffer, firstindex(sBuffer), mergedSize)
+                copyto!(cRes, firstindex(cRes), cBuffer, firstindex(cBuffer), mergedSize)
+            end
+
+            simplification && sortStrings!(sRes, cRes, true)
         end
 
-        new{T}(s, c)
+        new{T}(sRes, cRes)
     end
 end
 

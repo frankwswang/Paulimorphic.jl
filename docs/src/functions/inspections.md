@@ -35,6 +35,7 @@ listTerms
 sumCoeffs
 isIdentity
 isHermitian
+isCanonicalized
 checkCommute
 checkAntiCom
 getFrustrationInfo

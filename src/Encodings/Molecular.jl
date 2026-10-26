@@ -402,6 +402,24 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
                              idxPairSymm::NonEmptyTuple{Bool, M}=
                                           ntuple(_->false, Val(M+1)), 
                              checkInput::Bool=true) where {T<:SRealOrComplex, D, M}
+    realT = (typeof∘inv∘one∘real)(T)
+    cache = PauliTermDict{realT}()
+    growNBodyOperators!(cache, format, enc, orbInte, spinSecConfig, iModeStart; 
+                        particleExch, hermiticity, idxPairSymm, checkInput)
+    combinePauliTerms!(cache)
+end
+
+#> Core routine of `genNBodyOperatorSum`: from-second-to-last arguments are the same.
+function growNBodyOperators!(termCache::PauliTermDict{T}, 
+                             format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
+                             orbInte::AbstractArray{<:SRealOrComplex, D}, 
+                             spinSecConfig::NonEmptyTuple{Bool, M}, 
+                             iModeStart::NonEmptyTuple{Integer, M}=ntuple(_->1, Val(M+1)); 
+                             particleExch::Bool=true, 
+                             hermiticity::Bool=true, 
+                             idxPairSymm::NonEmptyTuple{Bool, M}=
+                                          ntuple(_->false, Val(M+1)), 
+                             checkInput::Bool=true) where {T<:SignedReal, D, M}
     N = M + 1
     D == 2N || throw(ArgumentError("`ndims(orbInte)` must equal `2M+2==$(2N)`."))
     for (p, iStart) in enumerate(iModeStart)
@@ -455,18 +473,15 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
         end
     end
 
-    realT = (typeof∘inv∘one∘real)(T)
-    coreT = Complex{realT}
-    coeffCache = Dict{PauliStr, NTuple{2, coreT}}() #> Value: (coeffSum, sumResidue)
-    encOpCache = genNBodyOperatorCache(format, realT)
-
-    prefactor = one(realT)
+    encOpCache = genNBodyOperatorCache(format, T)
+    prefactor = one(T)
     if particleExch
         for c in 1:maximum(orbSecLabel)
-            prefactor /= (realT∘factorial∘count)(isequal(c), orbSecLabel)
+            prefactor /= (T∘factorial∘count)(isequal(c), orbSecLabel)
         end
     end
     iFirstAxial = map(first, axes(orbInte))
+    addedCount = 0
 
     for carteIdx in CartesianIndices(orbInte)
         inteCoeff = orbInte[carteIdx]
@@ -479,17 +494,13 @@ function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEn
 
         op = genNBodyOperatorCore!(format, encOpCache, enc, spinSecConfig, iPairs, false)
 
-        for (str, encCoeff) in zip(op.str, op.coeff)
-            opCoeff = prefactor * encCoeff * inteCoeff
-            coeffSum, sumResidue = get(coeffCache, str, (zero(coreT), zero(coreT)))
-            coeffCache[str] = neumaierAdd(coeffSum, coreT(opCoeff), sumResidue)
+        for (term, encCoeff) in op
+            termCoeff = prefactor * encCoeff * inteCoeff
+            updateNeuAccumulator!(termCache, term=>termCoeff) && (addedCount += 1)
         end
     end
 
-    coeffs = map((collect∘values)(coeffCache)) do (coeffSum, sumResidue)
-        coeffSum + sumResidue
-    end
-    PauliSum((collect∘keys)(coeffCache), coeffs)
+    addedCount
 end
 
 """
@@ -695,22 +706,23 @@ function encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc,
                              true; hermiticity)
     end
 
+    realT = (typeof∘inv∘one∘real)(T)
+    cache = PauliTermDict{realT}()
     sec1Symm, sec2Symm = idxPairSymm
 
-    h1Spin1 = gen1BodyOperatorSum(first(secEnc), inte1BSpin1; 
-                                  hermiticity, idxPairSymm=sec1Symm, checkInput)
-    h1Spin2 = gen1BodyOperatorSum( last(secEnc), inte1BSpin2; 
-                                  hermiticity, idxPairSymm=sec2Symm, checkInput)
+    growNBodyOperators!(cache, PairedOrder(), secEnc, inte1BSpin1, (false,); 
+                        hermiticity, idxPairSymm=(sec1Symm,), checkInput)
+    growNBodyOperators!(cache, PairedOrder(), secEnc, inte1BSpin2, (true ,); 
+                        hermiticity, idxPairSymm=(sec2Symm,), checkInput)
 
-    h2Spin1 = genNBodyOperatorSum(format, secEnc, inte2BSpin1, (false, false); 
-                                  hermiticity, idxPairSymm=(sec1Symm, sec1Symm), checkInput)
-    h2Spin2 = genNBodyOperatorSum(format, secEnc, inte2BSpin2, (true , true ); 
-                                  hermiticity, idxPairSymm=(sec2Symm, sec2Symm), checkInput)
+    growNBodyOperators!(cache, format, secEnc, inte2BSpin1, (false, false); 
+                        hermiticity, idxPairSymm=(sec1Symm, sec1Symm), checkInput)
+    growNBodyOperators!(cache, format, secEnc, inte2BSpin2, (true , true ); 
+                        hermiticity, idxPairSymm=(sec2Symm, sec2Symm), checkInput)
+    growNBodyOperators!(cache, format, secEnc, inte2BCross, (false, true ); 
+                        hermiticity, idxPairSymm, checkInput)
 
-    h2Cross = genNBodyOperatorSum(format, secEnc, inte2BCross, (false, true ); 
-                                  hermiticity, idxPairSymm, checkInput)
-
-    h1Spin1 + h1Spin2 + h2Spin1 + h2Spin2 + h2Cross
+    combinePauliTerms!(cache)
 end
 
 encodeElecHam(format::NBodyOrdering, enc::OptSpinSectoredEnc, 

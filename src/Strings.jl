@@ -492,6 +492,19 @@ end
 
 
 """
+
+    PauliTermDict{T<:SignedReal} <: AbstractDict{PauliStr, NTuple{ 2, Complex{T} }}
+
+A Pauli-term dictionary (aliasing `Base.Dict`) whose keys are `PauliStr`. For each key 
+`pStr`, the stored value is a `coeffPir::Tuple{2, Complex{T}}`, in which the first element 
+is the naive (summed) value of a coefficient associated with `pStr`, and the second element 
+is the residue value for that coefficient. As a result, `sum(coeffPir)` yields the total 
+value of the associated coefficient.
+"""
+const PauliTermDict{T<:SignedReal} = NeuAccumulator{PauliStr, Complex{T}}
+
+
+"""
     PauliSum{T<:SignedReal} <: $(DiscreteOperator|>repr)
 
 A linear combination of Pauli strings, i.e., a general operator
@@ -637,7 +650,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
             sortStrings!(sBuffer, cBuffer, true)
 
             if simplification
-                termDict = NeuAccumulator{PauliStr, extC}()
+                termDict = PauliTermDict{real(extC)}()
 
                 for (str, coeff) in zip(sBuffer, cBuffer)
                     updateNeuAccumulator!(termDict, str=>coeff)
@@ -719,6 +732,20 @@ function Base.iterate(pSum::PauliSum, state::Int=1)
     else
         (Pair(pSum.str[begin+state-1], pSum.coeff[begin+state-1]), state+1)
     end
+end
+
+
+#> Internal method for constructing `PauliSum` from `PauliTermDict`
+function combinePauliTerms!(termDict::PauliTermDict)
+    filter!(pair->!(iszero∘sum)(pair.second), termDict)
+    coeffs = map((collect∘values)(termDict)) do (coeffSum, sumResidue)
+        coeffSum + sumResidue
+    end
+    pStrs = (collect∘keys)(termDict)
+    needSimplification = any(str->!isequal(posRea, str.phase), pStrs)
+    res = PauliSum(pStrs, coeffs, needSimplification)
+    empty!(termDict)
+    res
 end
 
 

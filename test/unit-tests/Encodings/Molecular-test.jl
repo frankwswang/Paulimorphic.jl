@@ -161,6 +161,19 @@ end
         @test encodeElecHam(PairedOrder(), enc4, (h2, g1), (h2, g1), copy(g1)) == 
               encodeElecHam(PairedOrder(), enc4, (h2, g1))
     end
+
+    @testset "Single compensated accumulation across fragments" begin
+        #> Identity coefficient: 1 (spin-1 one-body) + 2⁻⁵³ (spin-2 one-body) + 2⁻⁵³ (cross 
+        #> two-body) == 1 + 2⁻⁵², which rounding after each fragment would reduce to 1
+        hA = fill(2.0, 1, 1)
+        hB = fill(2.0^-52, 1, 1)
+        g0 = zeros(1, 1, 1, 1)
+        gX = fill(2.0^-51, 1, 1, 1, 1)
+        golden = PauliSum([pauli"II", pauli"ZI", pauli"IZ", pauli"ZZ"], 
+                          [1.0 + 2.0^-52, -1.0, -2.0^-52, 2.0^-53])
+        @test encodeElecHam(NormalOrder(), enc2, (hA, g0), (hB, g0), gX) == golden
+        @test encodeElecHam(PairedOrder(), enc2, (hA, g0), (hB, g0), gX) == golden
+    end
 end
 
 end

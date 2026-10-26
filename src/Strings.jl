@@ -319,6 +319,14 @@ end
 
 
 """
+    evalPhase(pStr::PauliStr) -> Complex{Int}
+
+Evaluate the phase factor of `pStr`.
+"""
+evalPhase(pStr::PauliStr) = evalPhase(pStr.phase)
+
+
+"""
     indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false) -> PauliSym
 
 Return the single-site Pauli operator acting on site `i` of `str` as a 

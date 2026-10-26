@@ -164,12 +164,12 @@ true
 ```
 
 !!! info
-    For the methods that requires `T` as a type argument, `T` specifies the core type of 
-    the returned `PauliSum`, when `simplification=true`, the precision level of the 
+    For the methods that require `T` as a type argument, `T` specifies the core type of 
+    the returned `PauliSum`; when `simplification=true`, the precision level of the 
     simplification procedure is determined by `$(extendType|>repr)(T, complex(C))`, where 
-    `C` is the promotion of the core types of the elements in `hs`. The returned value of 
-    this function (for any of its methods) is invariant under the permutation of `terms`, 
-    and it also does not reference any data in `terms`.
+    `C` is the promotion of the core types of the elements in `terms`. The returned value 
+    of this function (for any of its methods) is invariant under the permutation of 
+    `terms`, and it also does not reference any data in `terms`.
 """
 function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
                  simplification::Bool=true) where {F<:AbstractCallable, T<:SignedReal}
@@ -183,7 +183,9 @@ function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum},
         Iterators.map((x, y)->convert(Complex{T}, f(x, y)), term.str, term.coeff)
     end
 
-    strs = mapreduce(h->(h isa PauliStr ? h : h.str), vcat, terms)
+    #> `reduce(vcat, ::AbstractVector{<:AbstractVecOrMat})` is specialized in `Base` to 
+    #> allocate the result once thus has better performance than `mapreduce` in this case
+    strs = reduce(vcat, map(t->((t isa PauliStr) ? genMemory(t) : t.str), terms))
     coeffs = Iterators.flatten((coeffConverter(t) for t in terms)) |> collect
 
     PauliSum(T, strs, coeffs, simplification)

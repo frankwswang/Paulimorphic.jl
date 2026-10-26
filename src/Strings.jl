@@ -903,6 +903,12 @@ coefficient `c`, yielding a total order even when duplicate strings are present;
 the strings alone form the sort key ordered by `isless(::PauliStr, ::PauliStr)`, and equal 
 strings keep their relative input order (the sort is stable). Both vector arguments are 
 mutated and must share the same length.
+
+!!! info
+    The phase of each Pauli string inside `strs` is not absorbed to the corresponding 
+    element of `coeffs` for coefficient-wise comparison. Instead, it stays inside each 
+    string for string-wise comparison. To transfer a phase to its coefficient, resort to 
+    [`absorbPhases!`](@ref).
 """
 function sortStrings!(strs::AbstractVector{PauliStr}, 
                       coeffs::AbstractVector{<:SRealOrComplex}, considerCoeff::Bool=true)

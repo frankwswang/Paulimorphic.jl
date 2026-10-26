@@ -52,17 +52,9 @@ neumaierSum(arr::AbstractArray{T}) where {T<:RealOrComplex} =
 neumaierSum(T, arr)
 
 
-#> Platform-independent modulus of a complex number. `abs(::Complex)` calls `hypot`, whose 
-#> result (in `Base`) depends on whether the hardware provides a fused multiply-add 
-#> (`Core.Intrinsics.have_fma`), so the last bit can differ across machines. This version 
-#> only uses IEEE-754 basic operations (correctly rounded everywhere, never contracted) and 
-#> is accurate to a few ulps, which is enough for threshold tests and sorting keys.
-
-
 #>-- Reference(s) --<#
 #> [DOI] 10.48550/arXiv.1904.09481
 """
-
     evalMagnitude(c::Union{Complex{T}, T}, allowNaN::Bool=true) where {T<:Real} -> float(T)
 
 Return the absolute value of `c` using an 

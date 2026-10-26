@@ -93,7 +93,7 @@ end
 
     genMemory(obj::T) -> Memory{T}
 
-Return a `Memory{T}` filled with the (potentially converted) entires from `obj`. If `obj` 
+Return a `Memory{T}` filled with the (potentially converted) entries from `obj`. If `obj` 
 is not an `AbstractArray`, a one-element `Memory{T}` encapsulating `obj` will be returned.
 """
 genMemory(::Type{T}, arr::AbstractArray) where {T} = Memory{T}(arr|>vec)

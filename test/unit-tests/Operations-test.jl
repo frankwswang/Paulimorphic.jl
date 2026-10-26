@@ -165,6 +165,9 @@ end
     @test combine([ha, hb, hc], false).coeff == ComplexF64[1e-17, -1.0, 1.0]
     #>> Mixed chains including a `PauliStr` still fall back to Base's pairwise fold
     @test ha + hc + pauli"Z" == PauliSum([pauli"Z"], [1.0])
+    #>> A single `PauliStr` stored in a mixed-type container
+    @test combine(Union{PauliStr, PauliSum}[pauli"X"]) == PauliSum(Int, [pauli"X"])
+    @test combine(Union{PauliStr, PauliSum}[pauli"X", ha]) == PauliSum([pauli"X"], [2.0])
 end
 
 @testset "sub" begin

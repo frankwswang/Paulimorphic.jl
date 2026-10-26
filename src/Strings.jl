@@ -486,14 +486,13 @@ end
 
 
 """
-
     PauliTermDict{T<:SignedReal} <: AbstractDict{PauliStr, NTuple{ 2, Complex{T} }}
 
 A Pauli-term dictionary (aliasing `Base.Dict`) whose keys are `PauliStr`. For each key 
-`pStr`, the stored value is a `coeffPir::Tuple{2, Complex{T}}`, in which the first element 
-is the naive (summed) value of a coefficient associated with `pStr`, and the second element 
-is the residue value for that coefficient. As a result, `sum(coeffPir)` yields the total 
-value of the associated coefficient.
+`pStr`, the stored value is a `coeffPair::NTuple{2, Complex{T}}`, in which the first 
+element is the naive (summed) value of a coefficient associated with `pStr`, and the second 
+element is the residue value for that coefficient. As a result, `sum(coeffPair)` yields the 
+total value of the associated coefficient.
 """
 const PauliTermDict{T<:SignedReal} = NeuAccumulator{PauliStr, Complex{T}}
 
@@ -1680,7 +1679,7 @@ julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
 julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
 1.0 + 0.0im
 ```
-"""
+""" #> Add the option to check canonical order
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T
                    ) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)

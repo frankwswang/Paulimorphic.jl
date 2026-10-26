@@ -352,7 +352,7 @@ sub(promote_type(T1, T2), h, term, simplification)
 
 Subtract a single `PauliStr` `s` from `h`, or `h` from `s`, where `s` is treated 
 effectively as a term whose associated coefficient is the phase value of `s` 
-([`evalPhase(s.phase)`](@ref `evalPhase`)). If `simplification=true`, the same 
+([`evalPhase(s)`](@ref `evalPhase(::PauliStr)`)). If `simplification=true`, the same 
 simplification procedure used by the `PauliSum` constructor (when the same-named argument 
 is set to `true`) is applied to the result. The result does not reference any data in 
 either `h` or `s`.
@@ -647,9 +647,9 @@ end
     scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
 
 Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
-[`evalPhase(p)`](@ref `evalPhase`), then absorbed into `h.coeff`. This is to match the 
-canonical form of `PauliSum` in which its phases are carried by coefficients rather than 
-the stored `PauliStr`.
+[`evalPhase(p)`](@ref `evalPhase(::PhaseFactor)`), then absorbed into `h.coeff`. This is to 
+match the canonical form of `PauliSum` in which its phases are carried by coefficients 
+rather than the stored `PauliStr`.
 """
 scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
 

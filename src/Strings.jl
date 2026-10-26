@@ -26,11 +26,11 @@ bitstring),
 (0, 1) \\mapsto \\hat{Z}, \\quad (1, 0) \\mapsto \\hat{X}, \\quad (1, 1) \\mapsto \\hat{Y};
 ```
 
-and `phase` is the complex coefficient encoded by the field `.phase::`[`PhaseFactor`](@ref) 
-(i.e., [`evalPhase(.phase)`](@ref `evalPhase`)), one of `+1`, `+im`, `-1`, and `-im`. 
-Carrying the phase coefficient keeps `PauliStr` a member of the Pauli group under 
-multiplication. The phase generated when two `PauliStr` are multiplied is absorbed into the 
-result's `.phase`.
+and `phase` is the complex coefficient encoded by `.phase::`[`PhaseFactor`](@ref) and can 
+be evaluated through [`evalPhase(::PauliStr)`](@ref) to yield one of values: `+1`, `+im`, 
+`-1`, and `-im`. Carrying the phase coefficient keeps `PauliStr` a member of the Pauli 
+group under multiplication. The phase generated when two `PauliStr` are multiplied is 
+absorbed into the result's `.phase`.
 
 # Bit layout
 With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), the 
@@ -39,7 +39,7 @@ With `w = 8 * sizeof(UInt)` bits per word (entry of bit-packed `Memory{UInt}`), 
 from `i`-th word to `i+1`-th word). Bits past site `n` in the final word are zero by 
 construction.
 
-# Fields
+# Properties
 - `.x::Memory{UInt}`: ``x``-component buffer, where bit `k` is set to ``1`` iff 
   ``\\hat{\\sigma}_k \\in \\{\\hat{X}, \\hat{Y}\\}``.
 - `.z::Memory{UInt}`: ``z``-component buffer, where bit `k` is set to ``1`` iff 
@@ -510,7 +510,7 @@ stored as two parallel buffers: the Pauli strings ``\\hat{P}_k`` in
 `.str::Memory{PauliStr}` and their associated coefficients ``c_k`` in 
 `.coeff::Memory{Complex{T}}`.
 
-# Fields
+# Properties
 - `.str::Memory{PauliStr}`: the Pauli strings, one per stored term.
 - `.coeff::Memory{Complex{T}}`: the coefficients associated with the Pauli strings, with 
   `length(.coeff) == length(.str)`.
@@ -867,10 +867,9 @@ end
                   storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}} -> Nothing
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
-place. Specifically, for every index `i` at which `evalPhase(strs[i].phase) != one(C)`, 
-multiply `storage[i]` by [`evalPhase(strs[i].phase)`](@ref `evalPhase`) and reset 
-`strs[i].phase` to `PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share 
-the same length.
+place. Specifically, for every index `i` at which `evalPhase(strs[i]) != one(C)`, multiply 
+`storage[i]` by [`evalPhase(strs[i])`](@ref `evalPhase`) and reset `strs[i].phase` to 
+`PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}}

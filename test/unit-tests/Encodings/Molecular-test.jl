@@ -163,16 +163,24 @@ end
     end
 
     @testset "Single compensated accumulation across fragments" begin
-        #> Identity coefficient: 1 (spin-1 one-body) + 2⁻⁵³ (spin-2 one-body) + 2⁻⁵³ (cross 
-        #> two-body) == 1 + 2⁻⁵², which rounding after each fragment would reduce to 1
-        hA = fill(2.0, 1, 1)
-        hB = fill(2.0^-52, 1, 1)
-        g0 = zeros(1, 1, 1, 1)
-        gX = fill(2.0^-51, 1, 1, 1, 1)
-        golden = PauliSum([pauli"II", pauli"ZI", pauli"IZ", pauli"ZZ"], 
-                          [1.0 + 2.0^-52, -1.0, -2.0^-52, 2.0^-53])
-        @test encodeElecHam(NormalOrder(), enc2, (hA, g0), (hB, g0), gX) == golden
-        @test encodeElecHam(PairedOrder(), enc2, (hA, g0), (hB, g0), gX) == golden
+        #> The identity coefficient collects 1 and 2^(-53) from the two diagonal entries of 
+        #> the spin-1 one-body matrix (one fragment) and another 2^(-53) from the cross 
+        #> two-body tensor. Rounding the first fragment on its own gives 1 (a tie, rounded 
+        #> to even), after which no later merge can recover the lost 2^(-53), so any scheme 
+        #> that finalizes fragments separately (including one compensated n-ary merge of 
+        #> the finalized fragments) returns 1; accumulating every contribution in one 
+        #> compensated sum returns the exact value 1 + 2^(-52).
+        enc3 = toDiracEnc(genJordanWignerEnc(3))
+        hA = [2.0 0.0; 0.0 2.0^-52]
+        gA = zeros(2, 2, 2, 2)
+        hB = zeros(1, 1)
+        gB = zeros(1, 1, 1, 1)
+        gX = zeros(2, 2, 1, 1)
+        gX[1, 1, 1, 1] = 2.0^-51
+        golden = PauliSum([pauli"III", pauli"ZII", pauli"IZI", pauli"IIZ", pauli"ZIZ"], 
+                          [1.0 + 2.0^-52, -1.0, -2.0^-53, -2.0^-53, 2.0^-53])
+        @test encodeElecHam(NormalOrder(), enc3, (hA, gA), (hB, gB), gX) == golden
+        @test encodeElecHam(PairedOrder(), enc3, (hA, gA), (hB, gB), gX) == golden
     end
 end
 

@@ -75,17 +75,6 @@ function Base.setindex!(mc::MemoryChain, val, i::Integer)
     setindex!(seg, val, firstindex(seg)+iIdx-1)
 end
 
-function Base.iterate(mc::MemoryChain, idxState::Integer=1)
-    if idxState < 1
-        throw(ArgumentError("`idxState=$idxState` is not a valid state value."))
-    elseif idxState == length(mc)
-        nothing
-    else
-        (mc[begin+idxState-1], idxState+1)
-    end
-end
-
-
 """
     genMemory(::T, obj) -> Memory{T}
 

@@ -1,6 +1,6 @@
-export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, canonicalize!, 
-       curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, listTerms, 
-       countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
+export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, isCanonicalized, 
+       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
+       listTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public sortStrings!, setCoeff!
 
@@ -780,7 +780,7 @@ Overwrite the coefficient of the `i`-th term of `ham` with `coeff` converted to
 !!! warning
     `setCoeff!` does not reorder or merge the terms in `ham` after modifying the 
     coefficient for its `i`-th term. Therefore, the mutated `ham` might no longer be in the 
-    canonical form even if it was before. To restore the canonical order in place, apply 
+    canonical form even if it was before. To restore the canonical form in place, apply 
     [`canonicalize!`](@ref) to `ham`; to obtain a `PauliSum` without mergeable or 
     zero-coefficient terms, rebuild the mutated `ham` via `PauliSum(ham, true)`.
 """
@@ -891,6 +891,12 @@ function absorbPhases!(strs::AbstractVector{PauliStr},
 end
 
 
+#> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
+function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, Complex{<:SignedReal}})
+    (str, evalMagnitude(strCoeff), real(strCoeff), imag(strCoeff))
+end
+
+
 """
     sortStrings!(strs::AbstractVector{PauliStr}, 
                  coeffs::AbstractVector{<:Union{T, Complex{T}}}, 
@@ -921,13 +927,9 @@ function sortStrings!(strs::AbstractVector{PauliStr},
         #> Sort the indices of the Pauli strings
         scope = collect(1:nTerm)
         sortFunc = if considerCoeff
-            function (i)
-                coeff = coeffs[begin+i-1]
-                #> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
-                (strs[begin+i-1], evalMagnitude(coeff), real(coeff), imag(coeff))
-            end
+            (i::Int) -> genPauliTermOrderKey((strs[begin+i-1], coeffs[begin+i-1]))
         else
-            i -> strs[begin+i-1]
+            (i::Int) -> strs[begin+i-1]
         end
         sort!(scope; by=sortFunc, alg=Base.Sort.DEFAULT_STABLE)
 
@@ -963,6 +965,42 @@ function sanitize!(str::PauliStr)
     end
 
     str
+end
+
+
+"""
+    isCanonicalized(h::PauliSum; checkDuplicateTerm::Bool=false, 
+                    checkZeroCoeffTerm::Bool=false) -> 
+    Bool
+
+Check if `h` is already in the canonical form (with optional arguments at their default 
+values). If `checkDuplicateTerm=true`, this function also applies a check on whether all 
+`PauliStr` stored in `h` are unique; if `checkZeroCoeffTerm=true`, it also applies a check 
+on whether `h` contains any terms associated a with zero coefficient. The function only 
+return `true` if all applied checks pass.
+
+# Examples
+```jldoctest
+julia> h1 = pauli"XXIX" + 2.0*pauli"XXIX";
+
+julia> isCanonicalized(h1, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
+true
+
+julia> h2 = PauliSum([pauli"XXIX", pauli"XXIX"], [3, 0], false);
+
+julia> isCanonicalized(h2) && !isCanonicalized(h2, checkDuplicateTerm=true) && 
+                              !isCanonicalized(h2, checkZeroCoeffTerm=true)
+true
+```
+"""
+function isCanonicalized(h::PauliSum; checkDuplicateTerm::Bool=false, 
+                                      checkZeroCoeffTerm::Bool=false)::Bool
+    strs, coeffs = h.str, h.coeff
+    bl = all(str->isequal(posRea, str.phase), strs) && 
+         issorted(zip(strs, coeffs), by=genPauliTermOrderKey)
+    bl && (bl *= checkDuplicateTerm ? allunique(strs) : true)
+    bl && (bl *= checkZeroCoeffTerm ? all(!iszero, coeffs) : true)
+    bl
 end
 
 
@@ -1427,7 +1465,7 @@ to the corresponding reframed string.
 
 After the reframed strings are constructed, they are then collected (along with the 
 coefficients associated with their respective original strings held by `ham`) to construct 
-`res::PauliSum{T}` in canonical order. If `simplification=true`, the same simplification 
+`res::PauliSum{T}` in canonical form. If `simplification=true`, the same simplification 
 procedure used by the constructor of [`PauliSum`](@ref) is applied to `res` before it is 
 returned. Depending on the specific choice of `filler`, or the value of `nSite` compared to 
 `countSites(ham)`, `res` may not be algebraically equivalent to `ham`. Only when 
@@ -1687,7 +1725,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 ```
 """ #> Add the option to check canonical order
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T
-                   ) where {F, T<:SignedReal, R<:SignedReal}
+                   ; checkOrder::Bool=false) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)

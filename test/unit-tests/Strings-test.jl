@@ -318,68 +318,68 @@ end
 end
 
 @testset "indexTerm" begin
-    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
     #> Canonical order (weight, then highest differing site): ZI, IZ, XX
-    @test indexTerm(ham, 1) == (pauli"ZI" => 3.0)
-    @test indexTerm(ham, 2) == (pauli"IZ" => 2.0)
-    @test indexTerm(ham, 3) == (pauli"XX" => 1.0)
+    @test indexTerm(h, 1) == (pauli"ZI" => 3.0)
+    @test indexTerm(h, 2) == (pauli"IZ" => 2.0)
+    @test indexTerm(h, 3) == (pauli"XX" => 1.0)
 
     #> `copyStr=true` (default): equal content, but a fresh copy holding no reference
-    term = indexTerm(ham, 1)
-    @test term.first == ham.str[begin] && term.first !== ham.str[begin]
+    term = indexTerm(h, 1)
+    @test term.first == h.str[begin] && term.first !== h.str[begin]
 
     #> `copyStr=false`: aliases the stored string
-    @test indexTerm(ham, 1, false).first === ham.str[begin]
+    @test indexTerm(h, 1, false).first === h.str[begin]
 
     #> Out-of-range `i` throws `DomainError` (not `BoundsError`)
-    @test_throws DomainError indexTerm(ham, 0)
-    @test_throws DomainError indexTerm(ham, 4)
+    @test_throws DomainError indexTerm(h, 0)
+    @test_throws DomainError indexTerm(h, 4)
     @test_throws DomainError indexTerm(PauliSum(Float64), 1) #> Empty sum: domain is `1:0`
 end
 
 @testset "listTerms" begin
-    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0im, 3.0])
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0im, 3.0])
     #> Canonical order (weight, then highest differing site): ZI, IZ, XX
-    terms = listTerms(ham)
+    terms = listTerms(h)
     @test terms isa Vector{Pair{PauliStr, ComplexF64}}
     @test terms == [pauli"ZI" => 3.0, pauli"IZ" => 2.0im, pauli"XX" => 1.0]
-    @test length(terms) == countTerms(ham)
+    @test length(terms) == countTerms(h)
 
     #> Element-wise agreement with `indexTerm`
-    @test all(terms[i] == indexTerm(ham, i) for i in eachindex(terms))
+    @test all(terms[i] == indexTerm(h, i) for i in eachindex(terms))
 
     #> Rebuilding from the listed terms recovers an equal sum
-    @test PauliSum(first.(terms), last.(terms)) == ham
+    @test PauliSum(first.(terms), last.(terms)) == h
 
     #> `copyStr=true` (default): equal content, but fresh copies holding no reference
-    @test all(t.first == s && t.first !== s for (t, s) in zip(terms, ham.str))
+    @test all(t.first == s && t.first !== s for (t, s) in zip(terms, h.str))
 
     #> `copyStr=false`: aliases the stored strings
-    @test all(t.first === s for (t, s) in zip(listTerms(ham, false), ham.str))
+    @test all(t.first === s for (t, s) in zip(listTerms(h, false), h.str))
 
     #> Empty sum: an empty `Vector` of the documented element type
     @test listTerms(PauliSum(Float64)) == Pair{PauliStr, ComplexF64}[]
 end
 
 @testset "setCoeff!" begin
-    ham = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
     #> Canonical order (weight, then highest differing site): ZI, IZ, XX
 
     #> Returns the updated term with the coefficient converted to `Complex{T}`
-    @test setCoeff!(ham, -0.5im, 2) == (pauli"IZ" => -0.5im)
-    @test ham.coeff == ComplexF64[3.0, -0.5im, 1.0] #> Only the target term is modified
+    @test setCoeff!(h, -0.5im, 2) == (pauli"IZ" => -0.5im)
+    @test h.coeff == ComplexF64[3.0, -0.5im, 1.0] #> Only the target term is modified
 
     #> `copyStr` pass-through mirrors `indexTerm`
-    @test setCoeff!(ham, 2.0, 2, false).first === ham.str[begin+1]
+    @test setCoeff!(h, 2.0, 2, false).first === h.str[begin+1]
 
     #> Documented non-merging: a zeroed coefficient leaves the term in place
-    setCoeff!(ham, 0, 3) #> `Real` input: converted, not rejected
-    @test length(ham.str) == 3 && iszero(ham.coeff[end])
+    setCoeff!(h, 0, 3) #> `Real` input: converted, not rejected
+    @test length(h.str) == 3 && iszero(h.coeff[end])
 
     #> Out-of-range `i` throws `DomainError` before any mutation occurs
-    @test_throws DomainError setCoeff!(ham, 99.0, 0)
-    @test_throws DomainError setCoeff!(ham, 99.0, 4)
-    @test ham.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `ham` untouched
+    @test_throws DomainError setCoeff!(h, 99.0, 0)
+    @test_throws DomainError setCoeff!(h, 99.0, 4)
+    @test h.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `h` untouched
 end
 
 #> `countWeight`

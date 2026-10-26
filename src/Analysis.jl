@@ -1,10 +1,10 @@
 export getFrustrationInfo
 
 """
-    getFrustrationInfo(ham::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false) -> 
+    getFrustrationInfo(h::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false) -> 
     Pair{Vector{PauliStr}, Vector{ NTuple{2, Int} }}
 
-Compute the (anticommutation) frustration graph of the Pauli strings in `ham`: each 
+Compute the (anticommutation) frustration graph of the Pauli strings in `h`: each 
 term (a weighted [`PauliStr`](@ref)) forms a vertex, and whether two vertices are joined by 
 an edge is determined by the anticommutator of their corresponding Pauli strings (evaluated 
 by [`checkAntiCom`](@ref)). The graph is returned not as a [`StrictGraph`](@ref) but as its 
@@ -12,7 +12,7 @@ structural information:
 
     vertices => edges
 
-where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `ham` and 
+where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `h` and 
 `edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
 `(i, j)`, `i < j`, indexing into `vertices`. Such a graph records which terms in a 
 target Hamiltonian fail to commute — e.g., as a basis for partitioning it into mutually 
@@ -32,13 +32,13 @@ exactly is kept (`>=`) or dropped (`>`). When `edgeThreshold = 0`, `inclusive = 
 will also admit anticommuting terms even when their coefficient product is exactly zero, 
 whereas `inclusive = false` excludes them. A negative `edgeThreshold` throws an 
 `ArgumentError`. To prune *vertices* (terms) by their own magnitude beforehand, apply 
-[`curtail`](@ref) to `ham` first.
+[`curtail`](@ref) to `h` first.
 """
-function getFrustrationInfo(ham::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false)
+function getFrustrationInfo(h::PauliSum, edgeThreshold::Real=0; inclusive::Bool=false)
     edgeThreshold < 0 && throw(ArgumentError("`edgeThreshold` must be non-negative."))
 
-    magnitudes = map(evalMagnitude, ham.coeff)
-    validNodes = copy(ham.str)
+    magnitudes = map(evalMagnitude, h.coeff)
+    validNodes = copy(h.str)
     nodeNum = length(validNodes)
     validEdges = NTuple{2, Int}[]
 

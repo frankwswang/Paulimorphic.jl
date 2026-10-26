@@ -39,10 +39,10 @@ function strToMat(pStr::PauliStr, nSite::Int=pStr.n)
         evalPhase(pStr.phase) .* res
     end
 
-function sumToMat(ham::PauliSum, nSite::Int=countSites(ham))
+function sumToMat(h::PauliSum, nSite::Int=countSites(h))
     res = zeros(ComplexF64, 2^nSite, 2^nSite)
-    for i in eachindex(ham.str)
-        res .+= ham.coeff[begin+i-1] .* strToMat(ham.str[begin+i-1], nSite)
+    for i in eachindex(h.str)
+        res .+= h.coeff[begin+i-1] .* strToMat(h.str[begin+i-1], nSite)
     end
     res
 end

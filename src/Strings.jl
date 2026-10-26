@@ -206,15 +206,6 @@ function Base.:(==)(pStr1::PauliStr, pStr2::PauliStr)
     isequal(pStr1.z    , pStr2.z    )
 end
 
-function Base.iterate(str::PauliStr, state::Int=1)
-    state < 1 && throw(ArgumentError("`$state` is an invalid value for `state`."))
-    if state == 1
-        (str=>one(Complex{getCoreDataType(PauliStr)}), 2)
-    else
-        nothing
-    end
-end
-
 
 """
     Base.isless(a::PauliStr, b::PauliStr) -> Bool
@@ -727,16 +718,6 @@ end
 function Base.:(==)(pSum1::PauliSum, pSum2::PauliSum)
     (pSum1.coeff == pSum2.coeff) && (pSum1.str == pSum2.str)
 end
-
-function Base.iterate(pSum::PauliSum, state::Int=1)
-    state < 1 && throw(ArgumentError("`$state` is an invalid value for `state`."))
-    if state > countTerms(pSum)
-        nothing
-    else
-        (Pair(pSum.str[begin+state-1], pSum.coeff[begin+state-1]), state+1)
-    end
-end
-
 
 #> Internal method for constructing `PauliSum` from `PauliTermDict`
 function combinePauliTerms!(termDict::PauliTermDict)

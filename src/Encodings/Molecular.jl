@@ -494,7 +494,7 @@ function growNBodyOperators!(termCache::PauliTermDict{T},
 
         op = genNBodyOperatorCore!(format, encOpCache, enc, spinSecConfig, iPairs, false)
 
-        for (term, encCoeff) in op
+        for (term, encCoeff) in zip(op.str, op.coeff)
             termCoeff = prefactor * encCoeff * inteCoeff
             updateNeuAccumulator!(termCache, term=>termCoeff) && (addedCount += 1)
         end

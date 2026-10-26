@@ -270,11 +270,6 @@ function Base.isless(a::PauliStr, b::PauliStr)
 end
 
 
-function genPauliSymVec(str::Union{AbstractString, AbstractVector{<:Integer}})
-    [genPauliSym(c::Union{AbstractChar, Integer}) for c in str]
-end
-
-
 """
     pauli"..." -> PauliStr
 

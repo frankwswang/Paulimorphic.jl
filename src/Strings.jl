@@ -717,7 +717,7 @@ function Base.iterate(pSum::PauliSum, state::Int=1)
     if state > countTerms(pSum)
         nothing
     else
-        (Pair(pSum.str[begin+state-1], pSum.str[begin+state-1]), state+1)
+        (Pair(pSum.str[begin+state-1], pSum.coeff[begin+state-1]), state+1)
     end
 end
 

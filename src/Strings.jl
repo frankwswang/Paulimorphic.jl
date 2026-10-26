@@ -639,25 +639,31 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
             cBuffer = Memory{extC}(undef, inputSize)
             dumpTo!(cBuffer, coeffs)
 
-            #> Default formatting when no merging is requested
+            #> Canonical order of the terms, which also fixes the accumulation order
             absorbPhases!(sBuffer, cBuffer)
-            sortStrings!(sBuffer, cBuffer, true)
+            sortStrings!(sBuffer, cBuffer, true) #>> Equal strings are adjacent
 
             if simplification
-                termDict = PauliTermDict{real(extC)}()
-
-                for (str, coeff) in zip(sBuffer, cBuffer)
-                    updateNeuAccumulator!(termDict, str=>coeff)
-                end
-
+                k = 1
                 mergedSize = 0
-                for pair in termDict
-                    key = pair.first
-                    coeff = sum(pair.second)
+                @inbounds while k <= inputSize #>> Each run of equal strings starts from `k`
+                    str = sBuffer[begin+k-1]
+                    acc = cBuffer[begin+k-1]
+                    accResidue = zero(acc)
 
-                    if !iszero(coeff|>Complex{T})
+                    k += 1
+                    while k <= inputSize && sBuffer[begin+k-1] == str
+                        val = cBuffer[begin+k-1]
+                        acc, accResidue = neumaierAdd(acc, val, accResidue)
+                        k += 1
+                    end
+
+                    #> Skipped addition when no non-zero residue to keep signed zero intact
+                    coeff = iszero(accResidue) ? acc : (acc + accResidue)
+
+                    if !iszero(coeff |> Complex{T}) #>> Drop terms with zero coefficients
                         mergedSize += 1
-                        sBuffer[begin+mergedSize-1] = key
+                        sBuffer[begin+mergedSize-1] = str
                         cBuffer[begin+mergedSize-1] = coeff
                     end
                 end
@@ -665,7 +671,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
                 mergedSize = inputSize
             end
 
-            if mergedSize == inputSize
+            if mergedSize == inputSize #>> No duplicates and no cancellation
                 sRes = sBuffer
                 cRes = cBuffer
             else
@@ -674,8 +680,6 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
                 copyto!(sRes, firstindex(sRes), sBuffer, firstindex(sBuffer), mergedSize)
                 copyto!(cRes, firstindex(cRes), cBuffer, firstindex(cBuffer), mergedSize)
             end
-
-            simplification && sortStrings!(sRes, cRes, true)
         end
 
         new{T}(sRes, cRes)

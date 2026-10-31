@@ -330,19 +330,21 @@ end
 
 
 #> Function and types for line graph analysis
-mutable struct NodeEdgeInfo{T<:Integer}
+mutable struct NodeEdgeInfo{T<:Integer}   #> Info of an assumed line graph
     const edgeLabel::Memory{NTuple{2, T}} #> The (root-graph) edge labels for nodes
     const backtrack::Memory{T}            #> Adjacent (witness) nodes in discovered cliques
+    const cliqueRep::Memory{T}            #> `i`-th Entry: the half-named node in clique-`i`
     rootOrder::T                          #> Current maximal index for potential root nodes
-    halfMarker::Set{T}
 
     function NodeEdgeInfo(order::T) where {T<:Integer}
-        edgeLabel = Memory{NTuple{2, T}}(undef, order)
+        edgeLabel = Memory{NTuple{2, T}}(undef, order) #> Number of nodes: `order`
         backtrack = Memory{T}(undef, order)
+        cliqueRep = Memory{T}(undef, Int(order) + 1)   #> At most `order+1` root-graph nodes
         edgeLabel .= Ref(( T(0), T(0) ))
         backtrack .= T(0)
+        cliqueRep .= T(0)
 
-        new{T}(edgeLabel, backtrack, T(0), Set{T}())
+        new{T}(edgeLabel, backtrack, cliqueRep, T(0))
     end
 end
 
@@ -388,15 +390,18 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
             node12NeighborNum = neighborNum
         end
     end
-    node23 = first(adjList[begin+node12-1])
+    node23 = minimum(adjList[begin+node12-1]) #> The smallest neighbor: a canonical choice
 
     info = NodeEdgeInfo(order)
     edgeLabels = info.edgeLabel
     edgeLabels[begin+node12-1] = (1, 2)
     edgeLabels[begin+node23-1] = (2, 3)
 
-    #> Construct the shared adjacency list w.r.t. basic nodes (1, 2) and (2, 3)
+    #> Construct the shared adjacency list w.r.t. basic nodes (1, 2) and (2, 3), in 
+    #> ascending order so that the labeling below does not depend on the set storage order.
+    #> The labeling is stable even though `QuickSort` itself isn't.
     sharedAdjs = [n for n in adjList[begin+node12-1] if n in adjList[begin+node23-1]]
+    sort!(sharedAdjs; alg=QuickSort)
     nSharedAdj = length(sharedAdjs)
 
     #> Mark the nodes (2, ...) in clique-2 and potentially a cross node (1, 3)
@@ -456,10 +461,14 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     halfName!(info, adjList, discoveredNodes, 2) #> Half name all nodes adjacent to clique-2
     fullyName!(info, adjList)
 
+    #> Every node must be fully named for `g` to be a line graph
+    all(isFullyNamed, edgeLabels) || (return (false => g))
+    
+
     rootGraph = StrictGraph(info.rootOrder)
 
     for edge in edgeLabels
-        (isFullyNamed(edge) && attachEdge!(rootGraph, edge)) || (return (false => g))
+        attachEdge!(rootGraph, edge) || (return (false => g))
     end
 
     gEdges = listEdges(g)
@@ -510,10 +519,44 @@ function isUnNamed(nodeEdge::NTuple{2, Integer})
 end
 
 
-function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
+function completeNodeEdge!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}, 
+                           halfNode::T, otherEnd::T) where {T<:Integer}
     edgeLabels = info.edgeLabel
     backtracks = info.backtrack
-    halfNamedNodes = info.halfMarker
+    cliqueReps = info.cliqueRep
+
+    markerEdge = edgeLabels[begin+halfNode-1]
+    isHalfNamed(markerEdge) || throw(ArgumentError("`halfNode` must be half named."))
+    cliqueLabel = first(markerEdge)
+    if cliqueLabel == otherEnd
+        throw(ArgumentError("`otherEnd` cannot already be used to name `halfNode`."))
+    end
+    edgeLabels[begin+halfNode-1] = minmax(cliqueLabel, otherEnd)
+
+    if cliqueReps[begin+cliqueLabel-1] == halfNode
+        bktk = backtracks[begin+halfNode-1]
+        newMarker = zero(T)
+
+        for adjNode in adjList[begin+bktk-1]
+            nodeEdge = edgeLabels[begin+adjNode-1]
+            if isHalfNamed(nodeEdge) && first(nodeEdge) == cliqueLabel
+                newMarker = adjNode
+                break
+            end
+        end
+
+        cliqueReps[begin+cliqueLabel-1] = newMarker
+    end
+end
+
+
+#> Half name the nodes adjacent to discovered nodes belonging to clique-`cliqueLabel`.
+#> For a node `(cliqueLabel, otherEnd)`, its adjacent node is named `(otherEnd, 0)`
+function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}, 
+                   discoveredNodes::AbstractVector{T}, cliqueLabel::T) where {T<:Real}
+    edgeLabels = info.edgeLabel
+    backtracks = info.backtrack
+    cliqueReps = info.cliqueRep
 
     for node in discoveredNodes
         nodeEdge = edgeLabels[begin+node-1]
@@ -521,7 +564,8 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
             throw(ArgumentError("Node $node in `discoveredNodes` is not fully named."))
         end
 
-        if cliqueLabel in nodeEdge #> Filter out cross nodes and only keep clique nodes
+        #> Only search for clique nodes (e.g., cross node (1, 3) is excluded from clique-2)
+        if cliqueLabel in nodeEdge
             rootGraphNodeL, rootGraphNodeR = nodeEdge
             otherEnd = (cliqueLabel == rootGraphNodeL) ? rootGraphNodeR : rootGraphNodeL
             for adjNode in adjList[begin+node-1]
@@ -529,13 +573,12 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
                 if isUnNamed(adjNodeEdge) #> Initialize a half-named node
                     edgeLabels[begin+adjNode-1] = (otherEnd, 0)
                     backtracks[begin+adjNode-1] = node
-                    push!(halfNamedNodes, adjNode)
+                    #> Register the newly discovered clique-`otherEnd` by `adjNode`
+                    occNode = cliqueReps[begin+otherEnd-1]
+                    iszero(occNode) && (cliqueReps[begin+otherEnd-1] = adjNode)
                 elseif isHalfNamed(adjNodeEdge) #> Fully name an already half-named node
-                    namedEnd = first(adjNodeEdge)
-                    if namedEnd != otherEnd
-                        fullEdgeName = minmax(otherEnd, namedEnd)
-                        edgeLabels[begin+adjNode-1] = fullEdgeName
-                        pop!(info.halfMarker, adjNode)
+                    if first(adjNodeEdge) != otherEnd
+                        completeNodeEdge!(info, adjList, adjNode, otherEnd)
                     end #> It's necessary to silently ignore `namedEnd == otherEnd` case
                 end
             end
@@ -544,45 +587,57 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
 end
 
 
-discoverNode!(info, cliqueLabel) = minmax(cliqueLabel, (info.rootOrder += 1))
+discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Real} = 
+minmax(cliqueLabel, (info.rootOrder += 1))
 
-function fullyName!(info::NodeEdgeInfo{T}, adjList) where {T<:Integer}
+
+#> Fully name all the nodes after one around of half naming by `halfName!`
+function fullyName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}
+                    ) where {T<:Integer}
     edgeLabels = info.edgeLabel
     backtracks = info.backtrack
-    halfNamedNodes = info.halfMarker
+    cliqueReps = info.cliqueRep
+    discoveredNodes = T[] #> Reusable buffer
 
-    while !isempty(halfNamedNodes)
-        node = pop!(halfNamedNodes)
+    cliqueLabel = zero(T)
+    while cliqueLabel < info.rootOrder
+        cliqueLabel += one(T)
+        node = cliqueReps[begin+cliqueLabel-1]
+        iszero(node) && continue #> Clique without a half-named node is considered found
         edge = edgeLabels[begin+node-1]
-        bktk = backtracks[begin+node-1]
 
-        #> `node` and `bktk` form the couple of basic nodes for a new clique
-        if bktk == 0 || !shareEndPoint(edge, edgeLabels[begin+bktk-1])
+        if isFullyNamed(edge) || first(edge) != cliqueLabel
+            throw(AssertionError("The half-named node should match the clique marker."))
+        end
+        bktk = backtracks[begin+node-1]
+        #> `node` and `bktk` form the couple of basic nodes for clique-`cliqueLabel`
+        if bktk == 0 || let bktkEdge = edgeLabels[begin+bktk-1];
+                            !(isFullyNamed(bktkEdge) && shareEndPoint(edge, bktkEdge)) end
             throw(AssertionError("A half-named node should have a valid adjacent node " * 
-                                 "that already belongs to a fully discovered clique."))
+                                "that already belongs to a fully discovered clique."))
         end
 
-        cliqueLabel = first(edge)
         edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)
-        sharedAdjs = [n for n in adjList[begin+node-1] if n in adjList[begin+bktk-1]]
 
-        for cliqueNode in sharedAdjs
+        empty!(discoveredNodes) #> Reset the discovered nodes for clique-`cliqueLabel`
+        bktkAdjs = adjList[begin+bktk-1]
+        for n in adjList[begin+node-1]
+            n in bktkAdjs && push!(discoveredNodes, n)
+        end
+        sort!(discoveredNodes; alg=QuickSort) #> Enforce a deterministic order
+
+        for cliqueNode in discoveredNodes
             cliqueNodeEdge = edgeLabels[begin+cliqueNode-1]
             if isUnNamed(cliqueNodeEdge)
                 edgeLabels[begin+cliqueNode-1] = discoverNode!(info, cliqueLabel)
             elseif isHalfNamed(cliqueNodeEdge)
                 namedEnd = first(cliqueNodeEdge)
-                pop!(info.halfMarker, cliqueNode)
-
-                edgeLabels[begin+cliqueNode-1] = if namedEnd == cliqueLabel
-                    discoverNode!(info, cliqueLabel)
-                else
-                    minmax(cliqueLabel, namedEnd)
-                end
+                otherEnd = (namedEnd == cliqueLabel) ? (info.rootOrder += 1) : cliqueLabel
+                completeNodeEdge!(info, adjList, cliqueNode, otherEnd)
             end
         end
 
-        discoveredNodes = push!(sharedAdjs, bktk, node)
+        push!(discoveredNodes, bktk, node)
         halfName!(info, adjList, discoveredNodes, cliqueLabel)
     end
 end

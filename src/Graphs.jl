@@ -537,11 +537,12 @@ function completeNodeEdge!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}
         bktk = backtracks[begin+halfNode-1]
         newMarker = zero(T)
 
-        for adjNode in adjList[begin+bktk-1]
+        for adjNode in adjList[begin+bktk-1] #> Select the smallest-index half-named node
             nodeEdge = edgeLabels[begin+adjNode-1]
-            if isHalfNamed(nodeEdge) && first(nodeEdge) == cliqueLabel
+            if isHalfNamed(nodeEdge) && first(nodeEdge) == cliqueLabel && 
+               (iszero(newMarker) || adjNode < newMarker)
                 newMarker = adjNode
-                break
+                isone(newMarker) && break
             end
         end
 
@@ -575,7 +576,9 @@ function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}},
                     backtracks[begin+adjNode-1] = node
                     #> Register the newly discovered clique-`otherEnd` by `adjNode`
                     occNode = cliqueReps[begin+otherEnd-1]
-                    iszero(occNode) && (cliqueReps[begin+otherEnd-1] = adjNode)
+                    if iszero(occNode) || adjNode < occNode #> Keep the smallest-index node
+                        cliqueReps[begin+otherEnd-1] = adjNode
+                    end
                 elseif isHalfNamed(adjNodeEdge) #> Fully name an already half-named node
                     if first(adjNodeEdge) != otherEnd
                         completeNodeEdge!(info, adjList, adjNode, otherEnd)

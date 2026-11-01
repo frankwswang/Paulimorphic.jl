@@ -542,7 +542,7 @@ function completeNodeEdge!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}
             if isHalfNamed(nodeEdge) && first(nodeEdge) == cliqueLabel && 
                (iszero(newMarker) || adjNode < newMarker)
                 newMarker = adjNode
-                isone(newMarker) && break
+                isone(newMarker) && break #> A node number cannot go below one
             end
         end
 
@@ -554,7 +554,7 @@ end
 #> Half name the nodes adjacent to discovered nodes belonging to clique-`cliqueLabel`.
 #> For a node `(cliqueLabel, otherEnd)`, its adjacent node is named `(otherEnd, 0)`
 function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}, 
-                   discoveredNodes::AbstractVector{T}, cliqueLabel::T) where {T<:Real}
+                   discoveredNodes::AbstractVector{T}, cliqueLabel::T) where {T<:Integer}
     edgeLabels = info.edgeLabel
     backtracks = info.backtrack
     cliqueReps = info.cliqueRep
@@ -562,7 +562,7 @@ function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}},
     for node in discoveredNodes
         nodeEdge = edgeLabels[begin+node-1]
         if !isFullyNamed(nodeEdge)
-            throw(ArgumentError("Node $node in `discoveredNodes` is not fully named."))
+            throw(AssertionError("Node $node in `discoveredNodes` is not fully named."))
         end
 
         #> Only search for clique nodes (e.g., cross node (1, 3) is excluded from clique-2)
@@ -590,7 +590,7 @@ function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}},
 end
 
 
-discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Real} = 
+discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Integer} = 
 minmax(cliqueLabel, (info.rootOrder += 1))
 
 
@@ -609,15 +609,16 @@ function fullyName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}
         iszero(node) && continue #> Clique without a half-named node is considered found
         edge = edgeLabels[begin+node-1]
 
-        if isFullyNamed(edge) || first(edge) != cliqueLabel
-            throw(AssertionError("The half-named node should match the clique marker."))
+        if !(isHalfNamed(edge) && first(edge) == cliqueLabel)
+            throw(AssertionError("A clique must be correctly marked by a half named node."))
         end
+
         bktk = backtracks[begin+node-1]
         #> `node` and `bktk` form the couple of basic nodes for clique-`cliqueLabel`
         if bktk == 0 || let bktkEdge = edgeLabels[begin+bktk-1];
-                            !(isFullyNamed(bktkEdge) && shareEndPoint(edge, bktkEdge)) end
+                            !(isFullyNamed(bktkEdge) && in(cliqueLabel, bktkEdge)) end
             throw(AssertionError("A half-named node should have a valid adjacent node " * 
-                                "that already belongs to a fully discovered clique."))
+                                 "belonging to same clique-$cliqueLabel."))
         end
 
         edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)

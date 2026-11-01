@@ -26,6 +26,11 @@ for a bounded `T`, must not exceed `typemax(T)`; otherwise, a `DomainError` is t
 Construct a strict graph of `order` with valid (undirected) edge elements from `edges`. All 
 invalid (e.g., self-loop, out-of-bound edges) or duplicate elements in `edges` are silently 
 ignored unless `explicitError=true`, in which case a `DomainError` is thrown.
+
+    StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer} -> StrictGraph{T}
+
+Convert `g` to a `StrictGraph{T}` if all its vertices can be represented by positive 
+instances of `T`.
 """
 struct StrictGraph{T<:Integer}
     order::Int
@@ -59,6 +64,18 @@ function StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}},
         end
     end
     g
+end
+
+function StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer}
+    order = g.order
+    if applicable(typemax, T) && order > typemax(T)
+        throw(InexactError(:StrictGraph, StrictGraph{T}, g))
+    end
+    res = StrictGraph(g.order, T)
+    for (i, adj) in enumerate(g.adjacency)
+        res.adjacency[begin+i-1] = adj
+    end
+    res
 end
 
 
@@ -337,8 +354,8 @@ mutable struct NodeEdgeInfo{T<:Integer}   #> Info of an assumed line graph
     rootOrder::T                          #> Current maximal index for potential root nodes
 
     function NodeEdgeInfo(order::T) where {T<:Integer}
-        edgeLabel = Memory{NTuple{2, T}}(undef, order) #> Number of nodes: `order`
-        backtrack = Memory{T}(undef, order)
+        edgeLabel = Memory{NTuple{2, T}}(undef, Int(order)) #> Number of nodes: `order`
+        backtrack = Memory{T}(undef, Int(order))
         cliqueRep = Memory{T}(undef, Int(order) + 1)   #> At most `order+1` root-graph nodes
         edgeLabel .= Ref(( T(0), T(0) ))
         backtrack .= T(0)
@@ -352,7 +369,8 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1145/321850.321853
 """
-    genRootGraph(g::StrictGraph, checkConnectivity::Bool=true) -> Pair{Bool, StrictGraph}
+    genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer} -> 
+    Pair{Bool, StrictGraph{T}}
 
 Attempt to recognize a connected `g` as a line graph using a [Lehot-style edge-labeling 
 algorithm](https://doi.org/10.1145/321850.321853) to reconstruct its potential root graph 
@@ -361,7 +379,14 @@ otherwise. This function is only well behaved when the input `g` is a connected
 `StrictGraph`. Hence, by default `checkConnectivity=true`, so that any disconnected-graph 
 input throws an `ArgumentError`. For disconnected graphs, one can first apply 
 [`decompose`](@ref) to obtain connected subgraphs, and then apply `genRootGraph` to each 
-subgraph.
+subgraph. When a root graph is successfully returned, it always has the same vertex type 
+`T` as `g`. 
+
+!!! info
+    Since a root graph can have at most one more vertex than its corresponding line graph, 
+    an `ArgumentError` is thrown when [`countVertices(g)`](@ref `countVertices`) already 
+    returns `typemax(T)`. In this case, convert `g` to a graph with a wider vertex type 
+    with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref) first.
 """
 function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
@@ -371,10 +396,17 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     order = countVertices(g)
     adjList = g.adjacency
 
+    if applicable(typemax, T) && order == typemax(T)
+        throw(ArgumentError("The order of `g::StrictGraph{$T}` is `$order=typemax($T)`. "*
+                            "Thus, its potential root graph cannot be expressed as an "*
+                            "instance of `StrictGraph{$T}` as well. Convert `g` into a "*
+                            "`StrictGraph` with a wider vertex type and try again."))
+    end
+
     if order == 0
-        return (true => StrictGraph(0))
+        return (true => StrictGraph(0, T))
     elseif order == 1
-        rootGraph = StrictGraph(2)
+        rootGraph = StrictGraph(2, T)
         attachEdge!(rootGraph, (1, 2))
         return (true => rootGraph)
     end
@@ -392,7 +424,7 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     end
     node23 = minimum(adjList[begin+node12-1]) #> The smallest neighbor: a canonical choice
 
-    info = NodeEdgeInfo(order)
+    info = NodeEdgeInfo(order|>T)
     edgeLabels = info.edgeLabel
     edgeLabels[begin+node12-1] = (1, 2)
     edgeLabels[begin+node23-1] = (2, 3)
@@ -458,12 +490,11 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     end
 
     discoveredNodes = push!(sharedAdjs, node12, node23) #> Built upon `sharedAdjs`
-    halfName!(info, adjList, discoveredNodes, 2) #> Half name all nodes adjacent to clique-2
+    halfName!(info, adjList, discoveredNodes, T(2)) #> Half name nodes adjacent to clique-2
     fullyName!(info, adjList)
 
     #> Every node must be fully named for `g` to be a line graph
     all(isFullyNamed, edgeLabels) || (return (false => g))
-    
 
     rootGraph = StrictGraph(info.rootOrder)
 
@@ -590,8 +621,10 @@ function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}},
 end
 
 
-discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Integer} = 
-minmax(cliqueLabel, (info.rootOrder += 1))
+function discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Integer}
+    otherEnd = (info.rootOrder += one(T))
+    minmax(cliqueLabel, otherEnd)
+end
 
 
 #> Fully name all the nodes after one around of half naming by `halfName!`
@@ -618,7 +651,7 @@ function fullyName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}
         if bktk == 0 || let bktkEdge = edgeLabels[begin+bktk-1];
                             !(isFullyNamed(bktkEdge) && in(cliqueLabel, bktkEdge)) end
             throw(AssertionError("A half-named node should have a valid adjacent node " * 
-                                 "belonging to same clique-$cliqueLabel."))
+                                 "belonging to the same clique-$cliqueLabel."))
         end
 
         edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)
@@ -636,7 +669,8 @@ function fullyName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}
                 edgeLabels[begin+cliqueNode-1] = discoverNode!(info, cliqueLabel)
             elseif isHalfNamed(cliqueNodeEdge)
                 namedEnd = first(cliqueNodeEdge)
-                otherEnd = (namedEnd == cliqueLabel) ? (info.rootOrder += 1) : cliqueLabel
+                otherEnd = if namedEnd == cliqueLabel; info.rootOrder += one(T)
+                           else cliqueLabel end
                 completeNodeEdge!(info, adjList, cliqueNode, otherEnd)
             end
         end

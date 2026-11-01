@@ -190,6 +190,19 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
         @test g isa StrictGraph{Int16}
         @test listEdges(g) isa Vector{NTuple{2, Int16}}
     end
+
+    @testset "conversion constructor StrictGraph(T, g)" begin
+        g = StrictGraph(3, [(1, 2), (2, 3)])
+        g16 = StrictGraph(Int16, g)
+        @test g16 isa StrictGraph{Int16}
+        @test listEdges(g16) isa Vector{NTuple{2, Int16}}
+        @test listEdges(g16) == listEdges(g)
+        gCopy = StrictGraph(Int, g)
+        @test gCopy !== g #> A copy is returned even when the type is unchanged
+        @test listEdges(gCopy) == listEdges(g)
+        @test StrictGraph(Int8, StrictGraph(127)) isa StrictGraph{Int8} #> Boundary case
+        @test_throws InexactError StrictGraph(Int8, StrictGraph(128))
+    end
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -782,6 +795,31 @@ end
             ok, _ = genRootGraph(makeKn(3), false)
             @test ok
         end
+    end
+
+    @testset "vertex type is preserved: StrictGraph{T} -> StrictGraph{T}" begin
+        #> Orders 0 and 1 return early and must still carry `T`
+        ok, root = genRootGraph(StrictGraph(0, Int16))
+        @test ok && root isa StrictGraph{Int16} && countVertices(root) == 0
+        ok, root = genRootGraph(StrictGraph(1, Int16))
+        @test ok && root isa StrictGraph{Int16} && listEdges(root) == [(1, 2)]
+
+        #> The smallest input that reaches the labeling procedure: K2 = L(P3)
+        ok, root = genRootGraph(StrictGraph(2, NTuple{2, Int16}[(1, 2)]))
+        @test ok
+        @test root isa StrictGraph{Int16}
+        @test listEdges(root) == [(1, 2), (2, 3)]
+
+        #> The root may have one more vertex than `g`, so `countVertices(g) == typemax(T)` 
+        #> must throw instead of overflowing, and widening `T` must then make it work
+        n = typemax(Int8)
+        g = StrictGraph(n, NTuple{2, Int8}[(i, i + 1) for i in 1:(n - 1)]) #> P_127=L(P_128)
+        @test_throws ArgumentError genRootGraph(g)
+        ok, root = genRootGraph(StrictGraph(Int16, g))
+        @test ok
+        @test root isa StrictGraph{Int16}
+        @test countVertices(root) == Int(n) + 1
+        @test listEdges(root) == [(i, i + 1) for i in 1:Int(n)]
     end
 
     @testset "line graphs (returns true => root)" begin

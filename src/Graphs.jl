@@ -71,9 +71,9 @@ function StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer}
     if applicable(typemax, T) && order > typemax(T)
         throw(InexactError(:StrictGraph, StrictGraph{T}, g))
     end
-    res = StrictGraph(g.order, T)
+    res = StrictGraph(order, T)
     for (i, adj) in enumerate(g.adjacency)
-        res.adjacency[begin+i-1] = adj
+        res.adjacency[begin+i-1] = Set{T}(adj) #> Make a fresh copy
     end
     res
 end
@@ -380,13 +380,13 @@ otherwise. This function is only well behaved when the input `g` is a connected
 input throws an `ArgumentError`. For disconnected graphs, one can first apply 
 [`decompose`](@ref) to obtain connected subgraphs, and then apply `genRootGraph` to each 
 subgraph. When a root graph is successfully returned, it always has the same vertex type 
-`T` as `g`. 
+`T` as `g`.
 
 !!! info
     Since a root graph can have at most one more vertex than its corresponding line graph, 
     an `ArgumentError` is thrown when [`countVertices(g)`](@ref `countVertices`) already 
     returns `typemax(T)`. In this case, convert `g` to a graph with a wider vertex type 
-    with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref) first.
+    with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref `StrictGraph`) first.
 """
 function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)

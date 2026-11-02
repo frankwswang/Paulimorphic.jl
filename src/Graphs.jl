@@ -11,6 +11,21 @@ and adjacency sets (`.adjacency::Memory{Set{T}}`). The graph is undirected and c
 self-loops or parallel edges. Vertices (if they exist) are labeled by positive integers of 
 type `T` (ranging from `1` to `.order`).
 
+!!! info
+    Two `StrictGraph` instances are considered equal when they have the equal order 
+    (verifiable via `[countVertices]`(@ref)) and the equal set of edges (verifiable via 
+    [`listEdges`](@ref)). To check whether two graphs are isomorphic to each even if they 
+    are not equal, resort to [`isIsomorphic`](@ref).
+    ```jldoctest
+    julia> g1, g2, g3 = map(e->StrictGraph(3, [e]), [(1, 2), (1, 2), (1, 3)]);
+
+    julia> g1 == g2 != g3
+    true
+
+    julia> isIsomorphic(g1, g2) && isIsomorphic(g2, g3)
+    true
+    ```
+
 ≡≡≡ Constructors ≡≡≡
 
     StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
@@ -76,6 +91,15 @@ function StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer}
         res.adjacency[begin+i-1] = Set{T}(adj) #> Make a fresh copy
     end
     res
+end
+
+function Base.hash(g::StrictGraph, hashCode::UInt)
+    code = hash(g.order, hashCode)
+    hash(g.adjacency, code)
+end
+
+function Base.:(==)(g1::StrictGraph, g2::StrictGraph)
+    (g1.order == g2.order) && (g1.adjacency == g2.adjacency)
 end
 
 

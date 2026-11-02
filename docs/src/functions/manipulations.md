@@ -22,6 +22,7 @@ evalAntiCom
 ```@docs
 canonicalize!
 sanitize!
+absorbPhases!
 sortStrings!
 setCoeff!
 curtail

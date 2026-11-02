@@ -206,6 +206,19 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
         @test StrictGraph(Int8, StrictGraph(127)) isa StrictGraph{Int8} #> Boundary case
         @test_throws InexactError StrictGraph(Int8, StrictGraph(128))
     end
+
+    @testset "equality and hashing" begin
+        g = StrictGraph(4, [(1, 2), (2, 3), (3, 4), (1, 4)])
+        h = StrictGraph(4, reverse(listEdges(g))) #> The same graph with another layout
+        foreach(s -> sizehint!(s, 64), h.adjacency)
+        @test g == h && hash(g) == hash(h) && g !== h
+        g16 = StrictGraph(Int16, g) #> The same graph with another vertex type
+        @test g == g16 && hash(g) == hash(g16)
+        @test g != StrictGraph(5, listEdges(g)) #> Different order
+        @test g != StrictGraph(4, [(1, 2), (2, 3), (3, 4)]) #> Different edge set
+        @test length(Set([g, h, g16])) == 1
+        @test StrictGraph(0) == StrictGraph(0, Int16)
+    end
 end
 
 # ──────────────────────────────────────────────────────────────────────────────

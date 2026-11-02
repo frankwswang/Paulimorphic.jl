@@ -12,10 +12,11 @@ self-loops or parallel edges. Vertices (if they exist) are labeled by positive i
 type `T` (ranging from `1` to `.order`).
 
 !!! info
-    Two `StrictGraph` instances are considered equal when they have the equal order 
-    (verifiable via `[countVertices]`(@ref)) and the equal set of edges (verifiable via 
-    [`listEdges`](@ref)). To check whether two graphs are isomorphic to each even if they 
-    are not equal, resort to [`isIsomorphic`](@ref).
+    Two `StrictGraph` instances are considered equal when they have the same order 
+    (verifiable via [`countVertices`](@ref)) and the same set of edges (verifiable via 
+    [`listEdges`](@ref)), regardless of their vertex types and of the internal storage 
+    layout of their adjacency sets. To check whether two graphs are isomorphic to each 
+    other even if they are not equal, resort to [`isIsomorphic`](@ref).
     ```jldoctest
     julia> g1, g2, g3 = map(e->StrictGraph(3, [e]), [(1, 2), (1, 2), (1, 3)]);
 

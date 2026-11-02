@@ -392,6 +392,14 @@ validate the structure of `orbInte` when `checkInput=true`:
     When `checkInput` is set to `true`, `enc` is also checked via 
     [`checkSpinSectoredEnc`](@ref), and each mode window is checked against the capacity of 
     its sector in `enc`.
+
+!!! note "Deterministic coefficient accumulation"
+    The coefficient associated with each Pauli string in the returned `PauliSum` is 
+    accumulated over all of its contributions (at most one per non-zero element of 
+    `orbInte`) by a single [Neumaier summation](https://doi.org/10.1002/zamm.19740540106) 
+    in a fixed traversal order of `orbInte`, and only then are the terms (each is a pair of 
+    a Pauli string with the accumulated coefficient) encapsulated by a `PauliSum` in the 
+    canonical form.
 """
 function genNBodyOperatorSum(format::NBodyOrdering, enc::NTuple{2, PairwiseSumEnc}, 
                              orbInte::AbstractArray{T, D}, 
@@ -644,6 +652,13 @@ from the one-body tensor. This correction is carried out automatically
 `encodeElecHam` always returns an equivalent encoding for the same input molecular integral 
 tensors (i.e., preserving the eigenspectrum of the underlying electronic Hamiltonian) 
 regardless of the value of `format`.
+
+!!! note "Deterministic coefficient accumulation"
+    Same as how the Pauli-term coefficients are collected by [`genNBodyOperatorSum`](@ref), 
+    the one-body and two-body terms of both spin sectors and the cross-sector two-body 
+    terms share one coefficient accumulator, so the coefficient of each Pauli term in the 
+    returned `PauliSum` is obtained from a single compensated summation over all of its 
+    contributions in the Hamiltonian.
 
 ## Simplified method
 

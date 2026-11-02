@@ -979,6 +979,51 @@ end
         end
     end
 
+    @testset "vertex-edge correspondence stored in cache!Self" begin
+        #> The cached edges rebuild the root and realize the isomorphism L(root) -> g
+        rng = MersenneTwister(2027)
+        roots = StrictGraph{Int}[makePath(5), makeCn(6), makeKn(4), makeKmn(2, 3)]
+        for _ in 1:30
+            r = randGraph(rng, rand(rng, 3:8), rand(rng, (0.3, 0.5, 0.8)))
+            countEdges(r) >= 2 && push!(roots, r)
+        end
+        for r in roots
+            g = genLineGraph(r)
+            length(listComponents(g)) == 1 || continue
+            n = countVertices(g)
+            cache = fill((0, 0), n)
+            ok, root = genRootGraph(g, cache)
+            @test ok
+            @test listEdges(StrictGraph(countVertices(root), cache)) == listEdges(root)
+            @test allunique(cache)
+            @test all(x < y for (x, y) in cache)
+            adjacencyMatches = true
+            for u in 1:n, v in (u + 1):n
+                adjacent = !isdisjoint(cache[u], cache[v])
+                adjacencyMatches &= (containEdge(g, (u, v)) == adjacent)
+            end
+            @test adjacencyMatches
+            #> The same correspondence for another storage layout of `g`
+            h = StrictGraph(n, reverse(listEdges(g)))
+            foreach(s -> sizehint!(s, 64), h.adjacency)
+            cache2 = fill((0, 0), n)
+            ok2, _ = genRootGraph(h, cache2)
+            @test ok2 && cache2 == cache
+        end
+
+        #> Trivial orders
+        @test first(genRootGraph(StrictGraph(0), NTuple{2, Int}[]))
+        cache1 = [(0, 0)]
+        @test first(genRootGraph(StrictGraph(1), cache1)) && cache1 == [(1, 2)]
+
+        #> A wrong length throws; a rejected input leaves the buffer untouched
+        @test_throws ArgumentError genRootGraph(makeKn(2), fill((0, 0), 3))
+        claw = makeK1n(3)
+        cacheClaw = fill((-1, -1), countVertices(claw))
+        ok, returned = genRootGraph(claw, cacheClaw)
+        @test !ok && returned === claw && all(==((-1, -1)), cacheClaw)
+    end
+
     @testset "small random roots validated by bruteIso" begin
         rng = MersenneTwister(1234)
         for _ in 1:100

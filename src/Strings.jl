@@ -2,7 +2,7 @@ export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, isCan
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
        listTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
-public sortStrings!, setCoeff!
+public absorbPhases!, sortStrings!, setCoeff!
 
 """
     PauliStr <: $(DiscreteOperator|>repr)

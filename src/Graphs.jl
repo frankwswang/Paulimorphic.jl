@@ -408,13 +408,13 @@ input throws an `ArgumentError`. For disconnected graphs, one can first apply
 subgraph. When a root graph is successfully returned, it always has the same vertex type 
 `T` as `g`.
 
-To obtain the explicit mapping relation between the vertices of `g` and the potentially 
-corresponding `r` , supply a `cache!Self::AbstractVector{NTuple{2, T}}`, which must have 
-the length same as the order of `g` (obtainable via [`countVertices`](@ref)), as the second 
-argument. When `r` is successfully found, the `i`-th element of `cache!Self` is overwritten 
-as the edge in `r` represented by the `i`-th vertex in `g` for all values of `i`; otherwise, 
-`cache!Self` is not mutated. The labeling of the vertices in `r` and the correspondingly 
-updated `cache!Self` is deterministic with respect to a fixed `g`.
+To obtain the correspondence between the vertices of `g` and the edges of `r`, supply a 
+`cache!Self::AbstractVector{NTuple{2, T}}` with the same length as the order of `g` 
+(obtainable via [`countVertices`](@ref)) as the second argument. When `r` is successfully 
+found, the `i`-th element of `cache!Self` is overwritten with the edge `(x, y)` (`x < y`) 
+of `r` represented by the `i`-th vertex of `g`; otherwise, `cache!Self` is not mutated. For 
+a fixed `g`, the value of `r` and `cache!Self` are also deterministic. In other words, for 
+any `g1 == g`, replacing `g` with `g1` does not change the outputs of `genRootGraph`.
 
 !!! info
     Since a root graph can have at most one more vertex than its corresponding line graph, 
@@ -422,17 +422,17 @@ updated `cache!Self` is deterministic with respect to a fixed `g`.
     returns `typemax(T)`. In this case, convert `g` to a graph with a wider vertex type 
     with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref `StrictGraph`) first.
 
-!!! note "When `g` has more than one valid vertex-edge correspondence"
-    By [Whitney's theorem](https://doi.org/10.2307/2371086), a connected line graph 
-    uniquely determines a root-graph isomorphism when the root graph has at least five 
-    vertices, correspondingly, the mapping from line-graph vertices to root-graph edges are 
-    also bijective, i.e., a unique vertex-edge correspondence.
+!!! note "When a line graph has more than one valid vertex-edge correspondence"
+    By [Whitney's theorem](https://doi.org/10.2307/2371086), a connected line graph `g` 
+    determines its root graph up to isomorphism, and when the root graph has at least five 
+    vertices, the bijective map between the vertices of `g` and the edges of `r` is unique 
+    up to relabeling the vertices of `r` (i.e., a unique vertex-edge correspondence.).
 
     For root graphs with fewer than five vertices, there are in total four exceptions in 
-    two categories. Below list them and the corresponding deterministic output convention 
-    `genRootGraph` deploys:
-    - `g` is the ``K_3``: both the triangle graph ``K_3`` and the claw graph ``K_{1,3}`` 
-      are root graphs of `g`; the triangle is returned: 
+    two categories, listed below along with the deterministic convention that 
+    `genRootGraph` follows:
+    - `g` is ``K_3``: both the triangle ``K_3`` and the claw ``K_{1,3}`` are root graphs 
+      of `g`; a ``K_3`` is returned: 
       ```jldoctest
       julia> lg = StrictGraph(3, [(1, 2), (1, 3), (2, 3)]);
 
@@ -441,13 +441,12 @@ updated `cache!Self` is deterministic with respect to a fixed `g`.
       julia> bl && isIsomorphic(lg, rg)
       true
       ```
-    - `g` is the diamond graph ``K4 - e``, the wheel graph ``K_{1,2,2}`` (with four rim 
-      vertices), or the octahedron graph ``K_{2,2,2}``: the root graph is unique up to 
-      isomorphism, but exchanging the root edges corresponding to two vertices of `g` with 
-      identical neighbors (e.g., the two degree-2 vertices of the diamond) produces two 
-      root graphs of `g` with different vertex-edge correspondences. If a 
-      `cache!Self::AbstractVector{NTuple{2, T}}` is supplied, it deterministically store 
-      one of the two conventions.
+    - `g` is the diamond ``K_4 - e``, the wheel ``K_{1,2,2}``, or the octahedron 
+      ``K_{2,2,2}``: the root graph is unique up to isomorphism, but exchanging the root 
+      edges corresponding to two vertices of `g` with identical neighbors (e.g., the two 
+      degree-2 vertices of the diamond) gives a second valid correspondence that no 
+      relabeling of `r` reproduces. The returned `r` and the content of `cache!Self` 
+      deterministically follow one of the two.
 """
 function genRootGraph(g::StrictGraph{T}, 
                       cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
@@ -460,7 +459,7 @@ function genRootGraph(g::StrictGraph{T},
     saveEdgeNodeRelation = !ismissing(cache!Self)
 
     if saveEdgeNodeRelation && length(cache!Self) != order
-        throw(ArgumentError("`cache!Self::$(typeof(cache!Self))` must have contain $order"*
+        throw(ArgumentError("`cache!Self::$(typeof(cache!Self))` must contain $order "*
                             "elements to match the order of `g`."))
     end
 

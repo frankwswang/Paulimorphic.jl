@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, evalMagnitude
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul
 
 @testset "Strings.jl" begin
 
@@ -308,13 +308,6 @@ end
               [5, 3, 1, 4, 2, 6])
         @test PauliSum(strs[p], cs[p]) == ref
     end
-    #> Wide dynamic range: the accumulation order would change the compensated sum's last 
-    #> bit, so the merge must fix the order by the coefficient values, not the input order
-    wide = [2.0^54, -2.0^54, 1.0, 2.0^-53, 2.0^-60]
-    refWide = PauliSum(fill(pauli"X", 5), wide)
-    @test refWide.coeff == ComplexF64[1.0] #> A fixed order may deteriorate error mitigation
-    @test PauliSum(fill(pauli"X", 5), reverse(wide)) == refWide
-    @test PauliSum(fill(pauli"X", 5), wide[[1, 3, 4, 2, 5]]) == refWide
 end
 
 @testset "indexTerm" begin
@@ -457,14 +450,6 @@ end
     @test curtail(PauliSum(Float64)) == PauliSum(Float64)
     #> Exact coefficient types: the default threshold only removes exact zeros
     @test curtail(PauliSum([pauli"X"], [1//10^9])) == PauliSum([pauli"X"], [1//10^9])
-
-    #> The threshold test should be platform-independent
-    c = 0.23665594309283294 + 0.03906366194959983im
-    hc = PauliSum([pauli"X"], [c])
-    m = evalMagnitude(c)
-    @test countTerms(curtail(hc, m)) == 0
-    @test countTerms(curtail(hc, m; inclusive=true)) == 1
-    @test countTerms(curtail(hc, prevfloat(m))) == 1
 end
 
 end

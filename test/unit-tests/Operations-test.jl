@@ -117,7 +117,7 @@ end
     @test h + pauli"X" == pauli"X" + h
     @test h1 + h2 == add(h1, h2)
 
-    #>> Mixed chain falls back to Base's pairwise fold with correct promotion
+    #>> Mixed chain uses the n-ary method with correct promotion
     @test (PauliSum(Float64) + pauli"X" + pauli"Y") isa PauliSum{Float64}
 
     #>> Intentionally unsupported combinations stay unsupported
@@ -140,16 +140,9 @@ end
     ha = PauliSum([s], [1.0])
     hb = PauliSum([s], [1e-17])
     hc = PauliSum([s], [-1.0])
-    #>> Chained binary additions round the intermediate result after every step, so the 
-    #>> association order decides whether the residual term survives
-    @test countTerms((ha + hb) + hc) == 0
-    @test countTerms((ha + hc) + hb) == 1
-    #>> A chain of three or more `+` is one n-ary call: correctly rounded, order-free
-    nary = ha + hb + hc
-    @test nary == hc + hb + ha == hb + ha + hc
-    @test nary == combine([ha, hb, hc]) == combine(Float64, [ha, hb, hc])
-    @test nary.coeff == ComplexF64[1e-17]
-    @test nary isa PauliSum{Float64}
+    #>> A chain of three or more `+` is one n-ary call (its merge semantics and order 
+    #>> independence are pinned in `quality-tests/Determinism-test.jl`)
+    @test (ha + hb + hc) isa PauliSum{Float64}
     #>> Promotion of mixed core types; exact cancellation drops the term
     hi = PauliSum([pauli"Z"], [2])
     @test combine([hi, ha, hc]) == PauliSum([pauli"Z"], [2.0])
@@ -163,7 +156,7 @@ end
     @test combine([ha]) == ha && combine([ha]).str[begin] !== ha.str[begin]
     #>> `simplification=false` keeps the concatenated terms (canonically sorted)
     @test combine([ha, hb, hc], false).coeff == ComplexF64[1e-17, -1.0, 1.0]
-    #>> Mixed chains including a `PauliStr` still fall back to Base's pairwise fold
+    #>> Mixed chains including a `PauliStr` use the n-ary method as well
     @test ha + hc + pauli"Z" == PauliSum([pauli"Z"], [1.0])
     #>> A single `PauliStr` stored in a mixed-type container
     @test combine(Union{PauliStr, PauliSum}[pauli"X"]) == PauliSum(Int, [pauli"X"])

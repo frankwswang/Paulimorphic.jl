@@ -45,6 +45,7 @@ using Test
     t5 = @elapsed @testset "$(unit5)" begin
         include("quality-tests/Aqua-test.jl")
         include("quality-tests/Documentation-test.jl")
+        include("quality-tests/Determinism-test.jl")
     end
     println("$(unit5) test finished in $t5 seconds.\n")
 end

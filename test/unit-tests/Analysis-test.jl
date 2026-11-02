@@ -73,7 +73,7 @@ using Paulimorphic
         @test isempty(nodes) && isempty(edges)
     end
 
-    @testset "complex coefficients (abs path)" begin
+    @testset "complex coefficients (magnitude path)" begin
         #> canonical [Z(1+0im), X(0+1im)]; both |·| = 1 > 0.5 kept; |1·i| = 1 > 0 -> edge
         h = PauliSum([X, Z], [1im, 1.0 + 0im])
         nodes, edges = getFrustrationInfo(curtail(h, 0.5))

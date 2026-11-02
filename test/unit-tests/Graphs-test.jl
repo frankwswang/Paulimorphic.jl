@@ -948,47 +948,21 @@ end
     end
 
     @testset "documented choices for inputs with several root correspondences" begin
-        #> g = K3: both K3 and K_{1,3} are root graphs; the triangle is returned
-        ok, root = genRootGraph(makeKn(3))
-        @test ok
-        @test countVertices(root) == 3
-        @test listEdges(root) == [(1, 2), (1, 3), (2, 3)]
-
-        #> Unique roots (up to isomorphism) of the other three exceptional line graphs
+        #> g = K3: both K3 and K_{1,3} are root graphs; the triangle is returned. For the 
+        #> other three exceptional line graphs, the root is unique up to isomorphism. (The 
+        #> exact labeled outputs are pinned in `quality-tests/Determinism-test.jl`.)
         paw = StrictGraph(4, [(1, 2), (1, 3), (2, 3), (3, 4)])
         diamond = StrictGraph(4, [(1, 2), (1, 3), (2, 3), (2, 4), (3, 4)])
         w5 = StrictGraph(5, [(1, 2), (1, 3), (1, 4), (1, 5),     #> W5: hub 1 joined to
                              (2, 3), (3, 4), (4, 5), (2, 5)])    #> the 4-cycle 2-3-4-5
         octahedron = genLineGraph(makeKn(4))
-        cases = ((diamond, paw), (w5, diamond), (octahedron, makeKn(4)))
+        cases = ((makeKn(3), makeKn(3)), (diamond, paw), (w5, diamond), 
+                 (octahedron, makeKn(4)))
         for (g, expectedRoot) in cases
             ok, root = genRootGraph(g)
             @test ok
             @test isValidRoot(g, root)
             @test isIsomorphic(root, expectedRoot)
-        end
-    end
-
-    @testset "labeled output is independent of the adjacency-set layout" begin
-        #> The same labeled graph rebuilt with reversed edge insertion and rehashed sets
-        function relayout(g::StrictGraph)
-            g2 = StrictGraph(countVertices(g), reverse(listEdges(g)))
-            foreach(s -> sizehint!(s, 4 * length(s) + 16), g2.adjacency)
-            g2
-        end
-        rng = MersenneTwister(2026)
-        lineGraphs = [makeCn(6), genLineGraph(makeKmn(3, 3)), genLineGraph(makeKn(5))]
-        for _ in 1:40
-            root0 = randGraph(rng, rand(rng, 3:8), rand(rng, (0.3, 0.5, 0.8)))
-            countEdges(root0) == 0 && continue
-            g = genLineGraph(root0)
-            length(listComponents(g)) == 1 && push!(lineGraphs, g)
-        end
-        for g in lineGraphs
-            ok1, root1 = genRootGraph(g)
-            ok2, root2 = genRootGraph(relayout(g))
-            @test ok1 && ok2
-            @test listEdges(root1) == listEdges(root2)
         end
     end
 
@@ -1016,12 +990,6 @@ end
                 adjacencyMatches &= (containEdge(g, (u, v)) == adjacent)
             end
             @test adjacencyMatches
-            #> The same correspondence for another storage layout of `g`
-            h = StrictGraph(n, reverse(listEdges(g)))
-            foreach(s -> sizehint!(s, 64), h.adjacency)
-            cache2 = fill((0, 0), n)
-            ok2, _ = genRootGraph(h, cache2)
-            @test ok2 && cache2 == cache
         end
 
         #> Trivial orders
@@ -1055,7 +1023,10 @@ end
         end
     end
 
-    @testset "labeling is independent of the adjacency-set storage order" begin
+    @testset "outputs are independent of the adjacency-set storage order" begin
+        #> The same labeled graph rebuilt with reversed edge insertion and rehashed sets 
+        #> must give the same labeled root and the same vertex-edge correspondence (fixed 
+        #> expected outputs are pinned in `quality-tests/Determinism-test.jl`)
         rng = MersenneTwister(2026)
         roots = StrictGraph{Int}[makeKn(4), makeKn(5), makeCn(7), makePath(6), 
                                  makeKmn(3, 4), 
@@ -1068,16 +1039,19 @@ end
         for r in roots
             g = genLineGraph(r)
             length(listComponents(g)) == 1 || continue
-            ok, root = genRootGraph(g)
+            n = countVertices(g)
+            cache = fill((0, 0), n)
+            ok, root = genRootGraph(g, cache)
             @test ok
-            ref = listEdges(root)
             @test isValidRoot(g, root)
+            ref = listEdges(root)
             for hint in (0, 64, 4096)
-                h = StrictGraph(countVertices(g), reverse(listEdges(g)))
+                h = StrictGraph(n, reverse(listEdges(g)))
                 foreach(s -> sizehint!(s, hint), h.adjacency)
-                ok2, root2 = genRootGraph(h)
+                cache2 = fill((0, 0), n)
+                ok2, root2 = genRootGraph(h, cache2)
                 @test ok2
-                @test listEdges(root2) == ref
+                @test listEdges(root2) == ref && cache2 == cache
             end
         end
     end

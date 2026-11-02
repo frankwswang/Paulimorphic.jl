@@ -200,6 +200,9 @@ isValidRoot(g::StrictGraph, root::StrictGraph) = isIsomorphic(genLineGraph(root)
         gCopy = StrictGraph(Int, g)
         @test gCopy !== g #> A copy is returned even when the type is unchanged
         @test listEdges(gCopy) == listEdges(g)
+        @test all(a !== b for (a, b) in zip(gCopy.adjacency, g.adjacency)) #> No shared sets
+        attachEdge!(gCopy, (1, 3))
+        @test !containEdge(g, (1, 3)) && countEdges(g) == 2
         @test StrictGraph(Int8, StrictGraph(127)) isa StrictGraph{Int8} #> Boundary case
         @test_throws InexactError StrictGraph(Int8, StrictGraph(128))
     end
@@ -792,7 +795,7 @@ end
         end
 
         @testset "checkConnectivity=false skips the check on connected input" begin
-            ok, _ = genRootGraph(makeKn(3), false)
+            ok, _ = genRootGraph(makeKn(3), checkConnectivity=false)
             @test ok
         end
     end
@@ -914,7 +917,7 @@ end
     end
 
     @testset "non-line graphs (returns false => g)" begin
-        wheel5 = StrictGraph(6, [(1, 2), (1, 3), (1, 4), (1, 5), (1, 6),    #> spokes
+        wheel6 = StrictGraph(6, [(1, 2), (1, 3), (1, 4), (1, 5), (1, 6),    #> spokes
                                  (2, 3), (3, 4), (4, 5), (5, 6), (2, 6)])   #> rim
         nonLineGraphs = (
             makeK1n(3),                                       #> claw K_{1,3}
@@ -922,12 +925,57 @@ end
             makeK1n(5),                                       #> star K_{1,5}
             makeKmn(2, 3),                                    #> K_{2,3}
             StrictGraph(5, [(1, 2), (1, 4), (1, 5), (2, 3)]), #> claw w/ a subdivided leaf
-            wheel5,                                           #> wheel W5
+            wheel6,                                           #> wheel W6
         )
         for g in nonLineGraphs
             ok, returned = genRootGraph(g)
             @test !ok
             @test returned === g #> The original graph is returned as the second element
+        end
+    end
+
+    @testset "documented choices for inputs with several root correspondences" begin
+        #> g = K3: both K3 and K_{1,3} are root graphs; the triangle is returned
+        ok, root = genRootGraph(makeKn(3))
+        @test ok
+        @test countVertices(root) == 3
+        @test listEdges(root) == [(1, 2), (1, 3), (2, 3)]
+
+        #> Unique roots (up to isomorphism) of the other three exceptional line graphs
+        paw = StrictGraph(4, [(1, 2), (1, 3), (2, 3), (3, 4)])
+        diamond = StrictGraph(4, [(1, 2), (1, 3), (2, 3), (2, 4), (3, 4)])
+        w5 = StrictGraph(5, [(1, 2), (1, 3), (1, 4), (1, 5),     #> W5: hub 1 joined to
+                             (2, 3), (3, 4), (4, 5), (2, 5)])    #> the 4-cycle 2-3-4-5
+        octahedron = genLineGraph(makeKn(4))
+        cases = ((diamond, paw), (w5, diamond), (octahedron, makeKn(4)))
+        for (g, expectedRoot) in cases
+            ok, root = genRootGraph(g)
+            @test ok
+            @test isValidRoot(g, root)
+            @test isIsomorphic(root, expectedRoot)
+        end
+    end
+
+    @testset "labeled output is independent of the adjacency-set layout" begin
+        #> The same labeled graph rebuilt with reversed edge insertion and rehashed sets
+        function relayout(g::StrictGraph)
+            g2 = StrictGraph(countVertices(g), reverse(listEdges(g)))
+            foreach(s -> sizehint!(s, 4 * length(s) + 16), g2.adjacency)
+            g2
+        end
+        rng = MersenneTwister(2026)
+        lineGraphs = [makeCn(6), genLineGraph(makeKmn(3, 3)), genLineGraph(makeKn(5))]
+        for _ in 1:40
+            root0 = randGraph(rng, rand(rng, 3:8), rand(rng, (0.3, 0.5, 0.8)))
+            countEdges(root0) == 0 && continue
+            g = genLineGraph(root0)
+            length(listComponents(g)) == 1 && push!(lineGraphs, g)
+        end
+        for g in lineGraphs
+            ok1, root1 = genRootGraph(g)
+            ok2, root2 = genRootGraph(relayout(g))
+            @test ok1 && ok2
+            @test listEdges(root1) == listEdges(root2)
         end
     end
 
@@ -946,6 +994,33 @@ end
             ok, root = genRootGraph(g)
             @test ok
             @test bruteIso(genLineGraph(root), g)
+        end
+    end
+
+    @testset "labeling is independent of the adjacency-set storage order" begin
+        rng = MersenneTwister(2026)
+        roots = StrictGraph{Int}[makeKn(4), makeKn(5), makeCn(7), makePath(6), 
+                                 makeKmn(3, 4), 
+                                 StrictGraph(7, [(1, 2), (1, 3), (2, 3), (3, 4), (4, 5), 
+                                                 (5, 6), (5, 7), (6, 7)])]
+        for _ in 1:40
+            r = randGraph(rng, rand(rng, 3:9), rand(rng, (0.3, 0.5, 0.8)))
+            countEdges(r) >= 2 && push!(roots, r)
+        end
+        for r in roots
+            g = genLineGraph(r)
+            length(listComponents(g)) == 1 || continue
+            ok, root = genRootGraph(g)
+            @test ok
+            ref = listEdges(root)
+            @test isValidRoot(g, root)
+            for hint in (0, 64, 4096)
+                h = StrictGraph(countVertices(g), reverse(listEdges(g)))
+                foreach(s -> sizehint!(s, hint), h.adjacency)
+                ok2, root2 = genRootGraph(h)
+                @test ok2
+                @test listEdges(root2) == ref
+            end
         end
     end
 end

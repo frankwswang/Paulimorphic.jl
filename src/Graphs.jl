@@ -369,7 +369,9 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1145/321850.321853
 """
-    genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer} -> 
+    genRootGraph(g::StrictGraph{T}, 
+                 cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
+                 checkConnectivity::Bool=true) where {T<:Integer} -> 
     Pair{Bool, StrictGraph{T}}
 
 Attempt to recognize a connected `g` as a line graph using a [Lehot-style edge-labeling 
@@ -382,19 +384,61 @@ input throws an `ArgumentError`. For disconnected graphs, one can first apply
 subgraph. When a root graph is successfully returned, it always has the same vertex type 
 `T` as `g`.
 
+To obtain the explicit mapping relation between the vertices of `g` and the potentially 
+corresponding `r` , supply a `cache!Self::AbstractVector{NTuple{2, T}}`, which must have 
+the length same as the order of `g` (obtainable via [`countVertices`](@ref)), as the second 
+argument. When `r` is successfully found, the `i`-th element of `cache!Self` is overwritten 
+as the edge in `r` represented by the `i`-th vertex in `g` for all values of `i`; otherwise, 
+`cache!Self` is not mutated. The labeling of the vertices in `r` and the correspondingly 
+updated `cache!Self` is deterministic with respect to a fixed `g`.
+
 !!! info
     Since a root graph can have at most one more vertex than its corresponding line graph, 
     an `ArgumentError` is thrown when [`countVertices(g)`](@ref `countVertices`) already 
     returns `typemax(T)`. In this case, convert `g` to a graph with a wider vertex type 
     with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref `StrictGraph`) first.
+
+!!! note "When `g` has more than one valid vertex-edge correspondence"
+    By [Whitney's theorem](https://doi.org/10.2307/2371086), a connected line graph 
+    uniquely determines a root-graph isomorphism when the root graph has at least five 
+    vertices, correspondingly, the mapping from line-graph vertices to root-graph edges are 
+    also bijective, i.e., a unique vertex-edge correspondence.
+
+    For root graphs with fewer than five vertices, there are in total four exceptions in 
+    two categories. Below list them and the corresponding deterministic output convention 
+    `genRootGraph` deploys:
+    - `g` is the ``K_3``: both the triangle graph ``K_3`` and the claw graph ``K_{1,3}`` 
+      are root graphs of `g`; the triangle is returned: 
+      ```jldoctest
+      julia> lg = StrictGraph(3, [(1, 2), (1, 3), (2, 3)]);
+
+      julia> bl, rg = genRootGraph(lg);
+
+      julia> bl && isIsomorphic(lg, rg)
+      true
+      ```
+    - `g` is the diamond graph ``K4 - e``, the wheel graph ``K_{1,2,2}`` (with four rim 
+      vertices), or the octahedron graph ``K_{2,2,2}``: the root graph is unique up to 
+      isomorphism, but exchanging the root edges corresponding to two vertices of `g` with 
+      identical neighbors (e.g., the two degree-2 vertices of the diamond) produces two 
+      root graphs of `g` with different vertex-edge correspondences. If a 
+      `cache!Self::AbstractVector{NTuple{2, T}}` is supplied, it deterministically store 
+      one of the two conventions.
 """
-function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
+function genRootGraph(g::StrictGraph{T}, 
+                      cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
+                      checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
         throw(ArgumentError("The input graph `g` must be connected."))
     end
 
     order = countVertices(g)
-    adjList = g.adjacency
+    saveEdgeNodeRelation = !ismissing(cache!Self)
+
+    if saveEdgeNodeRelation && length(cache!Self) != order
+        throw(ArgumentError("`cache!Self::$(typeof(cache!Self))` must have contain $order"*
+                            "elements to match the order of `g`."))
+    end
 
     if applicable(typemax, T) && order == typemax(T)
         throw(ArgumentError("The order of `g::StrictGraph{$T}` is `$order=typemax($T)`. "*
@@ -408,8 +452,11 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     elseif order == 1
         rootGraph = StrictGraph(2, T)
         attachEdge!(rootGraph, (1, 2))
+        saveEdgeNodeRelation && (cache!Self[begin] = (1, 2))
         return (true => rootGraph)
     end
+
+    adjList = g.adjacency
 
     #> Declare two valid vertices to be the basic nodes
     node12 = 0
@@ -516,7 +563,12 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
         d = length(adjs)
         lRootEdgeNum += d * (d - 1) ÷ 2
     end
-    length(gEdges) == lRootEdgeNum ? (true => rootGraph) : (false => g)
+    if length(gEdges) == lRootEdgeNum
+        saveEdgeNodeRelation && (cache!Self .= edgeLabels)
+        true => rootGraph
+    else
+        false => g
+    end
 end
 
 

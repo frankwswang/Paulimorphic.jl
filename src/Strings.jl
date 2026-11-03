@@ -893,7 +893,7 @@ function absorbPhases!(strs::AbstractVector{PauliStr},
         if phase != posRea
             str.phase = posRea
             val = storage[begin+i-1]
-            storage[begin+i-1] = checkedMul(val, typeof(val)( evalPhase(phase) ))
+            storage[begin+i-1] = adaptMul(val, typeof(val)( evalPhase(phase) ))
         end
     end
 

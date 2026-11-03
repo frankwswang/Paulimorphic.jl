@@ -554,7 +554,7 @@ function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool
     k = 0
     @inbounds for j in 1:n, i in 1:m
         k += 1
-        cs[begin+k-1] = checkedMul(tempC(cL[begin+i-1]), tempC(cR[begin+j-1]))
+        cs[begin+k-1] = adaptMul(tempC(cL[begin+i-1]), tempC(cR[begin+j-1]))
         ss[begin+k-1] = mul(sL[begin+i-1], sR[begin+j-1]) #> Phase folded into `.phase`
     end
 
@@ -594,7 +594,7 @@ function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2},
     checkCoreDataTypeForPauliSum(T)
     tempC = extendType(T, complex( promote_type(T1, T2) ))
     tempCoeff = tempC(coeff)
-    coeffs = map(x->Complex{T}(checkedMul(tempC(x), tempCoeff)), h.coeff)
+    coeffs = map(x->Complex{T}(adaptMul(tempC(x), tempCoeff)), h.coeff)
     PauliSum(h.str, coeffs, simplification)
 end
 
@@ -666,9 +666,9 @@ mutated. No re-canonicalization is performed.
 """
 function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
     coeffs = h.coeff
-    T <: AbstractFloat || foreach(x->Complex{T}(checkedMul(x, c)), coeffs)
+    T <: AbstractFloat || foreach(x->Complex{T}(adaptMul(x, c)), coeffs)
     for i in eachindex(coeffs)
-        coeffs[i] = checkedMul(coeffs[i], c)
+        coeffs[i] = adaptMul(coeffs[i], c)
     end
     h
 end
@@ -825,6 +825,6 @@ julia> (h')' == h
 true
 ```
 """
-toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(checkedConj, h.coeff))
+toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(adaptConj, h.coeff))
 
 Base.adjoint(op::PauliStrOrSum) = toAdjoint(op)

@@ -1,37 +1,37 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
-using Paulimorphic: checkedAdd, checkedMul, checkedConj
+using Paulimorphic: adaptAdd, adaptMul, adaptConj
 
 @testset "Numerics.jl" begin
-    @testset "checkedAdd / checkedMul / checkedConj" begin
+    @testset "adaptAdd / adaptMul / adaptConj" begin
         #> Fixed-width signed integers (real, or as complex components) throw on overflow
-        @test checkedAdd(typemax(Int) - 1, 1) === typemax(Int)
-        @test_throws OverflowError checkedAdd(typemax(Int), 1)
-        @test_throws OverflowError checkedAdd(Int8(100), Int8(100))
-        @test checkedAdd(Complex(1, 2), Complex(3, 4)) === Complex(4, 6)
-        @test_throws OverflowError checkedAdd(Complex(0, typemax(Int)), Complex(0, 1))
-        @test checkedMul(2^31, 2^31) === 2^62
-        @test_throws OverflowError checkedMul(2^32, 2^32)
-        @test checkedMul(Complex(1, 2), Complex(3, 4)) === Complex(-5, 10)
-        @test_throws OverflowError checkedMul(Complex(2^32, 0), Complex(0, 2^32))
-        @test_throws OverflowError checkedMul(Complex(typemin(Int), 0), Complex(-1, 0))
-        @test checkedConj(Complex(1, 2)) === Complex(1, -2)
-        @test_throws OverflowError checkedConj(Complex(0, typemin(Int)))
-        @test_throws OverflowError checkedConj(Complex(Int8(0), typemin(Int8)))
+        @test adaptAdd(typemax(Int) - 1, 1) === typemax(Int)
+        @test_throws OverflowError adaptAdd(typemax(Int), 1)
+        @test_throws OverflowError adaptAdd(Int8(100), Int8(100))
+        @test adaptAdd(Complex(1, 2), Complex(3, 4)) === Complex(4, 6)
+        @test_throws OverflowError adaptAdd(Complex(0, typemax(Int)), Complex(0, 1))
+        @test adaptMul(2^31, 2^31) === 2^62
+        @test_throws OverflowError adaptMul(2^32, 2^32)
+        @test adaptMul(Complex(1, 2), Complex(3, 4)) === Complex(-5, 10)
+        @test_throws OverflowError adaptMul(Complex(2^32, 0), Complex(0, 2^32))
+        @test_throws OverflowError adaptMul(Complex(typemin(Int), 0), Complex(-1, 0))
+        @test adaptConj(Complex(1, 2)) === Complex(1, -2)
+        @test_throws OverflowError adaptConj(Complex(0, typemin(Int)))
+        @test_throws OverflowError adaptConj(Complex(Int8(0), typemin(Int8)))
 
         #> Operands of different types are promoted first: an overflow is detected in the 
         #> promoted type, and a narrower result is left to the caller's conversion
-        @test checkedMul(Int8(100), 2) === 200
-        @test checkedMul(Complex(Int8(1), Int8(2)), 3) === Complex(3, 6)
-        @test_throws OverflowError checkedMul(Int8(2), 2^62)
-        @test checkedMul(2.0, 3) === 6.0
+        @test adaptMul(Int8(100), 2) === 200
+        @test adaptMul(Complex(Int8(1), Int8(2)), 3) === Complex(3, 6)
+        @test_throws OverflowError adaptMul(Int8(2), 2^62)
+        @test adaptMul(2.0, 3) === 6.0
 
         #> Every other type keeps its own arithmetic (plain IEEE operations for floats)
-        @test checkedAdd(1.0, 2.0) === 3.0 && checkedMul(1.5, 2.0) === 3.0
-        @test checkedAdd(1e308, 1e308) === Inf
-        @test checkedConj(1.0 + 2.0im) === 1.0 - 2.0im
-        @test checkedMul(1//2, 2//3) === 1//3
-        @test checkedAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
+        @test adaptAdd(1.0, 2.0) === 3.0 && adaptMul(1.5, 2.0) === 3.0
+        @test adaptAdd(1e308, 1e308) === Inf
+        @test adaptConj(1.0 + 2.0im) === 1.0 - 2.0im
+        @test adaptMul(1//2, 2//3) === 1//3
+        @test adaptAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
     end
 
     @testset "neumaierStep" begin

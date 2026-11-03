@@ -444,7 +444,7 @@ end
     #>> Equal strings out of the coefficient-keyed order (after `setCoeff!`)
     hd = PauliSum([pauli"X", pauli"X"], [1.0, 2.0], false)
     setCoeff!(hd, 3.0, 1)
-    @test !isCanonicalized(hd)
+    @test !isCanonical(hd)
     @test_throws ArgumentError sumCoeffs(hd)
     @test_throws ArgumentError sumCoeffs(s -> true, hd, Float32)
     @test sumCoeffs(hd; checkForm=false) == Complex(5.0)
@@ -452,7 +452,7 @@ end
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea
-    @test !isCanonicalized(hp)
+    @test !isCanonical(hp)
     @test_throws ArgumentError sumCoeffs(hp)
     @test sumCoeffs(hp; checkForm=false) == Complex(3.0) #> Stored coefficients as they are
     @test sumCoeffs(canonicalize!(hp)) == Complex(-1.0)  #> The phase is absorbed first

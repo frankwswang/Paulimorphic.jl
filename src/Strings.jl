@@ -1,4 +1,4 @@
-export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, isCanonicalized, 
+export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, isCanonical, 
        canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
        listTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
@@ -968,7 +968,7 @@ end
 
 
 """
-    isCanonicalized(h::PauliSum; checkDuplicateTerm::Bool=false, 
+    isCanonical(h::PauliSum; checkDuplicateTerm::Bool=false, 
                     checkZeroCoeffTerm::Bool=false) -> 
     Bool
 
@@ -982,17 +982,17 @@ return `true` if all applied checks pass.
 ```jldoctest
 julia> h1 = pauli"XXIX" + 2.0*pauli"XXIX";
 
-julia> isCanonicalized(h1, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
+julia> isCanonical(h1, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
 true
 
 julia> h2 = PauliSum([pauli"XXIX", pauli"XXIX"], [3, 0], false);
 
-julia> isCanonicalized(h2) && !isCanonicalized(h2, checkDuplicateTerm=true) && 
-                              !isCanonicalized(h2, checkZeroCoeffTerm=true)
+julia> isCanonical(h2) && !isCanonical(h2, checkDuplicateTerm=true) && 
+                              !isCanonical(h2, checkZeroCoeffTerm=true)
 true
 ```
 """
-function isCanonicalized(h::PauliSum; checkDuplicateTerm::Bool=false, 
+function isCanonical(h::PauliSum; checkDuplicateTerm::Bool=false, 
                                       checkZeroCoeffTerm::Bool=false)::Bool
     strs, coeffs = h.str, h.coeff
     bl = all(str->isequal(posRea, str.phase), strs) && 
@@ -1712,7 +1712,7 @@ The accumulation is performed at the precision level of
 For floating-point precisions, the selected coefficients are accumulated via 
 [Neumaier summation](https://doi.org/10.1002/zamm.19740540106), following the term order of 
 `h`. By default, `checkForm::Bool=true` so that `h` is required to be in the canonical form 
-(verified by [`isCanonicalized`](@ref)) to ensure a single deterministic result for 
+(verified by [`isCanonical`](@ref)) to ensure a single deterministic result for 
 `h` containing the same terms. For exact coefficient types (e.g., `Rational`), the 
 accumulation is carried out by exact addition (no overflow protection for `Integer`).
 
@@ -1730,7 +1730,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
                    checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
-    if checkForm && !isCanonicalized(h)
+    if checkForm && !isCanonical(h)
         throw(ArgumentError("`h` is not in the canonical form. To lift this error, either "*
                             "canonicalize `h` first using `canonicalize!` or set "*
                             "`checkForm=false` for `sumCoeffs`."))

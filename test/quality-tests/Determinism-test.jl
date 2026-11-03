@@ -87,7 +87,7 @@ end
               pauli"XI" => 1.0 + 0.0im, pauli"YI" => 0.0 + 1.0im, 
               pauli"IZ" => 1.0 + 0.0im, pauli"IX" => 1.0 + 0.0im]
     @test listTerms(h) == golden
-    @test isCanonicalized(h, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
+    @test isCanonical(h, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
     @test PauliSum(reverse(strs), 1.0) == PauliSum(strs[[4, 1, 6, 3, 2, 5]], 1.0) == h
     h2 = canonicalize!(deepcopy(h))
     @test h2.str == h.str && h2.coeff == h.coeff
@@ -97,7 +97,7 @@ end
     #> FMA hardware exceeds `abs(c2)` and would put `c2` first
     c2 = complex(cxMagnitude)
     h3 = PauliSum([pauli"X", pauli"X"], [c2, cx], false)
-    @test h3.coeff == [cx, c2] && isCanonicalized(h3)
+    @test h3.coeff == [cx, c2] && isCanonical(h3)
 end
 
 @testset "PauliSum: permutation-invariant merging of equal strings" begin

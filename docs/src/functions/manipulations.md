@@ -7,6 +7,7 @@ CurrentModule = Paulimorphic
 ## Algebra
 
 ```@docs
+combine
 add
 sub
 mul
@@ -21,6 +22,7 @@ evalAntiCom
 ```@docs
 canonicalize!
 sanitize!
+absorbPhases!
 sortStrings!
 setCoeff!
 curtail

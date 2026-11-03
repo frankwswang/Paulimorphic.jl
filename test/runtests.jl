@@ -10,6 +10,7 @@ using Test
     t1 = @elapsed @testset "$(unit1)" begin
         include("unit-tests/Constants-test.jl")
         include("unit-tests/Numerics-test.jl")
+        include("unit-tests/Query-test.jl")
         include("unit-tests/Tensors-test.jl")
     end
     println("$(unit1) test finished in $t1 seconds.\n")
@@ -44,6 +45,7 @@ using Test
     t5 = @elapsed @testset "$(unit5)" begin
         include("quality-tests/Aqua-test.jl")
         include("quality-tests/Documentation-test.jl")
+        include("quality-tests/Determinism-test.jl")
     end
     println("$(unit5) test finished in $t5 seconds.\n")
 end

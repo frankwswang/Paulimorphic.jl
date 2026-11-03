@@ -2,7 +2,7 @@ using Test
 using Random: Xoshiro
 using LinearAlgebra: kron
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, sub, toAdjoint
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, add, combine, sub, toAdjoint
 
 @testset "Operations.jl" begin
 
@@ -39,10 +39,10 @@ function strToMat(pStr::PauliStr, nSite::Int=pStr.n)
         evalPhase(pStr.phase) .* res
     end
 
-function sumToMat(ham::PauliSum, nSite::Int=countSites(ham))
+function sumToMat(h::PauliSum, nSite::Int=countSites(h))
     res = zeros(ComplexF64, 2^nSite, 2^nSite)
-    for i in eachindex(ham.str)
-        res .+= ham.coeff[begin+i-1] .* strToMat(ham.str[begin+i-1], nSite)
+    for i in eachindex(h.str)
+        res .+= h.coeff[begin+i-1] .* strToMat(h.str[begin+i-1], nSite)
     end
     res
 end
@@ -117,7 +117,7 @@ end
     @test h + pauli"X" == pauli"X" + h
     @test h1 + h2 == add(h1, h2)
 
-    #>> Mixed chain falls back to Base's pairwise fold with correct promotion
+    #>> Mixed chain uses the n-ary method with correct promotion
     @test (PauliSum(Float64) + pauli"X" + pauli"Y") isa PauliSum{Float64}
 
     #>> Intentionally unsupported combinations stay unsupported
@@ -132,6 +132,35 @@ end
     h2 = PauliSum([pauli"Z"], [0.5])
     @test add(Float32, h1, h2) isa PauliSum{Float32}
     @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
+end
+
+@testset "combine" begin
+    #> n-ary methods: all the terms are merged in one compensated summation
+    s = pauli"X"
+    ha = PauliSum([s], [1.0])
+    hb = PauliSum([s], [1e-17])
+    hc = PauliSum([s], [-1.0])
+    #>> A chain of three or more `+` is one n-ary call (its merge semantics and order 
+    #>> independence are pinned in `quality-tests/Determinism-test.jl`)
+    @test (ha + hb + hc) isa PauliSum{Float64}
+    #>> Promotion of mixed core types; exact cancellation drops the term
+    hi = PauliSum([pauli"Z"], [2])
+    @test combine([hi, ha, hc]) == PauliSum([pauli"Z"], [2.0])
+    @test combine([hi, ha, hc]) isa PauliSum{Float64}
+    @test hi + ha + hc == combine([hi, ha, hc])
+    @test combine(Float32, [hi, ha, hc]) isa PauliSum{Float32}
+    #>> Edge cases: empty collections and a single operand (fresh buffers)
+    @test combine(Float64, PauliSum{Float64}[]) == 
+          combine(PauliSum{Float64}[]) == PauliSum(Float64)
+    @test_throws ArgumentError combine(PauliSum[])
+    @test combine([ha]) == ha && combine([ha]).str[begin] !== ha.str[begin]
+    #>> `simplification=false` keeps the concatenated terms (canonically sorted)
+    @test combine([ha, hb, hc], false).coeff == ComplexF64[1e-17, -1.0, 1.0]
+    #>> Mixed chains including a `PauliStr` use the n-ary method as well
+    @test ha + hc + pauli"Z" == PauliSum([pauli"Z"], [1.0])
+    #>> A single `PauliStr` stored in a mixed-type container
+    @test combine(Union{PauliStr, PauliSum}[pauli"X"]) == PauliSum(Int, [pauli"X"])
+    @test combine(Union{PauliStr, PauliSum}[pauli"X", ha]) == PauliSum([pauli"X"], [2.0])
 end
 
 @testset "sub" begin
@@ -214,8 +243,8 @@ end
     @test sub(hNarrow, pauli"Z"=>Int8(1)) == PauliSum([pauli"Z"], [Int8(2)])
     @test sub(hNarrow, pauli"Z"=>Int8(1)) isa PauliSum{Int8}
     hMin = PauliSum([pauli"Z"], [typemin(Int8)])
-    @test_throws InexactError sub(PauliSum(Int8), hMin)
-    @test_throws InexactError sub(pauli"X", hMin)
+    @test_throws OverflowError sub(PauliSum(Int8), hMin) #> Negation overflows in `Int8`
+    @test_throws OverflowError sub(pauli"X", hMin)
     @test sub(PauliSum(Int), hMin) == PauliSum([pauli"Z"], [128]) #> Negated after widening
     @test sub(hMin, PauliSum(Int8)) == hMin
     @test sub(hMin, pauli"X") == PauliSum([pauli"X", pauli"Z"], Int8[-1, typemin(Int8)])
@@ -513,8 +542,45 @@ end
     @test mul(h4, 2.0^40) == PauliSum([pauli"X"],    [2.0^80])
     @test_throws InexactError mul(Int32, PauliSum([pauli"X"], [2^20]), 
                                          PauliSum([pauli"X"], [2^20]))
-    #> Limitation: does not prevent integer overflow
-    @test mul(Float64, h4, h4) == mul(Float64, h4, 2^40) == PauliSum(Float64)
+    #> An exact evaluation type is kept exact: integer overflow throws instead of wrapping 
+    #> around (even when the result type is a float, as the products are evaluated in `Int`)
+    @test_throws OverflowError mul(Float64, h4, h4)
+    @test_throws OverflowError mul(Float64, h4, 2^40)
+    @test_throws OverflowError mul(h4, h4)
+    @test_throws OverflowError mul(PauliSum([pauli"X"], Int8[100]), Int8(2))
+    @test mul(PauliSum([pauli"X"], Int8[100]), 2) == PauliSum([pauli"X"], [200])
+    #> A phase is applied in the coefficient type of `h`, so negating `typemin` overflows
+    @test_throws OverflowError mul(PauliSum([pauli"X"], [typemin(Int)]), negRea)
+    @test_throws OverflowError mul(PauliSum([pauli"X"], [typemin(Int8)]), negRea)
+    @test mul(Int, PauliSum([pauli"X"], [typemin(Int8)]), negRea) == 
+          PauliSum([pauli"X"], [128])
+end
+
+@testset "scale!(::PauliSum)" begin
+    h = PauliSum([pauli"X", pauli"Z"], [2, -3])
+    @test scale!(h, 2) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    @test scale!(h, 1im) === h && h == PauliSum([pauli"X", pauli"Z"], [4im, -6im])
+    @test scale!(h, negImg) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    @test scale!(h, posRea) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    #> Each product is converted back to the coefficient type of `h`
+    hF = PauliSum([pauli"X"], Float32[1.5])
+    @test scale!(hF, 2.0) isa PauliSum{Float32} && hF.coeff == [3f0]
+    @test_throws InexactError scale!(PauliSum([pauli"X"], [3]), 0.5)
+    @test scale!(PauliSum([pauli"X"], [1//2]), 3) == PauliSum([pauli"X"], [3//2])
+    #> Exact coefficient types: an overflow (`OverflowError`) or a narrowing failure 
+    #> (`InexactError`) is detected before `h` is mutated, so `h` is left unchanged. The 
+    #> failing term is the second one in the canonical order (`Z` precedes `X`), so that a 
+    #> term-by-term check would have already scaled the first term when it throws
+    hMax = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
+    @test_throws OverflowError scale!(hMax, 2)
+    @test hMax.coeff == [1, typemax(Int)]
+    @test hMax == PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
+    @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int)]), negRea)
+    h8 = PauliSum([pauli"X", pauli"Z"], Int8[100, 1])
+    @test_throws InexactError scale!(h8, 2)
+    @test h8.coeff == Int8[1, 100]
+    @test h8 == PauliSum([pauli"X", pauli"Z"], Int8[100, 1])
+    @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int8)]), negRea)
 end
 
 #> `checkCommute` and `checkAntiCom`
@@ -685,6 +751,11 @@ end
     #> Nontrivial input phases: absorption and conjugation must compose consistently
     @test toAdjoint(PauliSum([PauliStr(1, symY, posImg)], 1)) == 
           PauliSum([PauliStr(1, symY, negImg)], 1)
+
+    #> Conjugating exact coefficients is checked against overflow
+    @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], [Complex(0, typemin(Int))]))
+    @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], 
+                                                  [Complex(Int8(0), typemin(Int8))]))
 
     #> Hermitian (real-coefficient) and anti-Hermitian (imaginary-coefficient) sums
     hReal = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[2, -3])

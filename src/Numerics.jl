@@ -1,4 +1,49 @@
-public extendType
+public extendType, evalMagnitude
+
+#> Overflow-check arithmetics for numeric types based on fixed-width signed integers. Every 
+#> other type falls back to `+`, `*`, and `conj` (so floating-point arithmetic remains). 
+#> Different numeric types are first promoted before the operation, where an overflow can 
+#> be automatically detected via type conversion, followed by an `InexactError` throw.
+function checkedAdd(num1::T, num2::T) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        Base.checked_add(num1, num2)
+    elseif T <: Complex{<:BitSInteger}
+        x = Base.checked_add(real(num1), real(num2))
+        y = Base.checked_add(imag(num1), imag(num2))
+        Complex(x, y)
+    else
+        num1 + num2
+    end
+end
+
+checkedAdd(num1::RealOrComplex, num2::RealOrComplex) = checkedAdd(promote(num1, num2)...)
+
+
+function checkedMul(num1::T, num2::T) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        Base.checked_mul(num1, num2)
+    elseif T <: Complex{<:BitSInteger}
+        x1, y1 = reim(num1)
+        x2, y2 = reim(num2)
+        x = Base.checked_sub(Base.checked_mul(x1, x2), Base.checked_mul(y1, y2))
+        y = Base.checked_add(Base.checked_mul(x1, y2), Base.checked_mul(y1, x2))
+        Complex(x, y)
+    else
+        num1 * num2
+    end
+end
+
+checkedMul(num1::RealOrComplex, num2::RealOrComplex) = checkedMul(promote(num1, num2)...)
+
+
+function checkedConj(num::T) where {T<:RealOrComplex}
+    if T <: Complex{<:BitSInteger}
+        Complex(real(num), Base.checked_neg( imag(num) ))
+    else
+        conj(num)
+    end
+end
+
 
 #>-- Reference(s) --<#
 #> [DOI] 10.1002/zamm.19740540106 (Improved Kahan--Babuska algorithm proposed by Neumaier)
@@ -21,7 +66,7 @@ function neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:FloatOrComp
 end
 
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
-(total + val, residue)
+(checkedAdd(total, val), residue)
 
 
 function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
@@ -50,6 +95,89 @@ neumaierSum(Base.identity, T, iterable)
 
 neumaierSum(arr::AbstractArray{T}) where {T<:RealOrComplex} = 
 neumaierSum(T, arr)
+
+
+#>-- Reference(s) --<#
+#> [DOI] 10.48550/arXiv.1904.09481
+"""
+    evalMagnitude(c::Union{Complex{T}, T}, allowNaN::Bool=true) where {T<:Real} -> float(T)
+
+Return the absolute value of `c` using an 
+[unfused error-mitigated method](https://doi.org/10.48550/arXiv.1904.09481). 
+Unlike [`Base.abs`](https://docs.julialang.org/en/v1/base/math/#Base.abs), this method only 
+relies on IEEE-754 defined operations separately (with correct rounding behaviors) for 
+the standard numeric types in Julia (e.g., `Float64`, `Int`). Therefore, if no 
+[type piracy](https://docs.julialang.org/en/v1/manual/style-guide/#avoid-type-piracy) is 
+committed for those numeric types, the returned values are bitwise reproducible across 
+different hardware platforms, except potentially for the bit patterns of `NaN` results.
+
+When `allowNaN=true`, NaN inputs propagate to the result unless another component is 
+infinite (verified by `isinf`), in which case positive infinity is returned.
+Otherwise, a `DomainError` is thrown if any input component is NaN.
+"""
+function evalMagnitude(c::Complex{T}, allowNaN::Bool=true) where {T<:AbstractFloat}
+    comps = real(c), imag(c)
+    if !allowNaN
+        for (str, comp) in zip(("real", "imag"), comps)
+            isnan(comp) && throw(DomainError(comp, "`$str(c)` is disallowed to be `NaN`."))
+        end
+    end
+
+    any(isinf, comps) && (return T(Inf)) #> Early exit 1 to comply with IEEE-754
+
+    x, y = abs.(comps)
+    x < y && ((x, y) = (y, x))           #> Ensure `x >= y` unless either is `NaN`
+
+    iszero(y) && (return x)              #> Early exit 2
+    isnan( x) && (return x)              #> Early exit 3
+    isnan( y) && (return y)              #> Early exit 4
+
+    y <= x * sqrt(eps(T)/2) && (return x) #> Widely varying operands
+
+    if !(T <: Float32) && promote_type(T, Float32) == Float32
+        xW, yW = Float32(x), Float32(y) #> Avoid infinite `scale`
+        T(sqrt(xW*xW + yW*yW))
+    else
+        minT = floatmin(T)
+        scale = eps(T) * sqrt(minT)     #> Rescale to avoid overflow/underflow
+
+        if x > sqrt(floatmax(T)/2)
+            x *= scale
+            y *= scale
+            factor = inv(scale)
+        elseif y < sqrt(minT)
+            x /= scale
+            y /= scale
+            factor = scale
+        else
+            factor = one(T)
+        end
+
+        h = sqrt(x*x + y*y)
+
+        if h <= 2y
+            delta = h - y
+            correction = x*(2delta - x) + (delta - 2(x-y))*delta
+        else
+            delta = h - x
+            correction = 2delta*(x - 2y) + (4delta - y)*y + delta*delta
+        end
+
+        (h - correction/(2h)) * factor
+    end
+end
+
+function evalMagnitude(c::Complex{T}, allowNaN::Bool=true) where {T<:Real}
+    coreT::Type{<:AbstractFloat} = float(T)
+    evalMagnitude(Complex(coreT(c|>real), coreT(c|>imag)), allowNaN)
+end
+
+function evalMagnitude(c::AbstractFloat, allowNaN::Bool=true)
+    !allowNaN && isnan(c) && throw(DomainError(c, "NaN is disallowed."))
+    abs(c)
+end
+
+evalMagnitude(c::Real, allowNaN::Bool=true) = evalMagnitude(float(c), allowNaN)
 
 
 """

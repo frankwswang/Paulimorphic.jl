@@ -38,7 +38,9 @@ const MissingOr{T} = Union{Missing, T}
 
 const NonEmptyTuple{T, M} = Tuple{T, Vararg{T, M}}
 
-const Interface = Union{Function, Type, Module}
+const AbstractCallable = Union{Function, Type}
+
+const Interface = Union{AbstractCallable, Module}
 
 
 #> Pre-declared functions for forward referencing in docstrings <#

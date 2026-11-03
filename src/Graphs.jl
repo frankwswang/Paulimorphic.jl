@@ -11,6 +11,22 @@ and adjacency sets (`.adjacency::Memory{Set{T}}`). The graph is undirected and c
 self-loops or parallel edges. Vertices (if they exist) are labeled by positive integers of 
 type `T` (ranging from `1` to `.order`).
 
+!!! info
+    Two `StrictGraph` instances are considered equal when they have the same order 
+    (verifiable via [`countVertices`](@ref)) and the same set of edges (verifiable via 
+    [`listEdges`](@ref)), regardless of their vertex types and of the internal storage 
+    layout of their adjacency sets. To check whether two graphs are isomorphic to each 
+    other even if they are not equal, resort to [`isIsomorphic`](@ref).
+    ```jldoctest
+    julia> g1, g2, g3 = map(e->StrictGraph(3, [e]), [(1, 2), (1, 2), (1, 3)]);
+
+    julia> g1 == g2 != g3
+    true
+
+    julia> isIsomorphic(g1, g2) && isIsomorphic(g2, g3)
+    true
+    ```
+
 ≡≡≡ Constructors ≡≡≡
 
     StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer} -> 
@@ -26,6 +42,11 @@ for a bounded `T`, must not exceed `typemax(T)`; otherwise, a `DomainError` is t
 Construct a strict graph of `order` with valid (undirected) edge elements from `edges`. All 
 invalid (e.g., self-loop, out-of-bound edges) or duplicate elements in `edges` are silently 
 ignored unless `explicitError=true`, in which case a `DomainError` is thrown.
+
+    StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer} -> StrictGraph{T}
+
+Convert `g` to a `StrictGraph{T}` if all its vertices can be represented by positive 
+instances of `T`.
 """
 struct StrictGraph{T<:Integer}
     order::Int
@@ -59,6 +80,27 @@ function StrictGraph(order::Integer, edges::AbstractVector{NTuple{2, T}},
         end
     end
     g
+end
+
+function StrictGraph(::Type{T}, g::StrictGraph) where {T<:Integer}
+    order = g.order
+    if applicable(typemax, T) && order > typemax(T)
+        throw(InexactError(:StrictGraph, StrictGraph{T}, g))
+    end
+    res = StrictGraph(order, T)
+    for (i, adj) in enumerate(g.adjacency)
+        res.adjacency[begin+i-1] = Set{T}(adj) #> Make a fresh copy
+    end
+    res
+end
+
+function Base.hash(g::StrictGraph, hashCode::UInt)
+    code = hash(g.order, hashCode)
+    hash(g.adjacency, code)
+end
+
+function Base.:(==)(g1::StrictGraph, g2::StrictGraph)
+    (g1.order == g2.order) && (g1.adjacency == g2.adjacency)
 end
 
 
@@ -197,7 +239,7 @@ every two such vertices are adjacent iff the corresponding edges of `g` share an
 As a result, vertex `i` of the constructed graph corresponds to `listEdges(g)[begin+i-1]`.
 """
 function genLineGraph(g::StrictGraph{T}) where {T<:Integer}
-    typeE = typemax(T) > typemax(Int) ? T : Int
+    typeE = (!applicable(typemax, T) || typemax(T) > typemax(Int)) ? T : Int
     edges = listEdges(g)
     ne = (typeE∘length)(edges)
     lg = StrictGraph(ne)
@@ -330,19 +372,21 @@ end
 
 
 #> Function and types for line graph analysis
-mutable struct NodeEdgeInfo{T<:Integer}
+mutable struct NodeEdgeInfo{T<:Integer}   #> Info of an assumed line graph
     const edgeLabel::Memory{NTuple{2, T}} #> The (root-graph) edge labels for nodes
     const backtrack::Memory{T}            #> Adjacent (witness) nodes in discovered cliques
+    const cliqueRep::Memory{T}            #> `i`-th Entry: the half-named node in clique-`i`
     rootOrder::T                          #> Current maximal index for potential root nodes
-    halfMarker::Set{T}
 
     function NodeEdgeInfo(order::T) where {T<:Integer}
-        edgeLabel = Memory{NTuple{2, T}}(undef, order)
-        backtrack = Memory{T}(undef, order)
+        edgeLabel = Memory{NTuple{2, T}}(undef, Int(order)) #> Number of nodes: `order`
+        backtrack = Memory{T}(undef, Int(order))
+        cliqueRep = Memory{T}(undef, Int(order) + 1)   #> At most `order+1` root-graph nodes
         edgeLabel .= Ref(( T(0), T(0) ))
         backtrack .= T(0)
+        cliqueRep .= T(0)
 
-        new{T}(edgeLabel, backtrack, T(0), Set{T}())
+        new{T}(edgeLabel, backtrack, cliqueRep, T(0))
     end
 end
 
@@ -350,7 +394,10 @@ end
 #>-- Reference(s) --<#
 #> [DOI] 10.1145/321850.321853
 """
-    genRootGraph(g::StrictGraph, checkConnectivity::Bool=true) -> Pair{Bool, StrictGraph}
+    genRootGraph(g::StrictGraph{T}, 
+                 cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
+                 checkConnectivity::Bool=true) where {T<:Integer} -> 
+    Pair{Bool, StrictGraph{T}}
 
 Attempt to recognize a connected `g` as a line graph using a [Lehot-style edge-labeling 
 algorithm](https://doi.org/10.1145/321850.321853) to reconstruct its potential root graph 
@@ -359,23 +406,81 @@ otherwise. This function is only well behaved when the input `g` is a connected
 `StrictGraph`. Hence, by default `checkConnectivity=true`, so that any disconnected-graph 
 input throws an `ArgumentError`. For disconnected graphs, one can first apply 
 [`decompose`](@ref) to obtain connected subgraphs, and then apply `genRootGraph` to each 
-subgraph.
+subgraph. When a root graph is successfully returned, it always has the same vertex type 
+`T` as `g`.
+
+To obtain the correspondence between the vertices of `g` and the edges of `r`, supply a 
+`cache!Self::AbstractVector{NTuple{2, T}}` with the same length as the order of `g` 
+(obtainable via [`countVertices`](@ref)) as the second argument. When `r` is successfully 
+found, the `i`-th element of `cache!Self` is overwritten with the edge `(x, y)` (`x < y`) 
+of `r` represented by the `i`-th vertex of `g`; otherwise, `cache!Self` is not mutated. For 
+a fixed `g`, the value of `r` and `cache!Self` are also deterministic. In other words, for 
+any `g1 == g`, replacing `g` with `g1` does not change the outputs of `genRootGraph`.
+
+!!! info
+    Since a root graph can have at most one more vertex than its corresponding line graph, 
+    an `ArgumentError` is thrown when [`countVertices(g)`](@ref `countVertices`) already 
+    returns `typemax(T)`. In this case, convert `g` to a graph with a wider vertex type 
+    with [`StrictGraph(::Type{<:Integer}, ::StrictGraph)`](@ref `StrictGraph`) first.
+
+!!! note "When a line graph has more than one valid vertex-edge correspondence"
+    By [Whitney's theorem](https://doi.org/10.2307/2371086), a connected line graph `g` 
+    determines its root graph up to isomorphism, and when the root graph has at least five 
+    vertices, the bijective map between the vertices of `g` and the edges of `r` is unique 
+    up to relabeling the vertices of `r` (i.e., a unique vertex-edge correspondence.).
+
+    For root graphs with fewer than five vertices, there are in total four exceptions in 
+    two categories, listed below along with the deterministic convention that 
+    `genRootGraph` follows:
+    - `g` is ``K_3``: both the triangle ``K_3`` and the claw ``K_{1,3}`` are root graphs 
+      of `g`; a ``K_3`` is returned: 
+      ```jldoctest
+      julia> lg = StrictGraph(3, [(1, 2), (1, 3), (2, 3)]);
+
+      julia> bl, rg = genRootGraph(lg);
+
+      julia> bl && isIsomorphic(lg, rg)
+      true
+      ```
+    - `g` is the diamond ``K_4 - e``, the wheel ``K_{1,2,2}``, or the octahedron 
+      ``K_{2,2,2}``: the root graph is unique up to isomorphism, but exchanging the root 
+      edges corresponding to two vertices of `g` with identical neighbors (e.g., the two 
+      degree-2 vertices of the diamond) gives a second valid correspondence that no 
+      relabeling of `r` reproduces. The returned `r` and the content of `cache!Self` 
+      deterministically follow one of the two.
 """
-function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<:Integer}
+function genRootGraph(g::StrictGraph{T}, 
+                      cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
+                      checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
         throw(ArgumentError("The input graph `g` must be connected."))
     end
 
     order = countVertices(g)
-    adjList = g.adjacency
+    saveEdgeNodeRelation = !ismissing(cache!Self)
+
+    if saveEdgeNodeRelation && length(cache!Self) != order
+        throw(ArgumentError("`cache!Self::$(typeof(cache!Self))` must contain $order "*
+                            "elements to match the order of `g`."))
+    end
+
+    if applicable(typemax, T) && order == typemax(T)
+        throw(ArgumentError("The order of `g::StrictGraph{$T}` is `$order=typemax($T)`. "*
+                            "Thus, its potential root graph cannot be expressed as an "*
+                            "instance of `StrictGraph{$T}` as well. Convert `g` into a "*
+                            "`StrictGraph` with a wider vertex type and try again."))
+    end
 
     if order == 0
-        return (true => StrictGraph(0))
+        return (true => StrictGraph(0, T))
     elseif order == 1
-        rootGraph = StrictGraph(2)
+        rootGraph = StrictGraph(2, T)
         attachEdge!(rootGraph, (1, 2))
+        saveEdgeNodeRelation && (cache!Self[begin] = (1, 2))
         return (true => rootGraph)
     end
+
+    adjList = g.adjacency
 
     #> Declare two valid vertices to be the basic nodes
     node12 = 0
@@ -388,15 +493,18 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
             node12NeighborNum = neighborNum
         end
     end
-    node23 = first(adjList[begin+node12-1])
+    node23 = minimum(adjList[begin+node12-1]) #> The smallest neighbor: a canonical choice
 
-    info = NodeEdgeInfo(order)
+    info = NodeEdgeInfo(order|>T)
     edgeLabels = info.edgeLabel
     edgeLabels[begin+node12-1] = (1, 2)
     edgeLabels[begin+node23-1] = (2, 3)
 
-    #> Construct the shared adjacency list w.r.t. basic nodes (1, 2) and (2, 3)
+    #> Construct the shared adjacency list w.r.t. basic nodes (1, 2) and (2, 3), in 
+    #> ascending order so that the labeling below does not depend on the set storage order.
+    #> The labeling is stable even though `QuickSort` itself isn't.
     sharedAdjs = [n for n in adjList[begin+node12-1] if n in adjList[begin+node23-1]]
+    sort!(sharedAdjs; alg=QuickSort)
     nSharedAdj = length(sharedAdjs)
 
     #> Mark the nodes (2, ...) in clique-2 and potentially a cross node (1, 3)
@@ -453,13 +561,16 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
     end
 
     discoveredNodes = push!(sharedAdjs, node12, node23) #> Built upon `sharedAdjs`
-    halfName!(info, adjList, discoveredNodes, 2) #> Half name all nodes adjacent to clique-2
+    halfName!(info, adjList, discoveredNodes, T(2)) #> Half name nodes adjacent to clique-2
     fullyName!(info, adjList)
+
+    #> Every node must be fully named for `g` to be a line graph
+    all(isFullyNamed, edgeLabels) || (return (false => g))
 
     rootGraph = StrictGraph(info.rootOrder)
 
     for edge in edgeLabels
-        (isFullyNamed(edge) && attachEdge!(rootGraph, edge)) || (return (false => g))
+        attachEdge!(rootGraph, edge) || (return (false => g))
     end
 
     gEdges = listEdges(g)
@@ -476,7 +587,12 @@ function genRootGraph(g::StrictGraph{T}, checkConnectivity::Bool=true) where {T<
         d = length(adjs)
         lRootEdgeNum += d * (d - 1) ÷ 2
     end
-    length(gEdges) == lRootEdgeNum ? (true => rootGraph) : (false => g)
+    if length(gEdges) == lRootEdgeNum
+        saveEdgeNodeRelation && (cache!Self .= edgeLabels)
+        true => rootGraph
+    else
+        false => g
+    end
 end
 
 
@@ -510,18 +626,54 @@ function isUnNamed(nodeEdge::NTuple{2, Integer})
 end
 
 
-function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
+function completeNodeEdge!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}, 
+                           halfNode::T, otherEnd::T) where {T<:Integer}
     edgeLabels = info.edgeLabel
     backtracks = info.backtrack
-    halfNamedNodes = info.halfMarker
+    cliqueReps = info.cliqueRep
+
+    markerEdge = edgeLabels[begin+halfNode-1]
+    isHalfNamed(markerEdge) || throw(ArgumentError("`halfNode` must be half named."))
+    cliqueLabel = first(markerEdge)
+    if cliqueLabel == otherEnd
+        throw(ArgumentError("`otherEnd` cannot already be used to name `halfNode`."))
+    end
+    edgeLabels[begin+halfNode-1] = minmax(cliqueLabel, otherEnd)
+
+    if cliqueReps[begin+cliqueLabel-1] == halfNode
+        bktk = backtracks[begin+halfNode-1]
+        newMarker = zero(T)
+
+        for adjNode in adjList[begin+bktk-1] #> Select the smallest-index half-named node
+            nodeEdge = edgeLabels[begin+adjNode-1]
+            if isHalfNamed(nodeEdge) && first(nodeEdge) == cliqueLabel && 
+               (iszero(newMarker) || adjNode < newMarker)
+                newMarker = adjNode
+                isone(newMarker) && break #> A node number cannot go below one
+            end
+        end
+
+        cliqueReps[begin+cliqueLabel-1] = newMarker
+    end
+end
+
+
+#> Half name the nodes adjacent to discovered nodes belonging to clique-`cliqueLabel`.
+#> For a node `(cliqueLabel, otherEnd)`, its adjacent node is named `(otherEnd, 0)`
+function halfName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}, 
+                   discoveredNodes::AbstractVector{T}, cliqueLabel::T) where {T<:Integer}
+    edgeLabels = info.edgeLabel
+    backtracks = info.backtrack
+    cliqueReps = info.cliqueRep
 
     for node in discoveredNodes
         nodeEdge = edgeLabels[begin+node-1]
         if !isFullyNamed(nodeEdge)
-            throw(ArgumentError("Node $node in `discoveredNodes` is not fully named."))
+            throw(AssertionError("Node $node in `discoveredNodes` is not fully named."))
         end
 
-        if cliqueLabel in nodeEdge #> Filter out cross nodes and only keep clique nodes
+        #> Only search for clique nodes (e.g., cross node (1, 3) is excluded from clique-2)
+        if cliqueLabel in nodeEdge
             rootGraphNodeL, rootGraphNodeR = nodeEdge
             otherEnd = (cliqueLabel == rootGraphNodeL) ? rootGraphNodeR : rootGraphNodeL
             for adjNode in adjList[begin+node-1]
@@ -529,13 +681,14 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
                 if isUnNamed(adjNodeEdge) #> Initialize a half-named node
                     edgeLabels[begin+adjNode-1] = (otherEnd, 0)
                     backtracks[begin+adjNode-1] = node
-                    push!(halfNamedNodes, adjNode)
+                    #> Register the newly discovered clique-`otherEnd` by `adjNode`
+                    occNode = cliqueReps[begin+otherEnd-1]
+                    if iszero(occNode) || adjNode < occNode #> Keep the smallest-index node
+                        cliqueReps[begin+otherEnd-1] = adjNode
+                    end
                 elseif isHalfNamed(adjNodeEdge) #> Fully name an already half-named node
-                    namedEnd = first(adjNodeEdge)
-                    if namedEnd != otherEnd
-                        fullEdgeName = minmax(otherEnd, namedEnd)
-                        edgeLabels[begin+adjNode-1] = fullEdgeName
-                        pop!(info.halfMarker, adjNode)
+                    if first(adjNodeEdge) != otherEnd
+                        completeNodeEdge!(info, adjList, adjNode, otherEnd)
                     end #> It's necessary to silently ignore `namedEnd == otherEnd` case
                 end
             end
@@ -544,45 +697,61 @@ function halfName!(info::NodeEdgeInfo, adjList, discoveredNodes, cliqueLabel)
 end
 
 
-discoverNode!(info, cliqueLabel) = minmax(cliqueLabel, (info.rootOrder += 1))
+function discoverNode!(info::NodeEdgeInfo{T}, cliqueLabel::T) where {T<:Integer}
+    otherEnd = (info.rootOrder += one(T))
+    minmax(cliqueLabel, otherEnd)
+end
 
-function fullyName!(info::NodeEdgeInfo{T}, adjList) where {T<:Integer}
+
+#> Fully name all the nodes after one around of half naming by `halfName!`
+function fullyName!(info::NodeEdgeInfo{T}, adjList::AbstractVector{Set{T}}
+                    ) where {T<:Integer}
     edgeLabels = info.edgeLabel
     backtracks = info.backtrack
-    halfNamedNodes = info.halfMarker
+    cliqueReps = info.cliqueRep
+    discoveredNodes = T[] #> Reusable buffer
 
-    while !isempty(halfNamedNodes)
-        node = pop!(halfNamedNodes)
+    cliqueLabel = zero(T)
+    while cliqueLabel < info.rootOrder
+        cliqueLabel += one(T)
+        node = cliqueReps[begin+cliqueLabel-1]
+        iszero(node) && continue #> Clique without a half-named node is considered found
         edge = edgeLabels[begin+node-1]
-        bktk = backtracks[begin+node-1]
 
-        #> `node` and `bktk` form the couple of basic nodes for a new clique
-        if bktk == 0 || !shareEndPoint(edge, edgeLabels[begin+bktk-1])
-            throw(AssertionError("A half-named node should have a valid adjacent node " * 
-                                 "that already belongs to a fully discovered clique."))
+        if !(isHalfNamed(edge) && first(edge) == cliqueLabel)
+            throw(AssertionError("A clique must be correctly marked by a half named node."))
         end
 
-        cliqueLabel = first(edge)
-        edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)
-        sharedAdjs = [n for n in adjList[begin+node-1] if n in adjList[begin+bktk-1]]
+        bktk = backtracks[begin+node-1]
+        #> `node` and `bktk` form the couple of basic nodes for clique-`cliqueLabel`
+        if bktk == 0 || let bktkEdge = edgeLabels[begin+bktk-1];
+                            !(isFullyNamed(bktkEdge) && in(cliqueLabel, bktkEdge)) end
+            throw(AssertionError("A half-named node should have a valid adjacent node " * 
+                                 "belonging to the same clique-$cliqueLabel."))
+        end
 
-        for cliqueNode in sharedAdjs
+        edgeLabels[begin+node-1] = discoverNode!(info, cliqueLabel)
+
+        empty!(discoveredNodes) #> Reset the discovered nodes for clique-`cliqueLabel`
+        bktkAdjs = adjList[begin+bktk-1]
+        for n in adjList[begin+node-1]
+            n in bktkAdjs && push!(discoveredNodes, n)
+        end
+        sort!(discoveredNodes; alg=QuickSort) #> Enforce a deterministic order
+
+        for cliqueNode in discoveredNodes
             cliqueNodeEdge = edgeLabels[begin+cliqueNode-1]
             if isUnNamed(cliqueNodeEdge)
                 edgeLabels[begin+cliqueNode-1] = discoverNode!(info, cliqueLabel)
             elseif isHalfNamed(cliqueNodeEdge)
                 namedEnd = first(cliqueNodeEdge)
-                pop!(info.halfMarker, cliqueNode)
-
-                edgeLabels[begin+cliqueNode-1] = if namedEnd == cliqueLabel
-                    discoverNode!(info, cliqueLabel)
-                else
-                    minmax(cliqueLabel, namedEnd)
-                end
+                otherEnd = if namedEnd == cliqueLabel; info.rootOrder += one(T)
+                           else cliqueLabel end
+                completeNodeEdge!(info, adjList, cliqueNode, otherEnd)
             end
         end
 
-        discoveredNodes = push!(sharedAdjs, bktk, node)
+        push!(discoveredNodes, bktk, node)
         halfName!(info, adjList, discoveredNodes, cliqueLabel)
     end
 end

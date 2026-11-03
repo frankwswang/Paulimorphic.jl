@@ -11,3 +11,4 @@ mainTest/
 *Old*.jl
 test_Old/
 .ipynb_checkpoints
+benchmark/drafts/

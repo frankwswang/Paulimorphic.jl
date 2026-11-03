@@ -1,9 +1,9 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
-using Paulimorphic: adaptAdd, adaptMul, adaptConj
+using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg
 
 @testset "Numerics.jl" begin
-    @testset "adaptAdd / adaptMul / adaptConj" begin
+    @testset "adaptAdd / adaptMul / adaptConj / adaptNeg" begin
         #> Fixed-width signed integers (real, or as complex components) throw on overflow
         @test adaptAdd(typemax(Int) - 1, 1) === typemax(Int)
         @test_throws OverflowError adaptAdd(typemax(Int), 1)
@@ -18,6 +18,14 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj
         @test adaptConj(Complex(1, 2)) === Complex(1, -2)
         @test_throws OverflowError adaptConj(Complex(0, typemin(Int)))
         @test_throws OverflowError adaptConj(Complex(Int8(0), typemin(Int8)))
+        @test adaptNeg(5) === -5 && adaptNeg(typemin(Int) + 1) === typemax(Int)
+        @test_throws OverflowError adaptNeg(typemin(Int))
+        @test_throws OverflowError adaptNeg(typemin(Int8))
+        @test adaptNeg(Complex(1, -2)) === Complex(-1, 2)
+        @test adaptNeg(Complex(typemax(Int), typemin(Int) + 1)) === 
+              Complex(typemin(Int) + 1, typemax(Int))
+        @test_throws OverflowError adaptNeg(Complex(typemin(Int), 0))
+        @test_throws OverflowError adaptNeg(Complex(Int8(0), typemin(Int8)))
 
         #> Operands of different types are promoted first: an overflow is detected in the 
         #> promoted type, and a narrower result is left to the caller's conversion
@@ -30,8 +38,13 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj
         @test adaptAdd(1.0, 2.0) === 3.0 && adaptMul(1.5, 2.0) === 3.0
         @test adaptAdd(1e308, 1e308) === Inf
         @test adaptConj(1.0 + 2.0im) === 1.0 - 2.0im
+        @test adaptNeg(1.5) === -1.5 && adaptNeg(0.0) === -0.0 #> Signed zero kept
+        @test adaptNeg(1.0 + 2.0im) === -1.0 - 2.0im
         @test adaptMul(1//2, 2//3) === 1//3
+        @test adaptNeg(1//2) === -1//2
+        @test adaptNeg(Complex(1//2, -1//3)) === Complex(-1//2, 1//3)
         @test adaptAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
+        @test adaptNeg(big(typemin(Int))) == -big(typemin(Int))
     end
 
     @testset "neumaierStep" begin

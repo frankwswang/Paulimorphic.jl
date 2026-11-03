@@ -563,7 +563,7 @@ cases the terms in `res` are stored in a deterministic canonical order such that
 
 always returns `true`.
 
-!!! info "Overflow checking policy for coefficients of an exact numeric type"
+!!! note "Overflow checking policy for coefficients of exact numeric types"
     When the core data type `T` of `PauliSum{T}` is specified to be an exact numeric type 
     based on fixed-width signed integers (e.g., `Int8`) upon construction, the necessary 
     arithmetic on the coefficients (once they are converted to `T` if they are of a 
@@ -571,10 +571,11 @@ always returns `true`.
     conversion, if any coefficient cannot be represented as an instance of `T`, the 
     constructor will also throw an `InexactError`.
 
-
-    PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
-             simplification::Bool=true) where {T<:SignedReal} -> 
-    PauliSum{T}
+```
+PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
+         simplification::Bool=true) where {T<:SignedReal} -> 
+PauliSum{T}
+```
 
 Construct a `PauliSum` with the coefficient of every Pauli string initialized to 
 `one(Complex{T})`, i.e., shorthand for `PauliSum(strs, one(Complex{T}), simplification)`. 

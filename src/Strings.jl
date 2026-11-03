@@ -978,7 +978,7 @@ end
 
 """
     isCanonical(h::PauliSum; checkDuplicateTerm::Bool=false, 
-                    checkZeroCoeffTerm::Bool=false) -> 
+                checkZeroCoeffTerm::Bool=false) -> 
     Bool
 
 Check if `h` is already in the canonical form (with optional arguments at their default 

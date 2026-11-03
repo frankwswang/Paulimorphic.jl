@@ -239,7 +239,7 @@ every two such vertices are adjacent iff the corresponding edges of `g` share an
 As a result, vertex `i` of the constructed graph corresponds to `listEdges(g)[begin+i-1]`.
 """
 function genLineGraph(g::StrictGraph{T}) where {T<:Integer}
-    typeE = typemax(T) > typemax(Int) ? T : Int
+    typeE = (!applicable(typemax, T) || typemax(T) > typemax(Int)) ? T : Int
     edges = listEdges(g)
     ne = (typeE∘length)(edges)
     lg = StrictGraph(ne)

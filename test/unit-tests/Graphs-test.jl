@@ -412,6 +412,11 @@ end
         @test bl2
         @test bl3
     end
+
+    @testset "support for non-`Int`-labeled graph" begin
+        gB = StrictGraph(3, [(big(1), big(2)), (big(2), big(3))])
+        @test genLineGraph(gB) isa StrictGraph{BigInt}
+    end
 end
 
 # ──────────────────────────────────────────────────────────────────────────────

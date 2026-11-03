@@ -666,8 +666,9 @@ mutated. No re-canonicalization is performed.
 """
 function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
     coeffs = h.coeff
+    T <: AbstractFloat || foreach(x->Complex{T}(checkedMul(x, c)), coeffs)
     for i in eachindex(coeffs)
-        coeffs[i] = checkedMul(coeffs[i], c) #> Conversion check is done on the fly
+        coeffs[i] = checkedMul(coeffs[i], c)
     end
     h
 end

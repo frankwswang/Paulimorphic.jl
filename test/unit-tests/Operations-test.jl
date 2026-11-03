@@ -571,6 +571,7 @@ end
     #> (`InexactError`) is detected before `h` is mutated, so `h` is left unchanged
     hMax = PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
     @test_throws OverflowError scale!(hMax, 2)
+    @test hMax.coeff == [typemax(Int), 1]
     @test hMax == PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
     @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int)]), negRea)
     h8 = PauliSum([pauli"X", pauli"Z"], Int8[1, 100])

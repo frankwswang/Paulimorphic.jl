@@ -568,15 +568,18 @@ end
     @test_throws InexactError scale!(PauliSum([pauli"X"], [3]), 0.5)
     @test scale!(PauliSum([pauli"X"], [1//2]), 3) == PauliSum([pauli"X"], [3//2])
     #> Exact coefficient types: an overflow (`OverflowError`) or a narrowing failure 
-    #> (`InexactError`) is detected before `h` is mutated, so `h` is left unchanged
-    hMax = PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
+    #> (`InexactError`) is detected before `h` is mutated, so `h` is left unchanged. The 
+    #> failing term is the second one in the canonical order (`Z` precedes `X`), so that a 
+    #> term-by-term check would have already scaled the first term when it throws
+    hMax = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
     @test_throws OverflowError scale!(hMax, 2)
-    @test hMax.coeff == [typemax(Int), 1]
-    @test hMax == PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
+    @test hMax.coeff == [1, typemax(Int)]
+    @test hMax == PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
     @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int)]), negRea)
-    h8 = PauliSum([pauli"X", pauli"Z"], Int8[1, 100])
+    h8 = PauliSum([pauli"X", pauli"Z"], Int8[100, 1])
     @test_throws InexactError scale!(h8, 2)
-    @test h8 == PauliSum([pauli"X", pauli"Z"], Int8[1, 100])
+    @test h8.coeff == Int8[1, 100]
+    @test h8 == PauliSum([pauli"X", pauli"Z"], Int8[100, 1])
     @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int8)]), negRea)
 end
 

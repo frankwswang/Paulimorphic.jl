@@ -1694,11 +1694,12 @@ end
 
 
 """
-    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T
+    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
               ) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
-    sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} -> 
+    sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
+              ) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
@@ -1708,9 +1709,12 @@ selects every term of `h`. If no term is selected, `zero(Complex{R})` is returne
 
 The accumulation is performed at the precision level of 
 `complex($(extendType|>repr)(R, T))` and converted to `Complex{R}` only once at the end. 
-For floating-point precisions, the selected coefficients are accumulated with Neumaier 
-summation, following the term order of `h`. For exact coefficient types (e.g., `Rational`), 
-the accumulation is carried out by exact addition (no overflow protection for `Integer`).
+For floating-point precisions, the selected coefficients are accumulated via 
+[Neumaier summation](https://doi.org/10.1002/zamm.19740540106), following the term order of 
+`h`. By default, `checkForm::Bool=true` so that `h` is required to be in the canonical form 
+(verified by [`isCanonicalized`](@ref)) to ensure a deterministic result. For exact 
+coefficient types (e.g., `Rational`), the accumulation is carried out by exact addition 
+(no overflow protection for `Integer`).
 
 # Examples
 ```jldoctest
@@ -1722,14 +1726,20 @@ julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
 julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
 1.0 + 0.0im
 ```
-""" #> Add the option to check canonical order
-function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T
-                   ; checkOrder::Bool=false) where {F, T<:SignedReal, R<:SignedReal}
+"""
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
+                   checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
+    if checkForm && !isCanonicalized(h)
+        throw(ArgumentError("`h` is not in the canonical form. To lift this error, either "*
+                            "canonicalize `h` first using `canonicalize!` or set "*
+                            "`checkForm=false` for `sumCoeffs`."))
+    end
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
 end
 
-sumCoeffs(h::PauliSum{T}, ::Type{R}=T) where {T<:SignedReal, R<:SignedReal} = 
-sumCoeffs(_->true, h, R)
+sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
+          ) where {T<:SignedReal, R<:SignedReal} = 
+sumCoeffs(_->true, h, R; checkForm)

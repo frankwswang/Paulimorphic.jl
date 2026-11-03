@@ -1014,6 +1014,16 @@ function isCanonical(h::PauliSum; checkDuplicateTerm::Bool=false,
 end
 
 
+function checkPauliOperator(h::PauliSum, checkForm::Bool=true)
+    if checkForm && !isCanonical(h)
+        throw(ArgumentError("`h` is not in the canonical form. To lift this error, either "*
+                            "canonicalize `h` first using `canonicalize!` or set "*
+                            "`checkForm=false`."))
+    end
+    nothing
+end
+
+
 """
     canonicalize!(h::PauliSum) -> PauliSum
 
@@ -1741,11 +1751,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
                    checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
     accuT = (complex∘extendType)(R, T)
-    if checkForm && !isCanonical(h)
-        throw(ArgumentError("`h` is not in the canonical form. To lift this error, either "*
-                            "canonicalize `h` first using `canonicalize!` or set "*
-                            "`checkForm=false` for `sumCoeffs`."))
-    end
+    checkPauliOperator(h, checkForm)
     nTerm = countTerms(h)
     scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}

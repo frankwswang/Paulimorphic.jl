@@ -1712,9 +1712,9 @@ The accumulation is performed at the precision level of
 For floating-point precisions, the selected coefficients are accumulated via 
 [Neumaier summation](https://doi.org/10.1002/zamm.19740540106), following the term order of 
 `h`. By default, `checkForm::Bool=true` so that `h` is required to be in the canonical form 
-(verified by [`isCanonicalized`](@ref)) to ensure a deterministic result. For exact 
-coefficient types (e.g., `Rational`), the accumulation is carried out by exact addition 
-(no overflow protection for `Integer`).
+(verified by [`isCanonicalized`](@ref)) to ensure a single deterministic result for 
+`h` containing the same terms. For exact coefficient types (e.g., `Rational`), the 
+accumulation is carried out by exact addition (no overflow protection for `Integer`).
 
 # Examples
 ```jldoctest

@@ -1,7 +1,39 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
+using Paulimorphic: checkedAdd, checkedMul, checkedConj
 
 @testset "Numerics.jl" begin
+    @testset "checkedAdd / checkedMul / checkedConj" begin
+        #> Fixed-width signed integers (real, or as complex components) throw on overflow
+        @test checkedAdd(typemax(Int) - 1, 1) === typemax(Int)
+        @test_throws OverflowError checkedAdd(typemax(Int), 1)
+        @test_throws OverflowError checkedAdd(Int8(100), Int8(100))
+        @test checkedAdd(Complex(1, 2), Complex(3, 4)) === Complex(4, 6)
+        @test_throws OverflowError checkedAdd(Complex(0, typemax(Int)), Complex(0, 1))
+        @test checkedMul(2^31, 2^31) === 2^62
+        @test_throws OverflowError checkedMul(2^32, 2^32)
+        @test checkedMul(Complex(1, 2), Complex(3, 4)) === Complex(-5, 10)
+        @test_throws OverflowError checkedMul(Complex(2^32, 0), Complex(0, 2^32))
+        @test_throws OverflowError checkedMul(Complex(typemin(Int), 0), Complex(-1, 0))
+        @test checkedConj(Complex(1, 2)) === Complex(1, -2)
+        @test_throws OverflowError checkedConj(Complex(0, typemin(Int)))
+        @test_throws OverflowError checkedConj(Complex(Int8(0), typemin(Int8)))
+
+        #> Operands of different types are promoted first: an overflow is detected in the 
+        #> promoted type, and a narrower result is left to the caller's conversion
+        @test checkedMul(Int8(100), 2) === 200
+        @test checkedMul(Complex(Int8(1), Int8(2)), 3) === Complex(3, 6)
+        @test_throws OverflowError checkedMul(Int8(2), 2^62)
+        @test checkedMul(2.0, 3) === 6.0
+
+        #> Every other type keeps its own arithmetic (plain IEEE operations for floats)
+        @test checkedAdd(1.0, 2.0) === 3.0 && checkedMul(1.5, 2.0) === 3.0
+        @test checkedAdd(1e308, 1e308) === Inf
+        @test checkedConj(1.0 + 2.0im) === 1.0 - 2.0im
+        @test checkedMul(1//2, 2//3) === 1//3
+        @test checkedAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
+    end
+
     @testset "neumaierStep" begin
         @test neumaierStep(1e16, 1.0) == (1e16, 1.0)
         @test neumaierStep(1.0, 1e16) == (1e16, 1.0)
@@ -13,10 +45,13 @@ using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
         #> Residue-step methods: the float path collects the addition residue
         @test neumaierAdd(1e16, 1.0, 0.0) == neumaierAdd(1e16, 1.0) == (1e16, 1.0)
         @test neumaierAdd(1e16, -1e16, 1.0) == (0.0, 1.0)
-        #> Exact fallback: plain addition with an untouched residue slot
+        #> Exact fallback: (overflow-checked) plain addition with an untouched residue slot
         @test neumaierAdd(1//2, 1//3, 0//1) == neumaierAdd(1//2, 1//3) == (5//6, 0//1)
         @test neumaierAdd(Complex(1, 2), Complex(3, 4), Complex(0, 0)) == 
                          (Complex(4, 6), Complex(0, 0))
+        @test_throws OverflowError neumaierAdd(typemax(Int), 1)
+        @test_throws OverflowError neumaierAdd(Complex(typemax(Int), 0), Complex(1, 0))
+        @test neumaierAdd(big(typemax(Int)), big(1)) == (big(typemax(Int)) + 1, big(0))
     end
 
     @testset "neumaierSum" begin
@@ -29,6 +64,8 @@ using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
         @test neumaierSum(Float64, Iterators.filter(>(1), [0.5, 1.5])) == 1.5
         @test neumaierSum(Float64, skipmissing([1e16, missing, 1.0, -1e16])) == 1.0
         @test neumaierSum(abs, Float64, [-1.0, 2.0]) == 3.0
+        @test_throws OverflowError neumaierSum([typemax(Int), 1])
+        @test neumaierSum(Int128, [typemax(Int), 1]) == Int128(typemax(Int)) + 1
         @test_throws ArgumentError neumaierSum(Complex, ComplexF64[1.0im])
         @test_throws ArgumentError let scope = (x for x in Iterators.countfrom(1.0))
             neumaierSum(Float64, scope)

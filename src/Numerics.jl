@@ -1,5 +1,50 @@
 public extendType, evalMagnitude
 
+#> Overflow-check arithmetics for numeric types based on fixed-width signed integers. Every 
+#> other type falls back to `+`, `*`, and `conj` (so floating-point arithmetic remains). 
+#> Different numeric types are first promoted before the operation, where an overflow can 
+#> be automatically detected via type conversion, followed by an `InexactError` throw.
+function checkedAdd(num1::T, num2::T) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        Base.checked_add(num1, num2)
+    elseif T <: Complex{<:BitSInteger}
+        x = Base.checked_add(real(num1), real(num2))
+        y = Base.checked_add(imag(num1), imag(num2))
+        Complex(x, y)
+    else
+        num1 + num2
+    end
+end
+
+checkedAdd(num1::RealOrComplex, num2::RealOrComplex) = checkedAdd(promote(num1, num2)...)
+
+
+function checkedMul(num1::T, num2::T) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        Base.checked_mul(num1, num2)
+    elseif T <: Complex{<:BitSInteger}
+        x1, y1 = reim(num1)
+        x2, y2 = reim(num2)
+        x = Base.checked_sub(Base.checked_mul(x1, x2), Base.checked_mul(y1, y2))
+        y = Base.checked_add(Base.checked_mul(x1, y2), Base.checked_mul(y1, x2))
+        Complex(x, y)
+    else
+        num1 * num2
+    end
+end
+
+checkedMul(num1::RealOrComplex, num2::RealOrComplex) = checkedMul(promote(num1, num2)...)
+
+
+function checkedConj(num::T) where {T<:RealOrComplex}
+    if T <: Complex{<:BitSInteger}
+        Complex(real(num), Base.checked_neg( imag(num) ))
+    else
+        conj(num)
+    end
+end
+
+
 #>-- Reference(s) --<#
 #> [DOI] 10.1002/zamm.19740540106 (Improved Kahan--Babuska algorithm proposed by Neumaier)
 @inline function neumaierStep(x1::T, x2::T) where {T<:AbstractFloat}
@@ -21,7 +66,7 @@ function neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:FloatOrComp
 end
 
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
-(total + val, residue)
+(checkedAdd(total, val), residue)
 
 
 function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}

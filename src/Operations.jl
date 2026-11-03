@@ -40,7 +40,7 @@ add(Int, str1, str2, simplification)
     h1 + h2 -> PauliSum
 
 Add two `PauliSum`, returning their sum with the coefficient type automatically promoted. 
-If `simplification=true`, the same simplification procedure used by the [`PauliSum`](@ref) 
+If `simplification=true`, the same simplification procedure used by the `PauliSum` 
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h1` or `h2`.
 
@@ -73,7 +73,7 @@ Add a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) to 
 returning the sum with the coefficient type automatically promoted. The added string is 
 `term.first`, whose phase is absorbed into its associated coefficient `term.second` by the 
 `PauliSum` constructor. If `simplification=true`, the same simplification procedure used by 
-the [`PauliSum`](@ref) constructor (when the same-named argument is set to `true`) is 
+the `PauliSum` constructor (when the same-named argument is set to `true`) is 
 applied to the result. The result does not reference any data in either `h` or `term`.
 
 !!! info
@@ -133,7 +133,7 @@ Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
 Sum over all the `PauliStr` or `PauliSum` in `terms` and return the result as a `PauliSum`. 
 In the second method signature, the core data type of returned `PauliSum` (mirroring `T` in 
 the first method) is the promotion of the core data types of all the elements in `terms`. 
-If `simplification=true`, the same simplification procedure used by the [`PauliSum`](@ref) 
+If `simplification=true`, the same simplification procedure used by the `PauliSum` 
 constructor (when the same-named argument is set to `true`) is applied once to the 
 concatenation of all the `PauliStr` (paired with their associated coefficients) extracted 
 from `terms`. A chained summation of three or more terms connected by operator `+` without 
@@ -314,9 +314,9 @@ Subtract a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)
 `h`, returning the difference with the coefficient type automatically promoted. The string 
 of `term` is `term.first`, whose phase is absorbed into its associated coefficient 
 `term.second` by the `PauliSum` constructor. If `simplification=true`, the same 
-simplification procedure used by the [`PauliSum`](@ref) constructor (when the same-named 
-argument is set to `true`) is applied to the result. The result does not reference any data 
-in either `h` or `term`.
+simplification procedure used by the `PauliSum` constructor (when the same-named argument 
+is set to `true`) is applied to the result. The result does not reference any data in 
+either `h` or `term`.
 
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
@@ -460,9 +460,9 @@ end
 Multiply a `PauliStr` by a real or complex scalar `coeff`, returning the product 
 `str * coeff` (equal to `coeff * str`). Unlike multiplication by a [`PhaseFactor`](@ref), a 
 general scalar coefficient may not be stored within a `PauliStr`, so the result is always 
-promoted to a `PauliSum`. If `simplification=true`, the same simplification procedure used 
-by the `PauliSum` constructor (when the same-named argument is set to `true`) is applied to 
-the result. The result does not reference any data in `str`.
+promoted to a [`PauliSum`](@ref). If `simplification=true`, the same simplification 
+procedure used by the `PauliSum` constructor (when the same-named argument is set to 
+`true`) is applied to the result. The result does not reference any data in `str`.
 """
 function mul(::Type{T}, str::PauliStr, coeff::SRealOrComplex, simplification::Bool=true
              ) where {T<:SignedReal}
@@ -537,8 +537,8 @@ either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
-    for `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (following the overflow 
+    checking policy of `PauliSum`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
              ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
@@ -554,7 +554,7 @@ function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool
     k = 0
     @inbounds for j in 1:n, i in 1:m
         k += 1
-        cs[begin+k-1] = tempC(cL[begin+i-1]) * tempC(cR[begin+j-1])
+        cs[begin+k-1] = checkedMul(tempC(cL[begin+i-1]), tempC(cR[begin+j-1]))
         ss[begin+k-1] = mul(sL[begin+i-1], sR[begin+j-1]) #> Phase folded into `.phase`
     end
 
@@ -585,8 +585,8 @@ For in-place scaling without type promotion, see [`scale!`](@ref).
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (no overflow protection 
-    for `Integer`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (following the overflow 
+    checking policy of `PauliSum`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2}, 
              simplification::Bool=true
@@ -594,7 +594,7 @@ function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2},
     checkCoreDataTypeForPauliSum(T)
     tempC = extendType(T, complex( promote_type(T1, T2) ))
     tempCoeff = tempC(coeff)
-    coeffs = map(x->Complex{T}(tempC(x) * tempCoeff), h.coeff)
+    coeffs = map(x->Complex{T}(checkedMul(tempC(x), tempCoeff)), h.coeff)
     PauliSum(h.str, coeffs, simplification)
 end
 
@@ -619,9 +619,9 @@ Multiply `h` by a phase `phase`, returning a new `PauliSum` in the canonical for
 (when the same-named argument is set to `true`) is applied to the result. The result does 
 not reference any data in `h`.
 """
-mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true
-    ) where {T<:SignedReal} = 
-mul(T, h, evalPhase(phase), simplification)
+mul(::Type{T}, h::PauliSum{T1}, phase::PhaseFactor, simplification::Bool=true
+    ) where {T<:SignedReal, T1<:SignedReal} = 
+mul(T, h, Complex{T1}(evalPhase(phase)), simplification)
 
 mul(h::PauliSum{T}, phase::PhaseFactor, simplification::Bool=true) where {T<:SignedReal} = 
 mul(T, h, phase, simplification)
@@ -644,23 +644,33 @@ function scale!(s::PauliStr, p::PhaseFactor)
 end
 
 """
-    scale!(h::PauliSum, p::PhaseFactor) -> PauliSum
+    scale!(h::PauliSum{T}, p::PhaseFactor) where {T<:SignedReal} -> PauliSum{T}
 
 Multiply `h` in place by a phase `p`, returning the mutated `h`. `p` is first converted to 
-[`evalPhase(p)`](@ref `evalPhase(::PhaseFactor)`), then absorbed into `h.coeff`. This is to 
-match the canonical form of `PauliSum` in which its phases are carried by coefficients 
-rather than the stored `PauliStr`.
+`Complex{T}(`[`evalPhase(p)`](@ref `evalPhase(::PhaseFactor)`)`)`, then absorbed into 
+`h.coeff` (following the overflow checking policy of `PauliSum`). This is to match the 
+canonical form of `PauliSum` in which its phases are carried by coefficients rather than 
+the stored `PauliStr`.
 """
-scale!(h::PauliSum, p::PhaseFactor) = UInt8(p) > 0 ? scale!(h, evalPhase(p)) : h
+scale!(h::PauliSum{T}, p::PhaseFactor) where {T<:SignedReal} = 
+UInt8(p) > 0 ? scale!(h, Complex{T}( evalPhase(p) )) : h
 
 """
     scale!(h::PauliSum, c::Union{T, Complex{T}}) where {T<:SignedReal} -> PauliSum
 
 Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff` is scaled 
 in place, thus each product `h.coeff[i] * c` must be able to be converted to 
-`eltype(h.coeff)`. No re-canonicalization is performed.
+`eltype(h.coeff)`. For exact coefficient types (e.g., `Int`), every product is verified 
+(via the same overflow checking policy used by the constructor of `PauliSum`) before `h` is 
+mutated. No re-canonicalization is performed.
 """
-scale!(h::PauliSum, c::SRealOrComplex) = (h.coeff .*= c; h)
+function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
+    coeffs = h.coeff
+    for i in eachindex(coeffs)
+        coeffs[i] = checkedMul(coeffs[i], c) #> Conversion check is done on the fly
+    end
+    h
+end
 
 
 """
@@ -802,9 +812,10 @@ end
     h' -> PauliSum
 
 Return the Hermitian adjoint (namely the Hermitian conjugate) of `h`. The result is in the 
-canonical form and does not reference any data in `h`. For an input `h` already in its 
-canonical form (e.g., as produced by the constructor of [`PauliSum`](@ref)), the adjoint is 
-an involution: 
+canonical form and does not reference any data in `h`; the coefficients are conjugated 
+following the overflow checking policy of `PauliSum`. For an input `h` already in its 
+canonical form (e.g., as produced by the constructor of `PauliSum`), the adjoint is an 
+involution: 
 
 ```jldoctest
 julia> h = PauliSum([pauli"XXIXX", pauli"XXIYX"], [1, im]);
@@ -813,6 +824,6 @@ julia> (h')' == h
 true
 ```
 """
-toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(conj, h.coeff))
+toAdjoint(h::PauliSum) = PauliSum(map(toAdjoint, h.str), map(checkedConj, h.coeff))
 
 Base.adjoint(op::PauliStrOrSum) = toAdjoint(op)

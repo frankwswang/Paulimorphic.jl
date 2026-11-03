@@ -299,6 +299,19 @@ end
     #> Terms whose `Complex{T}`-converted coefficients are zero are dropped
     @test countTerms(PauliSum(Float32, fill(pauli"X", 2), [1e-50, 1e-50])) == 0
 
+    #> Exact coefficient types: a fixed-width integer overflow throws instead of wrapping 
+    #> around, in the merge of equal strings as well as in the phase absorption, whereas 
+    #> a wider core type `T` provides the room to evaluate the same inputs
+    @test_throws OverflowError PauliSum(fill(pauli"X", 2), [typemax(Int), 1])
+    @test_throws OverflowError PauliSum(fill(pauli"X", 2), Int8[100, 100])
+    @test PauliSum(Int, fill(pauli"X", 2), Int8[100, 100]) == PauliSum([pauli"X"], [200])
+    @test_throws OverflowError PauliSum(fill(pauli"X", 2), [typemax(Int)//1, 1//1])
+    @test PauliSum(fill(pauli"X", 2), [big(typemax(Int)), big(1)]).coeff == 
+          [big(typemax(Int)) + 1]
+    @test_throws OverflowError PauliSum([pauli"-X"], [typemin(Int)])
+    @test_throws OverflowError PauliSum([pauli"-X"], [typemin(Int8)])
+    @test PauliSum(Int, [pauli"-X"], [typemin(Int8)]) == PauliSum([pauli"X"], [128])
+
     #> Input-order independence: the same multiset of terms gives an identical sum
     strs = [pauli"X", pauli"Z", pauli"X", pauli"Y", pauli"X", pauli"Z"]
     cs = [0.1, -0.7, 0.2, 1e-3, -0.3, 0.7]
@@ -436,6 +449,11 @@ end
     @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
     @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
     @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
+    #> A fixed-width integer overflow throws instead of wrapping around; a wider `R` 
+    #> accumulates the same terms safely
+    hBig = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
+    @test_throws OverflowError sumCoeffs(hBig)
+    @test sumCoeffs(hBig, Int128) == Complex{Int128}(typemax(Int)) + 1
 
     #> `checkForm` (`true` by default): the accumulation follows the term order of `h`, so 
     #> a sum that is not in the canonical form is rejected unless the check is lifted

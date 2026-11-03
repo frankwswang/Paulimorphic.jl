@@ -552,17 +552,24 @@ accumulated on the precision level of `$(extendType|>repr)(T, complex(C))`. For
 floating-point precisions, the accumulation is realized by [Neumaier 
 summation](https://doi.org/10.1002/zamm.19740540106) and then converted to `Complex{T}`. 
 For exact coefficient types (e.g., `Rational`), the accumulation is carried out by exact 
-addition (no overflow protection for `Integer`). Within each sub-multiset of equal strings, 
-the coefficients are accumulated in a fixed order determined by their values (not by their 
-positions in `coeffs`), so the constructed `res` depends only on the multiset of input 
-terms and not on the order in which they are listed. When `simplification=false`, such 
-equal strings are retained. In both cases the terms in `res` are stored in a deterministic 
-canonical order such that for 
+addition. Within each sub-multiset of equal strings, the coefficients are accumulated in a 
+fixed order determined by their values (not by their positions in `coeffs`), so the 
+constructed `res` depends only on the multiset of input terms and not on the order in which 
+they are listed. When `simplification=false`, such equal strings are retained. In both 
+cases the terms in `res` are stored in a deterministic canonical order such that for 
 `res2=`[`canonicalize!(deepcopy(res))`](@ref `canonicalize!`), 
 
     res2.str == res.str && res2.coeff == res.coeff
 
 always returns `true`.
+
+!!! info "Overflow checking policy for coefficients in an exact numeric type"
+    When the core data type `T` of `PauliSum{T}` is specified to be an exact numeric type 
+    based on fixed-width signed integers (e.g., `Int8`) upon construction, the necessary 
+    arithmetic on the coefficients (once they are converted to `T` if are of a different 
+    type) automatically performs overflow checking. During the optional conversion, if any 
+    coefficient cannot be represented as an instance of `T`, the constructor will also 
+    throw an `InexactError`.
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
              simplification::Bool=true) where {T<:SignedReal} -> 
@@ -868,8 +875,9 @@ end
 
 Absorb the phase of each Pauli string in `strs` into a parallel vectorized `storage`, in 
 place. Specifically, for every index `i` at which `evalPhase(strs[i]) != one(C)`, multiply 
-`storage[i]` by [`evalPhase(strs[i])`](@ref `evalPhase`) and reset `strs[i].phase` to 
-`PhaseFactor(0)`. Both `strs` and `storage` are mutated and must share the same length.
+`storage[i]` by `Complex(`[`evalPhase(strs[i])`](@ref `evalPhase`)`)` (overflow is checked 
+for `C` that are exact numeric types) and reset `strs[i].phase` to `PhaseFactor(0)`. Both 
+`strs` and `storage` are mutated and must share the same length.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}}
@@ -882,7 +890,8 @@ function absorbPhases!(strs::AbstractVector{PauliStr},
         phase = str.phase
         if phase != posRea
             str.phase = posRea
-            storage[begin+i-1] *= evalPhase(phase)
+            val = storage[begin+i-1]
+            storage[begin+i-1] = checkedMul(val, typeof(val)( evalPhase(phase) ))
         end
     end
 
@@ -1714,7 +1723,7 @@ For floating-point precisions, the selected coefficients are accumulated via
 `h`. By default, `checkForm::Bool=true` so that `h` is required to be in the canonical form 
 (verified by [`isCanonical`](@ref)) to ensure a single deterministic result for 
 `h` containing the same terms. For exact coefficient types (e.g., `Rational`), the 
-accumulation is carried out by exact addition (no overflow protection for `Integer`).
+accumulation is carried out by exact addition with overflow checking.
 
 # Examples
 ```jldoctest

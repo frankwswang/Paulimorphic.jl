@@ -243,8 +243,8 @@ end
     @test sub(hNarrow, pauli"Z"=>Int8(1)) == PauliSum([pauli"Z"], [Int8(2)])
     @test sub(hNarrow, pauli"Z"=>Int8(1)) isa PauliSum{Int8}
     hMin = PauliSum([pauli"Z"], [typemin(Int8)])
-    @test_throws InexactError sub(PauliSum(Int8), hMin)
-    @test_throws InexactError sub(pauli"X", hMin)
+    @test_throws OverflowError sub(PauliSum(Int8), hMin) #> Negation overflows in `Int8`
+    @test_throws OverflowError sub(pauli"X", hMin)
     @test sub(PauliSum(Int), hMin) == PauliSum([pauli"Z"], [128]) #> Negated after widening
     @test sub(hMin, PauliSum(Int8)) == hMin
     @test sub(hMin, pauli"X") == PauliSum([pauli"X", pauli"Z"], Int8[-1, typemin(Int8)])
@@ -542,8 +542,41 @@ end
     @test mul(h4, 2.0^40) == PauliSum([pauli"X"],    [2.0^80])
     @test_throws InexactError mul(Int32, PauliSum([pauli"X"], [2^20]), 
                                          PauliSum([pauli"X"], [2^20]))
-    #> Limitation: does not prevent integer overflow
-    @test mul(Float64, h4, h4) == mul(Float64, h4, 2^40) == PauliSum(Float64)
+    #> An exact evaluation type is kept exact: integer overflow throws instead of wrapping 
+    #> around (even when the result type is a float, as the products are evaluated in `Int`)
+    @test_throws OverflowError mul(Float64, h4, h4)
+    @test_throws OverflowError mul(Float64, h4, 2^40)
+    @test_throws OverflowError mul(h4, h4)
+    @test_throws OverflowError mul(PauliSum([pauli"X"], Int8[100]), Int8(2))
+    @test mul(PauliSum([pauli"X"], Int8[100]), 2) == PauliSum([pauli"X"], [200])
+    #> A phase is applied in the coefficient type of `h`, so negating `typemin` overflows
+    @test_throws OverflowError mul(PauliSum([pauli"X"], [typemin(Int)]), negRea)
+    @test_throws OverflowError mul(PauliSum([pauli"X"], [typemin(Int8)]), negRea)
+    @test mul(Int, PauliSum([pauli"X"], [typemin(Int8)]), negRea) == 
+          PauliSum([pauli"X"], [128])
+end
+
+@testset "scale!(::PauliSum)" begin
+    h = PauliSum([pauli"X", pauli"Z"], [2, -3])
+    @test scale!(h, 2) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    @test scale!(h, 1im) === h && h == PauliSum([pauli"X", pauli"Z"], [4im, -6im])
+    @test scale!(h, negImg) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    @test scale!(h, posRea) === h && h == PauliSum([pauli"X", pauli"Z"], [4, -6])
+    #> Each product is converted back to the coefficient type of `h`
+    hF = PauliSum([pauli"X"], Float32[1.5])
+    @test scale!(hF, 2.0) isa PauliSum{Float32} && hF.coeff == [3f0]
+    @test_throws InexactError scale!(PauliSum([pauli"X"], [3]), 0.5)
+    @test scale!(PauliSum([pauli"X"], [1//2]), 3) == PauliSum([pauli"X"], [3//2])
+    #> Exact coefficient types: an overflow (`OverflowError`) or a narrowing failure 
+    #> (`InexactError`) is detected before `h` is mutated, so `h` is left unchanged
+    hMax = PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
+    @test_throws OverflowError scale!(hMax, 2)
+    @test hMax == PauliSum([pauli"X", pauli"Z"], [1, typemax(Int)])
+    @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int)]), negRea)
+    h8 = PauliSum([pauli"X", pauli"Z"], Int8[1, 100])
+    @test_throws InexactError scale!(h8, 2)
+    @test h8 == PauliSum([pauli"X", pauli"Z"], Int8[1, 100])
+    @test_throws OverflowError scale!(PauliSum([pauli"X"], [typemin(Int8)]), negRea)
 end
 
 #> `checkCommute` and `checkAntiCom`
@@ -714,6 +747,11 @@ end
     #> Nontrivial input phases: absorption and conjugation must compose consistently
     @test toAdjoint(PauliSum([PauliStr(1, symY, posImg)], 1)) == 
           PauliSum([PauliStr(1, symY, negImg)], 1)
+
+    #> Conjugating exact coefficients is checked against overflow
+    @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], [Complex(0, typemin(Int))]))
+    @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], 
+                                                  [Complex(Int8(0), typemin(Int8))]))
 
     #> Hermitian (real-coefficient) and anti-Hermitian (imaginary-coefficient) sums
     hReal = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[2, -3])

@@ -563,13 +563,14 @@ cases the terms in `res` are stored in a deterministic canonical order such that
 
 always returns `true`.
 
-!!! info "Overflow checking policy for coefficients in an exact numeric type"
+!!! info "Overflow checking policy for coefficients of an exact numeric type"
     When the core data type `T` of `PauliSum{T}` is specified to be an exact numeric type 
     based on fixed-width signed integers (e.g., `Int8`) upon construction, the necessary 
     arithmetic on the coefficients (once they are converted to `T` if they are of a 
     different type) automatically performs overflow checking. During the optional 
     conversion, if any coefficient cannot be represented as an instance of `T`, the 
     constructor will also throw an `InexactError`.
+
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
              simplification::Bool=true) where {T<:SignedReal} -> 

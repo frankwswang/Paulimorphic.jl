@@ -488,11 +488,12 @@ for every mode pair `(p, q)`. The adjoint condition is checked structurally (via
 swapping `enc.first` and `enc.second`, so the annihilation-versus-creation role assignment 
 is a positional convention carried by the `Pair` structure rather than a checkable property.
 
-Additionally, `enc` must be formatted such that
-- All contained `PauliSum` are in the canonical form (see [`PauliSum`](@ref) and 
-  [`canonicalize!`](@ref) for more details)
+Additionally, `enc` must be formatted such that:
+
+- All contained `PauliSum` are in the [canonical form](@ref canon-form) (also see 
+  [`isCanonical`](@ref)).
 - All contained `PauliSum` explicitly act on the same number of sites (i.e., 
-  [`countSites`](@ref) returns the same value)
+  [`countSites`](@ref) returns the same value).
 
 When `strRestricted=true`, `enc` must additionally be convertible to a Pauli-string-based 
 Majorana encoding: for each mode `p`, ``\\hat{a}_p + \\hat{c}_p`` and 

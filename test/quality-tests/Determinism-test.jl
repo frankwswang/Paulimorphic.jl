@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: evalMagnitude, combine
+using Paulimorphic: evalMagnitude, combine, sortStrings!
 
 #> Bit-reproducibility checks of the determinism guarantees of Paulimorphic: for identical 
 #> labeled inputs, the functions below must return identical outputs on every platform 
@@ -87,17 +87,22 @@ end
               pauli"XI" => 1.0 + 0.0im, pauli"YI" => 0.0 + 1.0im, 
               pauli"IZ" => 1.0 + 0.0im, pauli"IX" => 1.0 + 0.0im]
     @test listTerms(h) == golden
-    @test isCanonical(h, checkDuplicateTerm=true, checkZeroCoeffTerm=true)
+    @test isCanonical(h, checkSimplification=true)
     @test PauliSum(reverse(strs), 1.0) == PauliSum(strs[[4, 1, 6, 3, 2, 5]], 1.0) == h
     h2 = canonicalize!(deepcopy(h))
     @test h2.str == h.str && h2.coeff == h.coeff
 
-    #> Equal strings are ordered by `(evalMagnitude(c), real(c), imag(c))`: the two 
-    #> coefficients below tie in magnitude, so the real parts decide, whereas `abs(cx)` on 
-    #> FMA hardware exceeds `abs(c2)` and would put `c2` first
+    #> Equal strings are ordered by `(evalMagnitude(c), real(c), imag(c))` when their 
+    #> coefficients are considered by `sortStrings!`, which fixes the accumulation order 
+    #> within each run of equal strings in the merge of the constructor (not observable 
+    #> through the merged value of a two-term run, since a single compensated addition is 
+    #> symmetric in its operands): the two coefficients below tie in magnitude, so the real 
+    #> parts decide, whereas `abs(cx)` on FMA hardware exceeds `abs(c2)` and would put `c2` 
+    #> first
     c2 = complex(cxMagnitude)
-    h3 = PauliSum([pauli"X", pauli"X"], [c2, cx], false)
-    @test h3.coeff == [cx, c2] && isCanonical(h3)
+    strs3, coeffs3 = [pauli"X", pauli"X"], [c2, cx]
+    sortStrings!(strs3, coeffs3)
+    @test coeffs3 == [cx, c2]
 end
 
 @testset "PauliSum: permutation-invariant merging of equal strings" begin

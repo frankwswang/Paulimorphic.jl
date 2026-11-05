@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, sub
 
 @testset "Strings.jl" begin
 
@@ -290,6 +290,16 @@ end
     res2 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0])
     @test countTerms(res2) == 0
 
+    #> `simplification=false`: equal strings are merged all the same (the canonical form 
+    #> is unconditional); only the terms whose merged coefficient is exactly zero are 
+    #> retained, which leaves the sum outside the simplified form
+    res3 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16], false)
+    @test res3 == res1
+    res4 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0], false)
+    @test countTerms(res4) == 1 && res4.coeff == Complex{Float64}[0.0]
+    @test isCanonical(res4) && !isCanonical(res4, checkSimplification=true)
+    @test res4 == PauliSum(res4, false) && PauliSum(res4) == res2
+
     #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
     @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
           Complex{Float32}[1.4901161f-8]
@@ -378,14 +388,53 @@ end
     #> `copyStr` pass-through mirrors `indexTerm`
     @test setCoeff!(h, 2.0, 2, false).first === h.str[begin+1]
 
-    #> Documented non-merging: a zeroed coefficient leaves the term in place
+    #> Documented non-removal: a zeroed coefficient leaves the term in place, which keeps 
+    #> the canonical form (independent of the coefficients) but not the simplified form
     setCoeff!(h, 0, 3) #> `Real` input: converted, not rejected
     @test length(h.str) == 3 && iszero(h.coeff[end])
+    @test isCanonical(h) && !isCanonical(h, checkSimplification=true)
+    @test h == PauliSum(h, false) && countTerms(PauliSum(h)) == 2
 
     #> Out-of-range `i` throws `DomainError` before any mutation occurs
     @test_throws DomainError setCoeff!(h, 99.0, 0)
     @test_throws DomainError setCoeff!(h, 99.0, 4)
     @test h.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `h` untouched
+end
+
+@testset "isCanonical" begin
+    #> Constructor outputs are canonical, and simplified when `simplification=true`
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    @test isCanonical(h) && isCanonical(h, checkSimplification=true)
+    @test isCanonical(PauliSum(Int)) && isCanonical(PauliSum(Int), checkSimplification=true)
+    @test h == PauliSum(h, false) == PauliSum(h)
+
+    #> Retained zero-coefficient terms: canonical but not simplified
+    strs0 = [pauli"XX", pauli"IZ", pauli"ZI", pauli"ZI"]
+    h0 = PauliSum(strs0, [1.0, 0.0, 3.0, -3.0], false)
+    @test h0.str == [pauli"ZI", pauli"IZ", pauli"XX"] && h0.coeff == ComplexF64[0, 0, 1]
+    @test isCanonical(h0) && !isCanonical(h0, checkSimplification=true)
+    @test h0 == PauliSum(h0, false) && h0 != PauliSum(h0)
+    @test PauliSum(h0) == PauliSum([pauli"XX"], [1.0])
+
+    #> Violations reachable only through the aliasing form of `indexTerm`: a phase left 
+    #> inside a stored string, strings out of order, and equal strings (the canonical order 
+    #> of `X` and `Z` on one site is `Z`, `X`)
+    hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    scale!(indexTerm(hp, 1, false).first, negRea)
+    @test !isCanonical(hp)
+    ho = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(ho, 1, false).first, 1, symY) #> `Z` -> `Y`, which sorts after `X`
+    @test !isCanonical(ho) && allunique(ho.str)
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
+    @test !isCanonical(hd) && issorted(hd.str)
+
+    #> Inconsistent site counts through direct assignment to `.str` (the strings below 
+    #> are still in ascending order, so only the site-count check can detect it)
+    hn = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    hn.str[begin+1] = pauli"XI"
+    @test !isCanonical(hn) && issorted(hn.str)
+    @test hn != PauliSum(hn, false)
 end
 
 #> `countWeight`
@@ -459,14 +508,23 @@ end
     #> a sum that is not in the canonical form is rejected unless the check is lifted
     #>> Canonical subsets of a canonical sum are accepted
     @test sumCoeffs(curtail(h, 2.0)) == Complex(5.0)
-    #>> Equal strings out of the coefficient-keyed order (after `setCoeff!`)
-    hd = PauliSum([pauli"X", pauli"X"], [1.0, 2.0], false)
-    setCoeff!(hd, 3.0, 1)
+    #>> Retained zero-coefficient terms (canonical, not simplified) are accepted and do 
+    #>> not alter the result: after `setCoeff!`, or kept by `simplification=false`
+    hs = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    setCoeff!(hs, 0.0, 1)
+    @test isCanonical(hs) && sumCoeffs(hs) == sumCoeffs(PauliSum(hs)) == Complex(1.0)
+    hk = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
+    hk = sub(hk, pauli"YY"=>5.0, false)
+    @test countTerms(hk) == 4 && iszero(hk.coeff[end])
+    @test sumCoeffs(hk) == sumCoeffs(PauliSum(hk)) == Complex(1.0)
+    #>> Equal strings (through the aliasing form of `indexTerm`)
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
     @test !isCanonical(hd)
     @test_throws ArgumentError sumCoeffs(hd)
     @test_throws ArgumentError sumCoeffs(s -> true, hd, Float32)
-    @test sumCoeffs(hd; checkForm=false) == Complex(5.0)
-    @test sumCoeffs(canonicalize!(hd)) == Complex(5.0)
+    @test sumCoeffs(hd; checkForm=false) == Complex(3.0)
+    @test sumCoeffs(PauliSum(hd)) == Complex(3.0) #> The merged rebuild
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea

@@ -85,13 +85,17 @@ end
     @test resCancel == PauliSum(Int)
     @test isempty(resCancel.str)
 
-    #>> 10. simplification=false retains duplicates (still canonically sorted), per method
-    resDup = add(pauli"X", pauli"X", false)
-    @test resDup.coeff == Complex{Int}[1, 1]
-    @test PauliSum(resDup, true) == PauliSum([pauli"X"], [2])
-    @test length(add(h1, h1, false).str) == 2
-    @test length(add(h1, pauli"XZ", false).str) == 2
-    @test length(add(h1, pauli"XZ"=>1, false).str) == 2
+    #>> 10. simplification=false merges equal strings all the same (canonical form), but 
+    #>> retains the terms whose merged coefficient is exactly zero, per method
+    @test add(pauli"X", pauli"X", false) == PauliSum([pauli"X"], [2])
+    resZero = add(pauli"X", mul(pauli"X", negRea), false)
+    @test resZero.str == [pauli"X"] && resZero.coeff == Complex{Int}[0]
+    @test isCanonical(resZero) && !isCanonical(resZero, checkSimplification=true)
+    @test PauliSum(resZero, true) == PauliSum(Int)
+    @test countTerms(add(h1, h1, false)) == countTerms(add(h1, mul(h1, negRea), false)) == 1
+    @test countTerms(add(h1, pauli"XZ"=>-2, false)) == 1
+    hOne = PauliSum([pauli"XZ"], [1])
+    @test countTerms(add(hOne, mul(pauli"XZ", negRea), false)) == 1
 
     #>> 11. Round trip with indexTerm
     h3 = PauliSum([pauli"XZ"], [0.5])
@@ -154,8 +158,10 @@ end
           combine(PauliSum{Float64}[]) == PauliSum(Float64)
     @test_throws ArgumentError combine(PauliSum[])
     @test combine([ha]) == ha && combine([ha]).str[begin] !== ha.str[begin]
-    #>> `simplification=false` keeps the concatenated terms (canonically sorted)
-    @test combine([ha, hb, hc], false).coeff == ComplexF64[1e-17, -1.0, 1.0]
+    #>> `simplification=false` merges all the same, retaining an exactly cancelled term
+    @test combine([ha, hb, hc], false) == combine([ha, hb, hc])
+    @test combine([ha, hc], false).coeff == ComplexF64[0.0] #> `1.0 - 1.0`, retained
+    @test countTerms(combine([ha, hc])) == 0
     #>> Mixed chains including a `PauliStr` use the n-ary method as well
     @test ha + hc + pauli"Z" == PauliSum([pauli"Z"], [1.0])
     #>> A single `PauliStr` stored in a mixed-type container
@@ -215,20 +221,16 @@ end
     @test sub(h2, pauli"YI") == add(h2, mul(pauli"YI", negRea))
     @test sub(pauli"YI", h2) == add(mul(h2, negRea), pauli"YI")
 
-    #>> 10. simplification=false retains duplicates (still canonically sorted), per method
-    resDup = sub(pauli"X", pauli"X", false)
-    @test resDup.coeff == Complex{Int}[-1, 1] #> Equal strings tie-broken by `real(c)`
-    @test PauliSum(resDup, true) == PauliSum(Int)
-    @test length(sub(h1, h1, false).str) == 2
-    @test length(sub(h1, pauli"XZ", false).str) == 2
-    @test length(sub(pauli"XZ", h1, false).str) == 2
-    @test length(sub(h1, pauli"XZ"=>1, false).str) == 2
-
-    #>> 10b. Unsimplified `s - h` keeps the canonical tie-break order among equal strings
-    hOne = PauliSum([pauli"X"], [1])
-    resRev = sub(pauli"X", hOne, false)
-    @test resRev.coeff == Complex{Int}[-1, 1]
-    @test resRev == PauliSum(resRev, false)
+    #>> 10. simplification=false merges equal strings all the same (canonical form), but 
+    #>> retains the terms whose merged coefficient is exactly zero, per method
+    resZero = sub(pauli"X", pauli"X", false)
+    @test resZero.str == [pauli"X"] && resZero.coeff == Complex{Int}[0]
+    @test isCanonical(resZero) && !isCanonical(resZero, checkSimplification=true)
+    @test PauliSum(resZero, true) == PauliSum(Int)
+    @test countTerms(sub(h1, h1, false)) == countTerms(sub(h1, pauli"XZ"=>2, false)) == 1
+    hOne = PauliSum([pauli"XZ"], [1])
+    resStr = sub(hOne, pauli"XZ", false)
+    @test countTerms(resStr) == 1 && resStr == sub(pauli"XZ", hOne, false) #> Zero term
 
     #>> 11. Round trip with indexTerm: removing a sum's own term cancels it exactly
     h3 = PauliSum([pauli"XZ"], [0.5])
@@ -437,10 +439,11 @@ end
     #> Coefficient-type promotion
     @test mul(PauliSum(Int, [pauli"X"]), PauliSum([pauli"Z"], [0.5])) isa PauliSum{Float64}
 
-    #> `simplification=false` preserves the raw cross-term count; simplifying it afterwards
-    #> recovers the merged result
+    #> `simplification=false` merges the cross terms all the same but retains the exactly 
+    #> cancelled identity term (`XX - YY`); simplifying it afterwards recovers the result
     hRaw = mul(h1, h2, false)
-    @test length(hRaw.coeff) == 4
+    @test hRaw == PauliSum([pauli"I", pauli"Z"], [0, -2im], false)
+    @test isCanonical(hRaw) && !isCanonical(hRaw, checkSimplification=true)
     @test PauliSum(hRaw, true) == mul(h1, h2)
 
     #> The empty `PauliSum` (the zero operator) annihilates any sum
@@ -756,6 +759,13 @@ end
     @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], [Complex(0, typemin(Int))]))
     @test_throws OverflowError toAdjoint(PauliSum([pauli"X"], 
                                                   [Complex(Int8(0), typemin(Int8))]))
+
+    #> `simplification=false` retains zero-coefficient terms, so the adjoint is an 
+    #> involution on every canonical sum, not only on the simplified ones
+    hZero = PauliSum([pauli"XI", pauli"ZZ"], [0.0, 1.0im], false)
+    @test toAdjoint(hZero) == PauliSum([pauli"ZZ"], [-1.0im])
+    @test toAdjoint(hZero, false) == PauliSum([pauli"XI", pauli"ZZ"], [0.0, -1.0im], false)
+    @test toAdjoint(toAdjoint(hZero, false), false) == hZero != (hZero')'
 
     #> Hermitian (real-coefficient) and anti-Hermitian (imaginary-coefficient) sums
     hReal = PauliSum([pauli"XI", pauli"ZZ"], Complex{Int}[2, -3])

@@ -1004,10 +1004,10 @@ end
 """
     isCanonical(h::PauliSum; checkSimplification::Bool=false) -> Bool
 
-Check whether `h` is in the [canonical form](@ref can-form). If `checkSimplification=true`, 
-this function additionally checks whether `h` is in the simplified form, i.e., the 
-canonical form in which no term has an exactly zero coefficient. The function only returns 
-`true` if all applied checks pass.
+Check whether `h` is in the [canonical form](@ref canon-form). If 
+`checkSimplification=true`, this function additionally checks whether `h` is in the 
+simplified form, i.e., the canonical form in which no term has an exactly zero coefficient. 
+The function only returns `true` if all applied checks pass.
 
 For any `h` whose strings hold no surplus bits (see [`sanitize!`](@ref)) and whose 
 coefficients hold no `NaN`, `isCanonical(h)` is equivalent to `h == PauliSum(h, false)`, 

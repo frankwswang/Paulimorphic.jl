@@ -123,7 +123,7 @@ Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
 
 """
     combine(::Type{T}, terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true
-        ) where {T<:SignedReal} -> 
+            ) where {T<:SignedReal} -> 
     PauliSum{T}
 
     combine(terms::AbstractVector{<:$PauliStrOrSum}, simplification::Bool=true) -> PauliSum
@@ -149,7 +149,7 @@ This function also provides a third method signature:
 where `f` is a callable object that transforms the coefficient associated with each 
 `PauliStr` embedded in `terms` to a new one. It must have the following method signature:
 
-    f(s::PauliStr, c::Complex{<:SignedReal}) -> T1
+    f(strCoeffPair::Pair{PauliStr, <:Complex{<:SignedReal}}) -> T1
 
 where `T1` is convertible to `T` through `Base.convert`; and for any `term` as an element 
 in `terms`, if `term isa PauliStr`, `(s, c) = (term, one(Complex{T}))`, else (i.e., `term 
@@ -158,8 +158,9 @@ Technically, the first method falls back to calling the third method with `f=(_,
 
 # Examples
 ```jldoctest
-julia> Paulimorphic.combine((_, c)->abs(c), Float64, [1.5*pauli"XXIX", -2*pauli"XIXX"]) == 
-       1.5*pauli"XXIX" + 2*pauli"XIXX"
+julia> let s1=pauli"XXIX", s2=pauli"XIXX", f=(scPair->abs(scPair.second))
+           Paulimorphic.combine(f, Float64, [1.5s1, -2s2]) == 1.5s1 + 2s2
+       end
 true
 ```
 
@@ -177,10 +178,10 @@ function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum},
     isempty(terms) && (return PauliSum(T))
 
     function coeffConverter(term::PauliStr)::Complex{T} #> Conversion, not assertion
-        f(term, one(Complex{T}))
+        f(term => one(Complex{T}))
     end
     function coeffConverter(term::PauliSum)
-        Iterators.map((x, y)->convert(Complex{T}, f(x, y)), term.str, term.coeff)
+        Iterators.map((x, y)->convert(Complex{T}, f(x=>y)), term.str, term.coeff)
     end
 
     #> `reduce(vcat, ::AbstractVector{<:AbstractVecOrMat})` is specialized in `Base` to 
@@ -202,7 +203,7 @@ end
 
 function combine(::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
                  simplification::Bool=true) where {T<:SignedReal}
-    combine((_, c)->c, T, terms, simplification)
+    combine((pair::Pair)->pair.second, T, terms, simplification)
 end
 
 function combine(::Type{T}, terms::AbstractVector{PauliStr}, simplification::Bool=true

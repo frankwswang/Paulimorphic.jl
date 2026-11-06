@@ -11,7 +11,7 @@ Convert `val` to `T` (by default, `Int`), or throw a `DomainError` that refers t
 `\$boundName` when `val` is not representable by `T`. 
 """
 function toBitIntData(::Type{T}, val::Integer, boundName::AbstractString="val"
-                        ) where {T<:BitSInteger}
+                      ) where {T<:BitSInteger}
     if !(applicable(T, val) && typemin(T) <= val <= typemax(T))
         throw(DomainError(val, "Aside from being an `Integer`, `$boundName` must also "*
                                "be representable by `$T`."))
@@ -31,12 +31,12 @@ toBitIntData(Int, val, boundName)
     toBitIntData(rng::UnitRange{<:Integer}, boundName::AbstractString="rng") -> 
     UnitRange{Int}
 
-Convert `rng` to `UnitRange{T}`, for which an individual error message is thrown wether 
-either the start or the stop index of `rng` (referred as `\$boundName`) is not 
-representable by `T`.
+Convert `rng` to `UnitRange{T}`, throwing an individual error message when either the 
+start or the stop index of `rng` (referred to as `first(\$boundName)` or 
+`last(\$boundName)`, respectively) is not representable by `T`.
 """
 function toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, 
-                        boundName::AbstractString="rng") where {T<:BitSInteger}
+                      boundName::AbstractString="rng") where {T<:BitSInteger}
     lo = toBitIntData(T, first(rng), "first($boundName)")
     hi = toBitIntData(T, last(rng), "last($boundName)")
     lo:hi

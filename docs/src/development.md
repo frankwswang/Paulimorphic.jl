@@ -73,13 +73,13 @@ capitalized to accommodate the applied letter-case style):
 
 ## Argument conversion policy
 
-When a public function that takes an `Integer`-based argument but converts it to an equivalent `Int`-based data structure for internal subroutines (e.g., `Integer` to `Int`), 
-the function should performs the data conversion at the beginning of its body using 
-`Paulimorphic.toBitIntData`, which is designed to generate a well-format error message 
-when the conversion is not successful. Accordingly, the docstrings of such functions need 
-not state the conditions on these arguments beyond being `Integer`-based types, whereas the 
-lower-level internal functions behind them should only receive corresponding `Int`-based 
-variables as arguments.
+A public function that takes an `Integer`-based argument (e.g., an index or a count) but 
+hands an equivalent `Int`-based datum to its internal subroutines should perform the 
+conversion at the beginning of its body using `Paulimorphic.toBitIntData`, which throws a 
+well-formatted error when the conversion is not possible. Accordingly, the docstring of 
+such a function need not state any condition on the argument beyond its being 
+`Integer`-based, whereas the lower-level internal functions behind it should only receive 
+the corresponding `Int`-based variables as arguments.
 
 ## Export policy
 

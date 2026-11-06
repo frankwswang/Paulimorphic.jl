@@ -569,7 +569,7 @@ terms and not on the order in which they are listed. Finally, the Pauli terms in
 constructed `PauliSum` are stored (and indexed) in strictly ascending order of their 
 strings (by `isless(::PauliStr, ::PauliStr)`).
 
-# [Canonical and simplified forms](@id canon-form)
+# Canonical and simplified forms
 The internal layout of the `PauliSum` returned by this constructor, where the `PauliStr` 
 corresponding to each term shares a common site count and is phase-less (i.e., the phase is 
 trivially equivalent to `one(T)`) combined with the ascending order, is defined as the 
@@ -1003,7 +1003,7 @@ end
 """
     isCanonical(h::PauliSum; checkSimplification::Bool=false) -> Bool
 
-Check whether `h` is in the [canonical form](@ref canon-form). If 
+Check whether `h` is in the [canonical form](@ref `PauliSum`). If 
 `checkSimplification=true`, this function additionally checks whether `h` is in the 
 simplified form, i.e., the canonical form in which no term has an exactly zero coefficient. 
 The function only returns `true` if all applied checks pass.

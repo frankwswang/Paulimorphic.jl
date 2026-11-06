@@ -665,7 +665,7 @@ Multiply `h` in place by a coefficient `c`, returning the mutated `h`. `h.coeff`
 in place, thus each product `h.coeff[i] * c` must be able to be converted to 
 `eltype(h.coeff)`. For exact coefficient types (e.g., `Int`), every product is verified 
 (via the same overflow checking policy used by the constructor of `PauliSum`) before `h` is 
-mutated. `h` stays in the [canonical form](@ref canon-form), whereas a product that is 
+mutated. `h` stays in the [canonical form](@ref `PauliSum`), whereas a product that is 
 exactly zero is retained, so `h` may no longer be in the simplified form.
 """
 function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}

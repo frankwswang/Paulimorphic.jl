@@ -490,7 +490,7 @@ is a positional convention carried by the `Pair` structure rather than a checkab
 
 Additionally, `enc` must be formatted such that:
 
-- All contained `PauliSum` are in the [canonical form](@ref canon-form) (also see 
+- All contained `PauliSum` are in the [canonical form](@ref `PauliSum`) (also see 
   [`isCanonical`](@ref)).
 - All contained `PauliSum` explicitly act on the same number of sites (i.e., 
   [`countSites`](@ref) returns the same value).

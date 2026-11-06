@@ -71,6 +71,16 @@ capitalized to accommodate the applied letter-case style):
 
 * `com`: "commutation", "commutator"
 
+## Argument conversion policy
+
+When a public function that takes an `Integer`-based argument but converts it to an equivalent `Int`-based data structure for internal subroutines (e.g., `Integer` to `Int`), 
+the function should performs the data conversion at the beginning of its body using 
+`Paulimorphic.toBitIntData`, which is designed to generate a well-format error message 
+when the conversion is not successful. Accordingly, the docstrings of such functions need 
+not state the conditions on these arguments beyond being `Integer`-based types, whereas the 
+lower-level internal functions behind them should only receive corresponding `Int`-based 
+variables as arguments.
+
 ## Export policy
 
 A public object is also exported unless it is one of the following:

@@ -1,5 +1,51 @@
 public extendType, evalMagnitude
 
+"""
+    toBitIntData(::Type{T}, val::Integer, boundName::AbstractString="val"
+                 ) where {T<:$BitSInteger} -> 
+    T
+
+    toBitIntData(val::Integer, boundName::AbstractString="val") -> Int
+
+Convert `val` to `T` (by default, `Int`), or throw a `DomainError` that refers to `val` as 
+`\$boundName` when `val` is not representable by `T`. 
+"""
+function toBitIntData(::Type{T}, val::Integer, boundName::AbstractString="val"
+                        ) where {T<:BitSInteger}
+    if !(applicable(T, val) && typemin(T) <= val <= typemax(T))
+        throw(DomainError(val, "Aside from being an `Integer`, `$boundName` must also "*
+                               "be representable by `$T`."))
+    end
+
+    T(val)
+end
+
+toBitIntData(val::Integer, boundName::AbstractString="val") = 
+toBitIntData(Int, val, boundName)
+
+"""
+    toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, boundName::AbstractString="rng"
+                 ) where {T<:$BitSInteger} -> 
+    UnitRange{T}
+
+    toBitIntData(rng::UnitRange{<:Integer}, boundName::AbstractString="rng") -> 
+    UnitRange{Int}
+
+Convert `rng` to `UnitRange{T}`, for which an individual error message is thrown wether 
+either the start or the stop index of `rng` (referred as `\$boundName`) is not 
+representable by `T`.
+"""
+function toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, 
+                        boundName::AbstractString="rng") where {T<:BitSInteger}
+    lo = toBitIntData(T, first(rng), "first($boundName)")
+    hi = toBitIntData(T, last(rng), "last($boundName)")
+    lo:hi
+end
+
+toBitIntData(rng::UnitRange{<:Integer}, boundName::AbstractString="rng") = 
+toBitIntData(Int, rng, boundName)
+
+
 #> Adaptive overflow-check arithmetics for numeric types based on fixed-width signed 
 #> integers. Every other type falls back to `+`, `*`, `conj`, and `-` (so floating-point 
 #> arithmetic remains unchanged). Different numeric types are first promoted before the 

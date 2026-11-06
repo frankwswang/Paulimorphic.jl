@@ -75,7 +75,8 @@ construction.
 ≡≡≡ Constructors ≡≡≡
 
     PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
-             phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords)) -> PauliStr
+             phase::PhaseFactor, nSite::Integer=8*sizeof(UInt)*length(xWords)) -> 
+    PauliStr
 
 Construct a `PauliStr` on `nSite` sites from the bit-packed components, `xWords` and 
 `zWords`, which must have the same length. The layouts of `xWords` and `zWords` should 
@@ -104,7 +105,8 @@ single-site Pauli `siteOp::`[`PauliSym`](@ref). `nSite` must be non-negative.
 `phase::`[`PhaseFactor`](@ref) determines the phase attached to the Pauli string (as 
 `im^Int(.phase)`), which by default is `+1`.
 
-    PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) -> PauliStr
+    PauliStr(pStr::PauliStr, nSite::Integer=pStr.n, phase::PhaseFactor=pStr.phase) -> 
+    PauliStr
 
 Construct a copy of `pStr` rebuilt to explicitly act on `nSite` sites, which by default 
 preserves the site count of `pStr`. When `nSite > pStr.n` every site above `pStr.n` carries 
@@ -119,6 +121,7 @@ mutable struct PauliStr <: DiscreteOperator
     const n::Int
 
     function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=posRea)
+        nSite = toBitIntData(nSite, "nSite")
         nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         nSitePerWord = 8 * sizeof(UInt)
         nWord = cld(nSite, nSitePerWord)
@@ -129,11 +132,12 @@ mutable struct PauliStr <: DiscreteOperator
         zStr = Memory{UInt}(undef, nWord); fill!(zStr, zEle)
 
         #> Enforce resetting the padding bits to be zero
-        new(xStr, zStr, phase, Int(nSite)) |> sanitize!
+        new(xStr, zStr, phase, nSite) |> sanitize!
     end
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
-                      phase::PhaseFactor, nSite::Int=8*sizeof(UInt)*length(xWords))
+                      phase::PhaseFactor, nSite::Integer=8*sizeof(UInt)*length(xWords))
+        nSite = toBitIntData(nSite, "nSite")
         nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         maxWordNum = length(xWords)
         if maxWordNum != length(zWords)
@@ -188,7 +192,7 @@ mutable struct PauliStr <: DiscreteOperator
     end
 end
 
-PauliStr(pStr::PauliStr, nSite::Int=pStr.n, phase::PhaseFactor=pStr.phase) = 
+PauliStr(pStr::PauliStr, nSite::Integer=pStr.n, phase::PhaseFactor=pStr.phase) = 
 PauliStr(pStr.x, pStr.z, phase, nSite)
 
 
@@ -327,6 +331,7 @@ the explicit site count returns the implicit identity `symI`, hence `i` need onl
 positive. The phase of `str` (`str.phase`) does not affect the returned value.
 """
 function indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false)
+    i = toBitIntData(i, "i")
     nSite = countSites(str)
     if indexImplicitSite
         i < 1 && throw(DomainError(i, "`i` must be a positive integer."))
@@ -406,13 +411,14 @@ Return the `String` representation of the single-site Pauli operator acting on s
 in `1:`[`countSites(pStr)`](@ref `countSites`).
 """
 function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
+    i = toBitIntData(i, "i")
     sym = indexSite(pStr, i)
 
     if sym == symI
         denseString ? string(CONSTVAR!!pauliChars[begin]) : ""
     else
         char = CONSTVAR!!pauliChars[begin + Int(sym)]
-        char * (denseString ? "" : getSubscriptStr(i|>Int))
+        char * (denseString ? "" : getSubscriptStr(i))
     end
 end
 
@@ -784,6 +790,7 @@ coefficient associated with the `i`-th term. `i` must be in `1:length(h.str)`.
     disturb its canonical layout.
 """
 function indexTerm(h::PauliSum, i::Integer, copyStr::Bool=true)
+    i = toBitIntData(i, "i")
     nTerm = length(h.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     str = h.str[begin+i-1]
@@ -809,6 +816,7 @@ Overwrite the coefficient of the `i`-th term of `h` with `coeff` converted to
     zero-coefficient terms, rebuild the mutated `h` via `PauliSum(h, true)`.
 """
 function setCoeff!(h::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
+    i = toBitIntData(i, "i")
     nTerm = length(h.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     h.coeff[begin+i-1] = coeff
@@ -1209,6 +1217,7 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 ```
 """
 function shift!(str::PauliStr, nShift::Integer, lowToHigh::Bool=true)
+    nShift = toBitIntData(nShift, "nShift")
     nShift < 0 && throw(DomainError(nShift, "`nShift` must be non-negative."))
     (iszero(nShift) || iszero(str.n)) && return str #> Nothing to shift
 
@@ -1222,9 +1231,9 @@ end
 
 
 """
-    pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
-               srcWords::AbstractVector{T}, srcBitIdxLo::Signed, 
-               nBit::Signed) where {T<:$BitUInteger} -> 
+    pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Int, 
+               srcWords::AbstractVector{T}, srcBitIdxLo::Int, 
+               nBit::Int) where {T<:$BitUInteger} -> 
     typeof(dstWords)
 
 Copy `nBit` consecutive bits from `srcWords`, beginning at the 1-based bit index 
@@ -1243,8 +1252,8 @@ side) are dropped upon pasting.
     `dstWords` and `srcWords` must not share any underlying data; otherwise, the 
     copy-pasted result may be corrupted.
 """
-function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, 
-                    srcWords::AbstractVector{T}, srcBitIdxLo::Signed, nBit::Signed) where 
+function pasteBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Int, 
+                    srcWords::AbstractVector{T}, srcBitIdxLo::Int, nBit::Int) where 
                    {T<:BitUInteger}
     nBitPerWord = 8 * sizeof(T)
     nWordDst = length(dstWords)
@@ -1317,7 +1326,7 @@ end
 
 """
     paste!(dst::PauliStr, dstStart::Integer, src::PauliStr, 
-           srcRange::UnitRange{<:Signed}=1:src.n; lowToHigh::Bool=true) -> PauliStr
+           srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true) -> PauliStr
 
 Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operators that 
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
@@ -1343,7 +1352,10 @@ lowToHigh = true  (dstStart=2, srcRange=2:3):
 ```
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
-                src::PauliStr, srcRange::UnitRange{<:Signed}=1:src.n; lowToHigh::Bool=true)
+                src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
+    dstStart = toBitIntData(dstStart, "dstStart")
+    srcRange = toBitIntData(srcRange, "srcRange")
+
     nSiteDst = dst.n
     if !(1 <= dstStart <= nSiteDst)
         throw(DomainError(dstStart, "`dstStart` must be in 1:$(nSiteDst)."))
@@ -1353,14 +1365,14 @@ function paste!(dst::PauliStr, dstStart::Integer,
     iszero(nSitePasted) && (return dst)
 
     nSiteSrc = src.n
-    srcSiteLo = (Int∘first)(srcRange)
+    srcSiteLo = first(srcRange)
     if !(1 <= srcSiteLo && last(srcRange) <= nSiteSrc)
         throw(DomainError(srcRange, "A non-empty `srcRange` must be in 1:$nSiteSrc."))
     end
 
     dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant
 
-    shiftedStart = Int(dstStart) - (lowToHigh ? 0 : nSitePasted)
+    shiftedStart = dstStart - (lowToHigh ? 0 : nSitePasted)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for `src`
              nSitePasted += shiftedStart
             srcSiteLo -= shiftedStart
@@ -1379,8 +1391,8 @@ end
 
 
 """
-    stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
-               nBit::Signed) where {T<:$BitUInteger} -> 
+    stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Int, bitVal::Bool, 
+               nBit::Int) where {T<:$BitUInteger} -> 
     typeof(dstWords)
 
 Overwrite `nBit` consecutive bits of `dstWords` with the constant `bitVal`, beginning at 
@@ -1394,8 +1406,8 @@ value.
 `dstWords`. `nBit` is allowed to exceed the number of bits available in `dstWords`, in 
 which case the excess bits (on the more significant side) are dropped upon stamping.
 """
-function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Signed, bitVal::Bool, 
-                    nBit::Signed) where {T<:BitUInteger}
+function stampBits!(dstWords::AbstractVector{T}, dstBitIdxLo::Int, bitVal::Bool, 
+                    nBit::Int) where {T<:BitUInteger}
     nBitPerWord = 8 * sizeof(T)
     nBitMaxDst = nBitPerWord * length(dstWords)
 
@@ -1462,6 +1474,9 @@ lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSit
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 lowToHigh::Bool=true)
+    startSite = toBitIntData(startSite, "startSite")
+    nSite = toBitIntData(nSite, "nSite")
+
     nSiteDst = dst.n
     if !(1 <= startSite <= nSiteDst)
         throw(DomainError(startSite, "`startSite` must be in 1:$(nSiteDst)."))
@@ -1469,9 +1484,9 @@ function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integ
 
     nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
     iszero(nSite) && (return dst)
-    nSiteStamped = Int(nSite)
+    nSiteStamped = nSite
 
-    shiftedStart = Int(startSite) - (lowToHigh ? 0 : nSiteStamped)
+    shiftedStart = startSite - (lowToHigh ? 0 : nSiteStamped)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for the window
             nSiteStamped += shiftedStart
             1
@@ -1553,8 +1568,8 @@ true
 """
 function reframe(h::PauliSum, nSite::Integer=countSites(h); lowToHigh::Bool=true, 
                  filler::PauliSym=symI, simplification::Bool=true)
+    nSite = toBitIntData(nSite, "nSite")
     nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
-    nSite = Int(nSite)
 
     coeffs = h.coeff
     strs = map(h.str) do oldStr
@@ -1571,8 +1586,8 @@ end
 
 """
     compareBits(words1::AbstractVector{T}, words2::AbstractVector{T}, 
-                bitWindow1::UnitRange{<:Signed}, 
-                bitWindow2::UnitRange{<:Signed}=bitWindow1) where {T<:$BitUInteger} -> 
+                bitWindow1::UnitRange{Int}, 
+                bitWindow2::UnitRange{Int}=bitWindow1) where {T<:$BitUInteger} -> 
     Bool
 
 Return whether the bits of `words1` in the 1-based bit-index window `bitWindow1` equal, 
@@ -1587,8 +1602,8 @@ as zero, so the boundaries of the windows may extend past the respective bit-ind
 boundaries of the strings.
 """
 function compareBits(words1::AbstractVector{T}, words2::AbstractVector{T}, 
-                     bitWindow1::UnitRange{<:Signed}, 
-                     bitWindow2::UnitRange{<:Signed}=bitWindow1) where {T<:BitUInteger}
+                     bitWindow1::UnitRange{Int}, 
+                     bitWindow2::UnitRange{Int}=bitWindow1) where {T<:BitUInteger}
     windowSize = length(bitWindow1)
     if windowSize != length(bitWindow2)
         throw(ArgumentError("`bitWindow1` and `bitWindow2` must have the same length."))
@@ -1604,7 +1619,7 @@ function compareBits(words1::AbstractVector{T}, words2::AbstractVector{T},
     end
 
     iszero(windowSize) && (return true)
-    
+
     nBitPerWord = 8 * sizeof(T)
     nWord1 = length(words1)
     nWord2 = length(words2)
@@ -1646,8 +1661,8 @@ end
 
 """
     compareSites(pStr1::PauliStr, pStr2::PauliStr, 
-                 finalSite::Signed=max(countSites(pStr1), countSites(pStr2)); 
-                 startSite::Signed=1) -> 
+                 finalSite::Integer=max(countSites(pStr1), countSites(pStr2)); 
+                 startSite::Integer=1) -> 
     Bool
 
 Return whether `pStr1` and `pStr2` carry the same single-site Pauli operator on every site 
@@ -1671,8 +1686,10 @@ true
 ```
 """
 function compareSites(pStr1::PauliStr, pStr2::PauliStr, 
-                      finalSite::Signed=max(countSites(pStr1), countSites(pStr2)); 
-                      startSite::Signed=1)
+                      finalSite::Integer=max(countSites(pStr1), countSites(pStr2)); 
+                      startSite::Integer=1)
+    startSite = toBitIntData(startSite, "startSite")
+    finalSite = toBitIntData(finalSite, "finalSite")
     startSite > 0 || throw(DomainError(startSite, "`startSite` must be positive."))
 
     siteWindow = startSite:finalSite

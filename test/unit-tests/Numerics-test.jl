@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
-using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg
+using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
 
 @testset "Numerics.jl" begin
     @testset "adaptAdd / adaptMul / adaptConj / adaptNeg" begin
@@ -118,5 +118,17 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg
         @test evalMagnitude(ComplexF32(3, 4)) == 5f0
         @test evalMagnitude(3) == 3.0
         @test evalMagnitude(-3.0f0) == 3.0f0
+    end
+
+    @testset "toBitIntData" begin
+        @test toBitIntData(UInt8(3)) === 3
+        @test toBitIntData(true) === 1
+        @test toBitIntData(Int8, 3) === Int8(3)
+        @test toBitIntData(UInt(1):UInt(3)) === 1:3
+        @test toBitIntData(Int8, 5:4) === Int8(5):Int8(4) #> Empty range
+        @test_throws DomainError toBitIntData(Int8, 128)
+        @test_throws DomainError toBitIntData(typemax(UInt))
+        @test_throws DomainError toBitIntData(big(2)^70)
+        @test_throws DomainError toBitIntData(Int8, 1:200)
     end
 end

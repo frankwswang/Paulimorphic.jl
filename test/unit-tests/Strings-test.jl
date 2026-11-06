@@ -629,4 +629,21 @@ end
     end
 end
 
+@testset "Integer site indices and counts" begin
+    #> Any `Integer` is accepted at the surface and converted to `Int` on entry
+    @test PauliStr(UInt(3)) == PauliStr(3)
+    @test PauliStr(pauli"XZ", UInt8(3)) == pauli"XZI"
+    @test indexSite(pauli"XZ", UInt(2)) == symZ
+    @test toString(pauli"XZ", Int8(2)) == "Z₂"
+    @test indexTerm(PauliSum([pauli"X"], [1]), UInt(1)).first == pauli"X"
+    @test shift!(pauli"XIII", UInt(1)) == pauli"IXII"
+    @test paste!(pauli"XIII", UInt8(1), pauli"ZZ", UInt(1):UInt(2)) == pauli"ZZII"
+    @test stamp!(pauli"XIII", UInt(2), symZ, Int8(2)) == pauli"XZZI"
+    @test countSites(reframe(PauliSum([pauli"X"], [1]), UInt(4))) == 4
+    @test  compareSites(pauli"XX", pauli"XXIX", UInt(3), startSite=UInt8(2))
+    @test !compareSites(pauli"XX", pauli"XXIX", Int128(4))
+    @test_throws DomainError PauliStr(typemax(UInt))
+    @test_throws DomainError indexSite(pauli"XZ", typemax(UInt), true)
+end
+
 end

@@ -130,15 +130,15 @@ end
 
 
 function checkEncodingCounts(nMode::Integer, nSite::Integer)
-    nModeInt = Int(nMode)
-    nSiteInt = Int(nSite)
+    nModeInt = toBitIntData(nMode, "nMode")
+    nSiteInt = toBitIntData(nSite, "nSite")
 
     if nModeInt < 1
-        throw(DomainError(nModeInt, "`Int(nMode)` must be positive."))
+        throw(DomainError(nModeInt, "`nMode` must be positive."))
     end
 
     if nSiteInt < nModeInt
-        throw(DomainError(nSiteInt, "`Int(nSite)` must be no less than `Int(nMode)`."))
+        throw(DomainError(nSiteInt, "`nSite` must be no less than `nMode`."))
     end
 
     (nModeInt, nSiteInt)

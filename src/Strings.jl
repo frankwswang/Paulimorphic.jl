@@ -569,15 +569,14 @@ terms and not on the order in which they are listed. Finally, the Pauli terms in
 constructed `PauliSum` are stored (and indexed) in strictly ascending order of their 
 strings (by `isless(::PauliStr, ::PauliStr)`).
 
-!!! note "Canonical and simplified forms"
-    The internal layout of the `PauliSum` returned by this constructor, where the 
-    `PauliStr` corresponding to each term shares a common site count and is phase-less 
-    (i.e., the phase is trivially equivalent to `one(T)`) combined with the ascending 
-    order, is defined as the [**canonical form**](@id canon-form). Additionally, when 
-    `simplification=true` (by default), every term (after the string merging) whose 
-    coefficient is exactly zero is further removed, so constructed `PauliSum` is 
-    additionally in the **simplified form**: the canonical form free of zero-coefficient 
-    terms. When `simplification=false`, such terms are retained.
+# [Canonical and simplified forms](@id canon-form)
+The internal layout of the `PauliSum` returned by this constructor, where the `PauliStr` 
+corresponding to each term shares a common site count and is phase-less (i.e., the phase is 
+trivially equivalent to `one(T)`) combined with the ascending order, is defined as the 
+**canonical form**. Additionally, when `simplification=true` (by default), every term (
+after the string merging) whose coefficient is exactly zero is further removed, so 
+constructed `PauliSum` is additionally in the **simplified form**: the canonical form free 
+of zero-coefficient terms. When `simplification=false`, such terms are retained.
 
 !!! note "Overflow checking policy for coefficients of exact numeric types"
     When the core data type `T` of `PauliSum{T}` is specified to be an exact numeric type 

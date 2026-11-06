@@ -1037,7 +1037,7 @@ end
 
 function checkPauliOperator(h::PauliSum, checkForm::Bool=true; 
                             checkSimplification::Bool=false)
-    if checkForm && !isCanonical(h, checkSimplification)
+    if checkForm && !isCanonical(h; checkSimplification)
         errText1, errText2 = if checkSimplification
             ("simplified", 
              "simplify `h` first using a `PauliSum` constructor with `simplification=true`")

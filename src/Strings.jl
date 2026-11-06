@@ -1061,19 +1061,36 @@ end
 
 
 """
-    canonicalize!(h::PauliSum) -> PauliSum
+    canonicalize!(h::PauliSum, explicitError::Bool=true) -> PauliSum
 
 Rewrite `h` into a canonical form in place and return it: absorb every string's phase 
 into its coefficient (stored in `h.coeff`), then sort the Pauli terms into a 
-deterministic total order based on [`$(sortStrings!|>repr)`](@ref).
+deterministic total order based on [`$(sortStrings!|>repr)`](@ref). 
 
-This function preserves the term count. In other words, it does **not** merge duplicate 
-strings or drop zero coefficients. To obtain a (unlinked) merged form, rebuild the sum via 
-`PauliSum(h, true)`.
+This function preserves the term count. In other words, it does **not** merge terms with 
+equal strings or drop terms with zero coefficients. Therefore, by default 
+(`explicitError=true`), if any two terms in `h` are in fact mergeable, an `ArgumentError` 
+is thrown; setting `explicitError=false` lifts this check, at the risk of returning a 
+`PauliSum` in a not fully canonical form (i.e., all other conditions met except for having 
+all unique `PauliStr`, each associated with a term.)
 """
-function canonicalize!(h::PauliSum)
-    coeffs = h.coeff
+function canonicalize!(h::PauliSum, explicitError::Bool=true)
     strs = h.str
+    coeffs = h.coeff
+
+    if explicitError
+        strBuffer = sort(strs)
+        nTerm = length(strBuffer)
+        for i in 1:(nTerm-1)
+            strL = strBuffer[begin+i-1]
+            strR = strBuffer[begin+i]
+            if compareSites(strL, strR)
+                throw(ArgumentError("`h` cannot be fully canonicalized as it has "*
+                                    "mergeable terms."))
+            end
+        end
+    end
+
     absorbPhases!(strs, coeffs)
     sortStrings!(strs, coeffs)
 

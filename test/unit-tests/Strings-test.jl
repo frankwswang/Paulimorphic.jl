@@ -1,6 +1,7 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, sub
+using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, sub, compareBits
+using Random
 
 @testset "Strings.jl" begin
 
@@ -546,6 +547,86 @@ end
     @test curtail(PauliSum(Float64)) == PauliSum(Float64)
     #> Exact coefficient types: the default threshold only removes exact zeros
     @test curtail(PauliSum([pauli"X"], [1//10^9])) == PauliSum([pauli"X"], [1//10^9])
+end
+
+@testset "compareBits: shifted windows" begin
+    #> `compareSites` passes the same window for both buffers, so the shifted-window paths 
+    #>  of `compareBits` (`wordShift != 0`, `bitOffset != 0`) are reachable only directly
+    w1  = UInt8[0b0110_1001, 0b1101_0010]
+    w2  = UInt8[0x00, 0x40, 0x13] #> Bits 14:21 of `w2` equal bits 3:10 of `w1`
+    w2f = UInt8[0x00, 0x40, 0x12] #> `w2` with bit 17 flipped
+    @test  compareBits(w1, UInt8[0xd2], 9:16, 1:8) #> Word-aligned shift
+    @test  compareBits(w1, w2, 3:10, 14:21)        #> Misaligned, in either direction
+    @test  compareBits(w2, w1, 14:21, 3:10)
+    @test !compareBits(w1, w2f, 3:10, 14:21)
+    @test !compareBits(w2f, w1, 14:21, 3:10)
+    @test !compareBits(w1, w2, 3:20, 14:31)        #> Bits 11:16 of `w1` vs. zeros past `w2`
+    @test_throws ArgumentError compareBits(w1, w2, 1:4, 1:5)
+end
+
+@testset "compareSites" begin
+    #> Explicit sites, with the phases ignored
+    @test  compareSites(pauli"XZIY", pauli"XZIY")
+    @test  compareSites(pauli"XZIY", pauli"-iXZIY")
+    @test !compareSites(pauli"XZIY", pauli"YZIY") #> Site 1 differs
+    @test !compareSites(pauli"XZIY", pauli"XZIX") #> Site 4 differs
+
+    #> The window selects the compared sites
+    @test  compareSites(pauli"XZIY", pauli"XZIX", 3)
+    @test !compareSites(pauli"XZIY", pauli"XZIX", 4, startSite=4)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", 4, startSite=2)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", 2, startSite=3) #> Empty window
+
+    #> Sites beyond the explicit site count carry the identity
+    @test  compareSites(pauli"XX", pauli"XXII")
+    @test  compareSites(pauli"XXII", pauli"XX")
+    @test !compareSites(pauli"XX", pauli"XXIX")
+    @test  compareSites(pauli"XX", pauli"XXIX", 3)
+    @test !compareSites(pauli"X", pauli"Z", 1000)
+    @test  compareSites(pauli"X", pauli"Z", 1000, startSite=2) #> Far past both strings
+    @test  compareSites(PauliStr(), PauliStr()) #> Default `finalSite` is 0: empty window
+    @test  compareSites(PauliStr(), pauli"-")
+    @test  compareSites(pauli"X", pauli"Z", 0)
+
+    #> Window edges at the word boundary (site 64 | site 65), and buffers of unequal length
+    a = stamp!(PauliStr(66), 64, symX)
+    b = stamp!(PauliStr(66), 65, symX)
+    @test  compareSites(a, b, 63)
+    @test !compareSites(a, b, 64)
+    @test !compareSites(a, b, 65, startSite=65)
+    @test  compareSites(a, b, 66, startSite=66)
+    @test  compareSites(a, PauliStr(a, 64)) #> Cropping keeps the `X` on site 64
+    @test !compareSites(b, PauliStr(b, 64)) #> Cropping drops the `X` on site 65
+    @test !compareSites(a, PauliStr())      #> Zero-site string: no word at all
+    @test  compareSites(a, PauliStr(), 63)
+    @test  compareSites(PauliStr(), b, 64)
+
+    #> Input validation
+    @test_throws DomainError compareSites(pauli"X", pauli"X", startSite=0)
+    @test_throws DomainError compareSites(pauli"X", pauli"X", 1, startSite=-1)
+
+    @testset "Cross-check with `indexSite`" begin
+        syms = [symI, symZ, symX, symY]
+        rng = MersenneTwister(1234)
+        for _ in 1:3000
+            a = PauliStr(PauliSym[rand(rng, syms) for _ in 1:rand(rng, 0:70)])
+            #> `b`: a cropped or identity-padded copy of `a`, or an unrelated string
+            b = if rand(rng, Bool)
+                PauliStr(a, rand(rng, 0:70))
+            else
+                PauliStr(PauliSym[rand(rng, syms) for _ in 1:rand(rng, 0:70)])
+            end
+            #> Overwrite one site of `b` half of the time
+            if !iszero(countSites(b)) && rand(rng, Bool)
+                stamp!(b, rand(rng, 1:countSites(b)), rand(rng, syms))
+            end
+
+            iFinal = rand(rng, 0:72)
+            iStart = rand(rng, 1:72)
+            ref = all(indexSite(a, k, true) == indexSite(b, k, true) for k in iStart:iFinal)
+            @test compareSites(a, b, iFinal, startSite=iStart) == ref
+        end
+    end
 end
 
 end

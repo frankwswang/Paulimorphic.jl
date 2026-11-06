@@ -36,6 +36,7 @@ sumCoeffs
 isIdentity
 isHermitian
 isCanonical
+compareSites
 checkCommute
 checkAntiCom
 getFrustrationInfo

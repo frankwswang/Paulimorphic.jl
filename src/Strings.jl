@@ -1,6 +1,6 @@
 export PauliStr, @pauli_str, indexSite, PauliSum, countSites, countWeight, isCanonical, 
-       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, indexTerm, 
-       listTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
+       canonicalize!, curtail, sanitize!, shift!, paste!, stamp!, reframe, compareSites, 
+       indexTerm, listTerms, countTerms, isHermitian, isIdentity, toPauliStr, sumCoeffs
 
 public absorbPhases!, sortStrings!, setCoeff!
 
@@ -1317,7 +1317,7 @@ end
 
 """
     paste!(dst::PauliStr, dstStart::Integer, src::PauliStr, 
-           srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true) -> PauliStr
+           srcRange::UnitRange{<:Signed}=1:src.n; lowToHigh::Bool=true) -> PauliStr
 
 Overwrite a contiguous window of `dst`'s sites with the single-site Pauli operators that 
 `src` holds over the site range `srcRange`, in place, and then return the mutated `dst`. 
@@ -1343,7 +1343,7 @@ lowToHigh = true  (dstStart=2, srcRange=2:3):
 ```
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
-                src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
+                src::PauliStr, srcRange::UnitRange{<:Signed}=1:src.n; lowToHigh::Bool=true)
     nSiteDst = dst.n
     if !(1 <= dstStart <= nSiteDst)
         throw(DomainError(dstStart, "`dstStart` must be in 1:$(nSiteDst)."))
@@ -1566,6 +1566,118 @@ function reframe(h::PauliSum, nSite::Integer=countSites(h); lowToHigh::Bool=true
         newStr
     end
     PauliSum(strs, coeffs, simplification)
+end
+
+
+"""
+    compareBits(words1::AbstractVector{T}, words2::AbstractVector{T}, 
+                bitWindow1::UnitRange{<:Signed}, 
+                bitWindow2::UnitRange{<:Signed}=bitWindow1) where {T<:$BitUInteger} -> 
+    Bool
+
+Return whether the bits of `words1` in the 1-based bit-index window `bitWindow1` equal, 
+position by position, the bits of `words2` in the window `bitWindow2` (by default, 
+`bitWindow2=bitWindow1`). The two windows must have the same length, and the first index 
+of each must be positive; when both windows are empty, `true` is returned.
+
+Both `words1` and `words2` are treated as one contiguous bit string in which the 
+least-significant bit of the lowest-indexed word comes first, with the word width set by 
+the element type at `8*sizeof(T)` bits. Every bit beyond the capacity of a string reads 
+as zero, so the boundaries of the windows may extend past the respective bit-index 
+boundaries of the strings.
+"""
+function compareBits(words1::AbstractVector{T}, words2::AbstractVector{T}, 
+                     bitWindow1::UnitRange{<:Signed}, 
+                     bitWindow2::UnitRange{<:Signed}=bitWindow1) where {T<:BitUInteger}
+    windowSize = length(bitWindow1)
+    if windowSize != length(bitWindow2)
+        throw(ArgumentError("`bitWindow1` and `bitWindow2` must have the same length."))
+    end
+
+    iStart1, iFinal1 = first(bitWindow1), last(bitWindow1)
+    iStart2 = first(bitWindow2)
+
+    for (str, iStart) in zip(("1", "2"), (iStart1, iStart2))
+        if iStart <= 0
+            throw(DomainError(iStart, "`first(bitWindow$str)` must be positive."))
+        end
+    end
+
+    iszero(windowSize) && (return true)
+    
+    nBitPerWord = 8 * sizeof(T)
+    nWord1 = length(words1)
+    nWord2 = length(words2)
+
+    #> Every bit beyond the capacity of a word buffer reads as zero
+    (iStart1 > nBitPerWord*nWord1 && iStart2 > nBitPerWord*nWord2) && (return true)
+
+    wordIdxLo, bitPosLo = fldmod1(iStart1, nBitPerWord) #> Word-level window of `words1`
+    wordIdxHi, bitPosHi = fldmod1(iFinal1, nBitPerWord)
+    wordShift, bitOffset = fldmod(iStart2 - iStart1, nBitPerWord) #> bitOffset >= 0
+    #>> bitIdx2 = bitIdx1 + wordShift * nBitPerWord + bitOffset
+
+    maskLo = typemax(T) << (bitPosLo - 1)           #> Drops the bits below the window
+    maskHi = typemax(T) >> (nBitPerWord - bitPosHi) #> Drops the bits above the window
+
+    #> Past this word index in `words1`, both buffers only read as zero
+    wordIdxMax = min(wordIdxHi, max(nWord1, nWord2 - wordShift))
+
+    @inbounds for i in wordIdxLo:wordIdxMax
+        j = i + wordShift
+        piece1   = (1 <= i <= nWord1) ? words1[begin+i-1] : zero(T)
+        piece2Lo = (1 <= j <= nWord2) ? words2[begin+j-1] : zero(T)
+        piece2 = if iszero(bitOffset) #> Word-by-word aligned case
+            piece2Lo
+        else
+            piece2Hi = (1 <= (j + 1) <= nWord2) ? words2[begin+j] : zero(T)
+            alignWords(bitOffset, piece2Lo, piece2Hi)
+        end
+
+        diff = piece1 ⊻ piece2
+        i == wordIdxLo && (diff &= maskLo)
+        i == wordIdxHi && (diff &= maskHi)
+        iszero(diff) || (return false)
+    end
+
+    true
+end
+
+
+"""
+    compareSites(pStr1::PauliStr, pStr2::PauliStr, 
+                 finalSite::Signed=max(countSites(pStr1), countSites(pStr2)); 
+                 startSite::Signed=1) -> 
+    Bool
+
+Return whether `pStr1` and `pStr2` carry the same single-site Pauli operator on every site 
+in `startSite:finalSite`, ignoring the phases of both [`PauliStr`](@ref). For any site 
+beyond the explicit site count ([`countSites`](@ref)) of either string, the operator in the 
+string on that site is considered to be the identity. By default, `finalSite` is the 
+larger explicit site count of the two strings, so the comparison covers every site on which 
+either string explicitly acts. `startSite` must be positive; when `startSite > finalSite`, 
+no site is compared and `true` is returned.
+
+# Examples
+```jldoctest
+julia> compareSites(pauli"XX", pauli"-XXIIX")
+false
+
+julia> compareSites(pauli"XX", pauli"-XXIIX", 2)
+true
+
+julia> compareSites(pauli"XX", pauli"-XXIIX", 4, startSite=3)
+true
+```
+"""
+function compareSites(pStr1::PauliStr, pStr2::PauliStr, 
+                      finalSite::Signed=max(countSites(pStr1), countSites(pStr2)); 
+                      startSite::Signed=1)
+    startSite > 0 || throw(DomainError(startSite, "`startSite` must be positive."))
+
+    siteWindow = startSite:finalSite
+    compareBits(pStr1.x, pStr2.x, siteWindow) || (return false)
+    compareBits(pStr1.z, pStr2.z, siteWindow)
 end
 
 

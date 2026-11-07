@@ -416,6 +416,18 @@ end
     @test_throws DomainError setCoeff!(h, 99.0, 0)
     @test_throws DomainError setCoeff!(h, 99.0, 4)
     @test h.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `h` untouched
+
+    #> `coeff` is bound like every other coefficient input: `Bool`, `Unsigned`, and their 
+    #> complex forms (e.g., `im`) are rejected; a value that `Complex{T}` cannot represent 
+    #> throws `InexactError`
+    @test_throws MethodError setCoeff!(h, im, 1) #> `im` is a `Complex{Bool}`
+    @test_throws MethodError setCoeff!(h, true, 1)
+    @test_throws MethodError setCoeff!(h, 0x01, 1)
+    @test setCoeff!(h, 1im, 1) == (pauli"ZI" => 1.0im) #> `Complex{Int}` is accepted
+    hi = PauliSum([pauli"X"], [1])
+    @test_throws InexactError setCoeff!(hi, 0.5, 1)
+    @test_throws InexactError setCoeff!(hi, 1.5im, 1) #> Converted componentwise
+    @test hi.coeff == Complex{Int}[1] #> Failed conversions left `hi` untouched
 end
 
 @testset "isCanonical" begin

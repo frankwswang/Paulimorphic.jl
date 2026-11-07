@@ -537,7 +537,7 @@ values of integer ``k`` (``k \\geq 1``).
 
     PauliSum(::Type{T}, strs::AbstractVector{PauliStr}, 
              coeffs::Union{AbstractVector{C}, C}, simplification::Bool=true
-             ) where {T<:SignedReal, C<:Union{Complex, SignedReal}} -> 
+             ) where {T<:SignedReal, R<:SignedReal, C<:Union{Complex{R}, R}} -> 
     PauliSum{T}
 
     PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
@@ -799,14 +799,15 @@ end
 
 
 """
-    setCoeff!(h::PauliSum{T}, coeff::Union{Complex, Real}, i::Integer, 
-              copyStr::Bool=true) where {T<:SignedReal} -> 
+    setCoeff!(h::PauliSum{T}, coeff::Union{R, Complex{R}}, i::Integer, 
+              copyStr::Bool=true) where {T<:SignedReal, R<:SignedReal} -> 
     Pair{PauliStr, Complex{T}}
 
 Overwrite the coefficient of the `i`-th term of `h` with `coeff` converted to 
-`Complex{T}`, then return the updated term `res::Pair{PauliStr, Complex{T}}`. Same as for 
-[`indexTerm`](@ref), `i` must be in `1:length(h.str)`, and the optional argument 
-`copyStr` controls whether `res.first` is a copy of `h.str[begin+i-1]`.
+`Complex{T}` (an `InexactError` is thrown if the conversion fails), then return the 
+updated term `res::Pair{PauliStr, Complex{T}}`. Same as for [`indexTerm`](@ref), `i` must 
+be in `1:length(h.str)`, and the optional argument `copyStr` controls whether `res.first` 
+is a copy of `h.str[begin+i-1]`.
 
 !!! warning
     `setCoeff!` does not remove the `i`-th term even when `coeff` is exactly zero. 
@@ -815,7 +816,7 @@ Overwrite the coefficient of the `i`-th term of `h` with `coeff` converted to
     the term coefficients (see [`isCanonical`](@ref)). To obtain a `PauliSum` without 
     zero-coefficient terms, rebuild the mutated `h` via `PauliSum(h, true)`.
 """
-function setCoeff!(h::PauliSum, coeff::RealOrComplex, i::Integer, copyStr::Bool=true)
+function setCoeff!(h::PauliSum, coeff::SRealOrComplex, i::Integer, copyStr::Bool=true)
     i = toBitIntData(i, "i")
     nTerm = length(h.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))

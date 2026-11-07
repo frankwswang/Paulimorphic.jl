@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul, sub, compareBits
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits
 using Random
 
 @testset "Strings.jl" begin
@@ -334,14 +334,15 @@ end
     end
 
     @testset "Term-filtering construction" begin
-        h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0]) #> Stored: ZI, IZ, XX
-        #> `selector` receives each term as a `Pair`; the retained strings are shared with `h`
+        #> Stored order: ZI, IZ, XX
+        h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+        #> `selector` receives each term as a `Pair`; retained strings are shared with `h`
         hf = PauliSum(term->countWeight(term.first) == 1 && real(term.second) > 2.0, h)
         @test hf == PauliSum([pauli"ZI"], [3.0]) && hf.str[begin] === h.str[begin]
         @test PauliSum(term->true, h) == h && PauliSum(term->false, h) == PauliSum(Float64)
         @test PauliSum(term->true, PauliSum(Int)) == PauliSum(Int)
-        #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the check 
-        #> is lifted, in which case the retained terms simply keep the order of `h`
+        #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the 
+        #> check is lifted, in which case the retained terms simply keep the order of `h`
         hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
         stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`: equal strings
         @test_throws ArgumentError PauliSum(term->true, hd)

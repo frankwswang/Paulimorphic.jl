@@ -573,7 +573,7 @@ strings (by `isless(::PauliStr, ::PauliStr)`).
 # Canonical and simplified forms
 The internal layout of the `PauliSum` returned by this constructor, where the `PauliStr` 
 corresponding to each term shares a common site count and carries the trivial phase 
-`PhaseFactor(0)` that evaluates to one （via [`evalPhase`](@ref)）, combined with the 
+`PhaseFactor(0)` that evaluates to one (via [`evalPhase`](@ref)), combined with the 
 ascending order, is defined as the **canonical form**. Additionally, when 
 `simplification=true` (by default), every term (after the string merging) whose coefficient 
 is exactly zero is further removed, so the constructed `PauliSum` is additionally in the 
@@ -908,8 +908,8 @@ Both `strs` and `storage` are mutated and must share the same length.
 !!! info
     If the update for the `i`-th element of `storage` fails and throws an error, that 
     element remains unchanged and the `i`-th `PauliStr` in `strs` is also left untouched 
-    (though the successful updates before has mutated the corresponding elements in `strs` 
-    and `storage`), so `strs` and `storage` still can represent the same operator.
+    (though the successful updates before it have mutated the corresponding elements in 
+    `strs` and `storage`), so `strs` and `storage` can still represent the same operator.
 """
 function absorbPhases!(strs::AbstractVector{PauliStr}, 
                        storage::AbstractVector{C}) where {C<:Complex{<:SignedReal}}

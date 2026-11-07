@@ -332,6 +332,22 @@ end
               [5, 3, 1, 4, 2, 6])
         @test PauliSum(strs[p], cs[p]) == ref
     end
+
+    @testset "Term-filtering construction" begin
+        h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0]) #> Stored: ZI, IZ, XX
+        #> `selector` receives each term as a `Pair`; the retained strings are shared with `h`
+        hf = PauliSum(term->countWeight(term.first) == 1 && real(term.second) > 2.0, h)
+        @test hf == PauliSum([pauli"ZI"], [3.0]) && hf.str[begin] === h.str[begin]
+        @test PauliSum(term->true, h) == h && PauliSum(term->false, h) == PauliSum(Float64)
+        @test PauliSum(term->true, PauliSum(Int)) == PauliSum(Int)
+        #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the check 
+        #> is lifted, in which case the retained terms simply keep the order of `h`
+        hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+        stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`: equal strings
+        @test_throws ArgumentError PauliSum(term->true, hd)
+        @test PauliSum(term->true, hd, false).coeff == ComplexF64[2.0, 1.0]
+        @test PauliSum(term->real(term.second) < 1.5, hd, false).coeff == ComplexF64[1.0]
+    end
 end
 
 @testset "indexTerm" begin
@@ -436,6 +452,53 @@ end
     hn.str[begin+1] = pauli"XI"
     @test !isCanonical(hn) && issorted(hn.str)
     @test hn != PauliSum(hn, false)
+end
+
+@testset "canonicalize!" begin
+    #> A canonical sum is left as is, with the same term count
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    hc = deepcopy(h)
+    @test canonicalize!(hc) === hc && hc == h
+    @test canonicalize!(PauliSum(Float64)) == PauliSum(Float64)
+
+    #> In-place restoration: a phase left inside a stored string, and strings out of order 
+    #> (both through the aliasing form of `indexTerm`; the stored order of `X` and `Z` on 
+    #> one site is `Z`, `X`)
+    hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    scale!(indexTerm(hp, 1, false).first, negImg)
+    @test !isCanonical(hp)
+    @test canonicalize!(hp) === hp && isCanonical(hp)
+    @test hp == PauliSum([pauli"X", pauli"Z"], [1.0, -2.0im])
+    ho = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(ho, 1, false).first, 1, symY) #> `Z` -> `Y`: order becomes `Y`, `X`
+    @test !isCanonical(ho)
+    @test isCanonical(canonicalize!(ho)) && ho == PauliSum([pauli"Y", pauli"X"], [2.0, 1.0])
+
+    #> Conditions that cannot be restored in place throw before any mutation: strings 
+    #> equal up to their phases, and strings with different site counts
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
+    scale!(indexTerm(hd, 1, false).first, negRea)  #> ..., equal to the other up to phase
+    hdRef = deepcopy(hd)
+    @test_throws ArgumentError canonicalize!(hd)
+    @test hd == hdRef
+    @test PauliSum(hd, false) == PauliSum([pauli"X"], [-1.0]) #> The rebuild merges them
+    hn = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    hn.str[begin+1] = pauli"XI"
+    hnRef = deepcopy(hn)
+    @test_throws ArgumentError canonicalize!(hn)
+    @test hn == hnRef
+    hn.str[begin] = pauli"XI" #> Equal strings again, now sharing a site count of two
+    @test_throws ArgumentError canonicalize!(hn)
+
+    #> Phase absorption is overflow-checked for exact coefficient types; a failure leaves 
+    #> the offending term untouched, so `h` still represents the same operator
+    hi = PauliSum([pauli"X", pauli"Z"], [typemin(Int), 1]) #> Stored: `Z` => 1, `X` => min
+    indexTerm(hi, 2, false).first.phase = negRea
+    @test_throws OverflowError canonicalize!(hi)
+    @test hi.str[begin+1].phase == negRea && hi.coeff[begin+1] == Complex(typemin(Int))
+    @test PauliSum(Int128, hi) == 
+          PauliSum([pauli"X", pauli"Z"], [-Int128(typemin(Int)), Int128(1)])
 end
 
 #> `countWeight`
@@ -547,6 +610,15 @@ end
     @test curtail(PauliSum(Float64)) == PauliSum(Float64)
     #> Exact coefficient types: the default threshold only removes exact zeros
     @test curtail(PauliSum([pauli"X"], [1//10^9])) == PauliSum([pauli"X"], [1//10^9])
+    #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the check 
+    #> is lifted, in which case the retained terms simply keep the order of `h`
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`: equal strings
+    @test_throws ArgumentError curtail(hd)
+    @test_throws ArgumentError curtail(hd, 1.5)
+    @test_throws DomainError curtail(hd, -1.0) #> `tolerance` is validated before the form
+    @test curtail(hd, checkForm=false).coeff == ComplexF64[2.0, 1.0]
+    @test curtail(hd, 1.5, checkForm=false).coeff == ComplexF64[2.0]
 end
 
 @testset "compareBits: shifted windows" begin

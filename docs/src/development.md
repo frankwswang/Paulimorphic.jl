@@ -90,8 +90,7 @@ A public object is also exported unless it is one of the following:
   `Base.:*` forwards to [`Paulimorphic.mul`](@ref), thus `mul` is public but not exported.
 
 * A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but  
-  does not necessarily preserve or restore their canonical (or simplified) forms (e.g., 
-  [`Paulimorphic.setCoeff!`](@ref)).
+  does not necessarily preserve or restore their canonical forms.
 
 * A function that is designed as a lower-level building block for exported functions 
   (e.g., [`Paulimorphic.genNBodyOperator`](@ref)).

@@ -91,9 +91,10 @@ should be declared as positional or keyword arguments according to the following
   (e.g., `denseString` and `omitPlusSign` in [`toString`](@ref)).
 
 * When an argument is a keyword argument in one method of a function, it should also be a 
-  keyword argument in every other method of the function that takes it, even when it is the 
-  only optional argument of that method (e.g., `omitPlusSign` in method 
-  [`toString(::PhaseFactor; omitPlusSign::Bool=false)`](@ref)).
+  keyword argument in every other method of the function that accepts it, even when it is 
+  the only optional argument of that method (e.g., `omitPlusSign` in method 
+  [`toString(::PhaseFactor; omitPlusSign::Bool=false)`](@ref)). Note that this does not 
+  mean that a keyword argument has to appear in all methods of the same function (name).
 
 ## Argument conversion policy
 

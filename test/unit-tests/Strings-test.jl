@@ -298,7 +298,7 @@ end
     @test res3 == res1
     res4 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0], false)
     @test countTerms(res4) == 1 && res4.coeff == Complex{Float64}[0.0]
-    @test isCanonical(res4) && !isCanonical(res4, checkSimplification=true)
+    @test isCanonical(res4) && !isCanonical(res4, true)
     @test res4 == PauliSum(res4, false) && PauliSum(res4) == res2
 
     #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
@@ -410,7 +410,7 @@ end
     #> the canonical form (independent of the coefficients) but not the simplified form
     setCoeff!(h, 0, 3) #> `Real` input: converted, not rejected
     @test length(h.str) == 3 && iszero(h.coeff[end])
-    @test isCanonical(h) && !isCanonical(h, checkSimplification=true)
+    @test isCanonical(h) && !isCanonical(h, true)
     @test h == PauliSum(h, false) && countTerms(PauliSum(h)) == 2
 
     #> Out-of-range `i` throws `DomainError` before any mutation occurs
@@ -434,15 +434,15 @@ end
 @testset "isCanonical" begin
     #> Constructor outputs are canonical, and simplified when `simplification=true`
     h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
-    @test isCanonical(h) && isCanonical(h, checkSimplification=true)
-    @test isCanonical(PauliSum(Int)) && isCanonical(PauliSum(Int), checkSimplification=true)
+    @test isCanonical(h) && isCanonical(h, true)
+    @test isCanonical(PauliSum(Int)) && isCanonical(PauliSum(Int), true)
     @test h == PauliSum(h, false) == PauliSum(h)
 
     #> Retained zero-coefficient terms: canonical but not simplified
     strs0 = [pauli"XX", pauli"IZ", pauli"ZI", pauli"ZI"]
     h0 = PauliSum(strs0, [1.0, 0.0, 3.0, -3.0], false)
     @test h0.str == [pauli"ZI", pauli"IZ", pauli"XX"] && h0.coeff == ComplexF64[0, 0, 1]
-    @test isCanonical(h0) && !isCanonical(h0, checkSimplification=true)
+    @test isCanonical(h0) && !isCanonical(h0, true)
     @test h0 == PauliSum(h0, false) && h0 != PauliSum(h0)
     @test PauliSum(h0) == PauliSum([pauli"XX"], [1.0])
 
@@ -657,38 +657,38 @@ end
     @test !compareSites(pauli"XZIY", pauli"XZIX") #> Site 4 differs
 
     #> The window selects the compared sites
-    @test  compareSites(pauli"XZIY", pauli"XZIX", 3)
-    @test !compareSites(pauli"XZIY", pauli"XZIX", 4, startSite=4)
-    @test  compareSites(pauli"XZIY", pauli"YZIY", 4, startSite=2)
-    @test  compareSites(pauli"XZIY", pauli"YZIY", 2, startSite=3) #> Empty window
+    @test  compareSites(pauli"XZIY", pauli"XZIX", finalSite=3)
+    @test !compareSites(pauli"XZIY", pauli"XZIX", finalSite=4, startSite=4)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", finalSite=4, startSite=2)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", finalSite=2, startSite=3) #> Empty window
 
     #> Sites beyond the explicit site count carry the identity
     @test  compareSites(pauli"XX", pauli"XXII")
     @test  compareSites(pauli"XXII", pauli"XX")
     @test !compareSites(pauli"XX", pauli"XXIX")
-    @test  compareSites(pauli"XX", pauli"XXIX", 3)
-    @test !compareSites(pauli"X", pauli"Z", 1000)
-    @test  compareSites(pauli"X", pauli"Z", 1000, startSite=2) #> Far past both strings
+    @test  compareSites(pauli"XX", pauli"XXIX", finalSite=3)
+    @test !compareSites(pauli"X", pauli"Z", finalSite=1000)
+    @test  compareSites(pauli"X", pauli"Z", finalSite=1000, startSite=32)
     @test  compareSites(PauliStr(), PauliStr()) #> Default `finalSite` is 0: empty window
     @test  compareSites(PauliStr(), pauli"-")
-    @test  compareSites(pauli"X", pauli"Z", 0)
+    @test  compareSites(pauli"X", pauli"Z", finalSite=0)
 
     #> Window edges at the word boundary (site 64 | site 65), and buffers of unequal length
     a = stamp!(PauliStr(66), 64, symX)
     b = stamp!(PauliStr(66), 65, symX)
-    @test  compareSites(a, b, 63)
-    @test !compareSites(a, b, 64)
-    @test !compareSites(a, b, 65, startSite=65)
-    @test  compareSites(a, b, 66, startSite=66)
+    @test  compareSites(a, b, finalSite=63)
+    @test !compareSites(a, b, finalSite=64)
+    @test !compareSites(a, b, finalSite=65, startSite=65)
+    @test  compareSites(a, b, finalSite=66, startSite=66)
     @test  compareSites(a, PauliStr(a, 64)) #> Cropping keeps the `X` on site 64
     @test !compareSites(b, PauliStr(b, 64)) #> Cropping drops the `X` on site 65
     @test !compareSites(a, PauliStr())      #> Zero-site string: no word at all
-    @test  compareSites(a, PauliStr(), 63)
-    @test  compareSites(PauliStr(), b, 64)
+    @test  compareSites(a, PauliStr(), finalSite=63)
+    @test  compareSites(PauliStr(), b, finalSite=64)
 
     #> Input validation
     @test_throws DomainError compareSites(pauli"X", pauli"X", startSite=0)
-    @test_throws DomainError compareSites(pauli"X", pauli"X", 1, startSite=-1)
+    @test_throws DomainError compareSites(pauli"X", pauli"X", finalSite=1, startSite=-1)
 
     @testset "Cross-check with `indexSite`" begin
         syms = [symI, symZ, symX, symY]
@@ -709,7 +709,7 @@ end
             iFinal = rand(rng, 0:72)
             iStart = rand(rng, 1:72)
             ref = all(indexSite(a, k, true) == indexSite(b, k, true) for k in iStart:iFinal)
-            @test compareSites(a, b, iFinal, startSite=iStart) == ref
+            @test compareSites(a, b, finalSite=iFinal, startSite=iStart) == ref
         end
     end
 end
@@ -725,8 +725,8 @@ end
     @test paste!(pauli"XIII", UInt8(1), pauli"ZZ", UInt(1):UInt(2)) == pauli"ZZII"
     @test stamp!(pauli"XIII", UInt(2), symZ, Int8(2)) == pauli"XZZI"
     @test countSites(reframe(PauliSum([pauli"X"], [1]), UInt(4))) == 4
-    @test  compareSites(pauli"XX", pauli"XXIX", UInt(3), startSite=UInt8(2))
-    @test !compareSites(pauli"XX", pauli"XXIX", Int128(4))
+    @test  compareSites(pauli"XX", pauli"XXIX", finalSite=UInt(3), startSite=UInt8(2))
+    @test !compareSites(pauli"XX", pauli"XXIX", finalSite=Int128(4))
     @test_throws DomainError PauliStr(typemax(UInt))
     @test_throws DomainError indexSite(pauli"XZ", typemax(UInt), true)
 end

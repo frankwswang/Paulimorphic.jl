@@ -1010,7 +1010,7 @@ end
 
 
 """
-    isCanonical(h::PauliSum; checkSimplification::Bool=false) -> Bool
+    isCanonical(h::PauliSum, checkSimplification::Bool=false) -> Bool
 
 Check whether `h` is in the [canonical form](@ref `PauliSum`). If 
 `checkSimplification=true`, this function additionally checks whether `h` is in the 
@@ -1019,25 +1019,25 @@ The function only returns `true` if all applied checks pass.
 
 For any `h` whose strings hold no surplus bits (see [`sanitize!`](@ref)) and whose 
 coefficients hold no `NaN`, `isCanonical(h)` is equivalent to `h == PauliSum(h, false)`, 
-and `isCanonical(h, checkSimplification=true)` is equivalent to `h == PauliSum(h)`.
+and `isCanonical(h, true)` is equivalent to `h == PauliSum(h)`.
 
 # Examples
 ```jldoctest
 julia> h1 = pauli"XXIX" + 2.0*pauli"XXIX";
 
-julia> isCanonical(h1, checkSimplification=true)
+julia> isCanonical(h1, true)
 true
 
 julia> h2 = PauliSum([pauli"XXIX", pauli"XXIX"], [3, -3], false);
 
-julia> isCanonical(h2) && !isCanonical(h2, checkSimplification=true)
+julia> isCanonical(h2) && !isCanonical(h2, true)
 true
 
 julia> h2 == PauliSum(h2, false) && h2 != PauliSum(h2)
 true
 ```
 """
-function isCanonical(h::PauliSum; checkSimplification::Bool=false)::Bool
+function isCanonical(h::PauliSum, checkSimplification::Bool=false)::Bool
     strs = h.str
     (iszero∘countTerms)(h) && (return true)
     nSite = (countSites∘first)(strs)
@@ -1054,7 +1054,7 @@ end
 #> Validate the canonical (or simplified) form of `h` on behalf of its caller
 function checkPauliOpForm(h::PauliSum, checkForm::Bool=true; 
                           checkSimplification::Bool=false)
-    if checkForm && !isCanonical(h; checkSimplification)
+    if checkForm && !isCanonical(h, checkSimplification)
         errText1, errText2 = if checkSimplification
             ("simplified", 
              "simplify `h` first using a `PauliSum` constructor with `simplification=true`")
@@ -1701,9 +1701,8 @@ end
 
 
 """
-    compareSites(pStr1::PauliStr, pStr2::PauliStr, 
-                 finalSite::Integer=max(countSites(pStr1), countSites(pStr2)); 
-                 startSite::Integer=1) -> 
+    compareSites(pStr1::PauliStr, pStr2::PauliStr; startSite::Integer=1, 
+                 finalSite::Integer=max(countSites(pStr1), countSites(pStr2))) -> 
     Bool
 
 Return whether `pStr1` and `pStr2` carry the same single-site Pauli operator on every site 
@@ -1719,16 +1718,15 @@ no site is compared and `true` is returned.
 julia> compareSites(pauli"XX", pauli"-XXIIX")
 false
 
-julia> compareSites(pauli"XX", pauli"-XXIIX", 2)
+julia> compareSites(pauli"XX", pauli"-XXIIX", finalSite=2)
 true
 
-julia> compareSites(pauli"XX", pauli"-XXIIX", 4, startSite=3)
+julia> compareSites(pauli"XX", pauli"-XXIIX", finalSite=4, startSite=3)
 true
 ```
 """
-function compareSites(pStr1::PauliStr, pStr2::PauliStr, 
-                      finalSite::Integer=max(countSites(pStr1), countSites(pStr2)); 
-                      startSite::Integer=1)
+function compareSites(pStr1::PauliStr, pStr2::PauliStr; startSite::Integer=1, 
+                      finalSite::Integer=max( countSites(pStr1), countSites(pStr2) ))
     startSite = toBitIntData(startSite, "startSite")
     finalSite = toBitIntData(finalSite, "finalSite")
     startSite > 0 || throw(DomainError(startSite, "`startSite` must be positive."))

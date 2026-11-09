@@ -90,7 +90,7 @@ end
     @test add(pauli"X", pauli"X", false) == PauliSum([pauli"X"], [2])
     resZero = add(pauli"X", mul(pauli"X", negRea), false)
     @test resZero.str == [pauli"X"] && resZero.coeff == Complex{Int}[0]
-    @test isCanonical(resZero) && !isCanonical(resZero, checkSimplification=true)
+    @test isCanonical(resZero) && !isCanonical(resZero, true)
     @test PauliSum(resZero, true) == PauliSum(Int)
     @test countTerms(add(h1, h1, false)) == countTerms(add(h1, mul(h1, negRea), false)) == 1
     @test countTerms(add(h1, pauli"XZ"=>-2, false)) == 1
@@ -225,7 +225,7 @@ end
     #>> retains the terms whose merged coefficient is exactly zero, per method
     resZero = sub(pauli"X", pauli"X", false)
     @test resZero.str == [pauli"X"] && resZero.coeff == Complex{Int}[0]
-    @test isCanonical(resZero) && !isCanonical(resZero, checkSimplification=true)
+    @test isCanonical(resZero) && !isCanonical(resZero, true)
     @test PauliSum(resZero, true) == PauliSum(Int)
     @test countTerms(sub(h1, h1, false)) == countTerms(sub(h1, pauli"XZ"=>2, false)) == 1
     hOne = PauliSum([pauli"XZ"], [1])
@@ -443,7 +443,7 @@ end
     #> cancelled identity term (`XX - YY`); simplifying it afterwards recovers the result
     hRaw = mul(h1, h2, false)
     @test hRaw == PauliSum([pauli"I", pauli"Z"], [0, -2im], false)
-    @test isCanonical(hRaw) && !isCanonical(hRaw, checkSimplification=true)
+    @test isCanonical(hRaw) && !isCanonical(hRaw, true)
     @test PauliSum(hRaw, true) == mul(h1, h2)
 
     #> The empty `PauliSum` (the zero operator) annihilates any sum

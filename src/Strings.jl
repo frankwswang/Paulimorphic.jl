@@ -1702,7 +1702,7 @@ end
 
 """
     compareSites(pStr1::PauliStr, pStr2::PauliStr; startSite::Integer=1, 
-                 finalSite::Integer=max(countSites(pStr1), countSites(pStr2))) -> 
+                 finalSite::Integer=max( countSites(pStr1), countSites(pStr2) )) -> 
     Bool
 
 Return whether `pStr1` and `pStr2` carry the same single-site Pauli operator on every site 

@@ -668,7 +668,7 @@ end
     @test !compareSites(pauli"XX", pauli"XXIX")
     @test  compareSites(pauli"XX", pauli"XXIX", finalSite=3)
     @test !compareSites(pauli"X", pauli"Z", finalSite=1000)
-    @test  compareSites(pauli"X", pauli"Z", finalSite=1000, startSite=32)
+    @test  compareSites(pauli"X", pauli"Z", finalSite=1000, startSite=2)
     @test  compareSites(PauliStr(), PauliStr()) #> Default `finalSite` is 0: empty window
     @test  compareSites(PauliStr(), pauli"-")
     @test  compareSites(pauli"X", pauli"Z", finalSite=0)

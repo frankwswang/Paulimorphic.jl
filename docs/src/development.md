@@ -84,11 +84,11 @@ should be declared as positional or keyword arguments according to the following
   `lowToHigh` in [`paste!`](@ref), respectively). More than one optional positional 
   argument is allowed only when each later one is either semantically dependent on the 
   earlier ones or closely related to them in functionality but (intended to be) less 
-  important, so that all the optional arguments are positioned in decreasing order of 
-  importance (e.g., `phase` after `siteOp` in a constructor of [`PauliStr`](@ref)). 
-  Optional arguments that are closely related in functionality and equally important should 
-  instead all be keyword arguments, which are position-agnostic (e.g., `denseString` and 
-  `omitPlusSign` in [`toString`](@ref)).
+  important, so that all the optional positional arguments are positioned in decreasing 
+  order of importance (e.g., `phase` after `siteOp` in a constructor of 
+  [`PauliStr`](@ref)). Optional arguments that are closely related in functionality and 
+  equally important should instead all be keyword arguments, which are position-agnostic 
+  (e.g., `denseString` and `omitPlusSign` in [`toString`](@ref)).
 
 * When an argument is a keyword argument in one method of a function, it should also be a 
   keyword argument in every other method of the function that takes it, even when it is the 

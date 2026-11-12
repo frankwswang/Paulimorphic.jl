@@ -174,6 +174,24 @@ end
     @test encodeElecHam(PairedOrder(), enc3, (hA, gA), (hB, gB), gX) == golden
 end
 
+@testset "toMatrix: compensated accumulation of the entries in the canonical order" begin
+    #> Every diagonal entry of a diagonal `h` collects all of its terms (with signs). With 
+    #> a wide dynamic range, naive left-to-right summation loses the small terms (e.g., it 
+    #> returns `2^-53` for the real part of the first entry below), whereas the compensated 
+    #> accumulation in the canonical term order returns the pinned values regardless of the 
+    #> input order (the strings below are listed in their canonical order)
+    strs = [pauli"II", pauli"ZI", pauli"IZ", pauli"ZZ"]
+    coeffs = [1.0 + 2.0^-53*im, 2.0^54 - 1.0im, -2.0^54 + 2.0^-60*im, 2.0^-53 + 1.0im]
+    small = 2.0^-53 + 2.0^-60
+    goldenDiag = [1.0 + small*im, -2.0^55 + small*im, 2.0^55 - 2.0im, 1.0 + 2.0im]
+    golden = [i == j ? goldenDiag[i] : zero(ComplexF64) for i in 1:4, j in 1:4]
+    for perm in ([1, 2, 3, 4], [4, 3, 2, 1], [2, 4, 1, 3])
+        h = PauliSum(strs[perm], coeffs[perm])
+        @test Matrix(toMatrix(h)) == golden
+        @test toMatrix!(zeros(ComplexF64, 4, 4), h) == golden
+    end
+end
+
 @testset "magnitude thresholds are evaluated by evalMagnitude" begin
     #> `cxMagnitude` is exactly on the threshold under `evalMagnitude`, whereas `abs(cx)` 
     #> on FMA hardware exceeds it

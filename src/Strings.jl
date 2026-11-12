@@ -757,7 +757,7 @@ end
 function combinePauliTerms!(termDict::PauliTermDict)
     filter!(pair->!(iszero∘sum)(pair.second), termDict)
     coeffs = map((collect∘values)(termDict)) do (coeffSum, sumResidue)
-        coeffSum + sumResidue
+        adaptAdd(coeffSum, sumResidue)
     end
     pStrs = (collect∘keys)(termDict)
     res = PauliSum(pStrs, coeffs) #> Keys that differ only by their phases are merged here
@@ -1091,29 +1091,67 @@ function canonicalize!(h::PauliSum)
     (iszero∘countTerms)(h) && (return h)
     strs = h.str
     coeffs = h.coeff
-    nTerm = length(strs)
 
     #> The two conditions that cannot be restored in place are verified before any mutation
-    nSite = (countSites∘first)(strs)
-    if !all(str->countSites(str) == nSite, strs)
+    if !allEqualSiteCounts(strs)
         throw(ArgumentError("`h` holds strings with different site counts, so it cannot "*
                             "be canonicalized in place. Rebuild it via "*
                             "`PauliSum(h, false)` instead."))
     end
 
-    strBuffer = sort(strs) #> Strings equal up to their phases become adjacent
-    for i in 1:(nTerm-1)
-        if compareSites(strBuffer[begin+i-1], strBuffer[begin+i])
-            throw(ArgumentError("`h` holds terms with equal strings (up to their phases), "*
-                                "which cannot be merged in place. Rebuild `h` via "*
-                                "`PauliSum(h, false)` instead."))
-        end
+    if !allUniquePauliBits(strs)
+        throw(ArgumentError("`h` contains terms with equal strings (up to their phases), "*
+                            "which cannot be merged in place. Rebuild `h` via "*
+                            "`PauliSum(h, false)` instead."))
     end
 
     absorbPhases!(strs, coeffs)
     sortStrings!(strs, coeffs, false) #> The strings alone form a total order
 
     h
+end
+
+#> Internal function for efficient Pauli-bit checking
+function allEqualSiteCounts(strs::AbstractVector{PauliStr})
+    if isempty(strs)
+        true
+    else
+        nSite = (countSites∘first)(strs)
+        all(str->(countSites(str) == nSite), strs)
+    end
+end
+
+
+function allUniquePauliBits(strs::AbstractVector{PauliStr})
+    nStr = length(strs)
+
+    if nStr > 0
+        strBuffer = sort(strs) #> Strings equal up to their phases become adjacent
+
+        for i in 1:(nStr-1)
+            compareSites(strBuffer[begin+i-1], strBuffer[begin+i]) && (return false)
+        end
+    end
+
+    true
+end
+
+
+#> Lazy canonicalization that potentially references the `PauliStr` stored in `h`
+function lazyCanonicalize(h::PauliSum, simplification::Bool=false)
+    if isCanonical(h, simplification)
+        h
+    else
+        strs = h.str
+        bl = all(str->isequal(posRea, str.phase), strs) && allEqualSiteCounts(strs) && 
+                                                           allUniquePauliBits(strs)
+        if bl && !(simplification && any(iszero, h.coeff))
+            hShallow = PauliSum(_->true, h, false)
+            canonicalize!(hShallow)
+        else
+            PauliSum(h, simplification)
+        end
+    end
 end
 
 

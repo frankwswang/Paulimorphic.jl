@@ -167,19 +167,19 @@ function checkPauliSumMatConfig(::Type{T}, h::PauliSum, nSite::Integer
                                 ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
 
-    nSite = toBitIntData(nSite, "nSite")
+    nSiteInt = toBitIntData(nSite, "nSite")
     nSiteMin = countSites(h)
-    if nSite < nSiteMin
-        throw(DomainError(nSite, "`nSite` must be as least `countSites(h)==$nSiteMin`."))
+    if nSiteInt < nSiteMin
+        throw(DomainError(nSiteInt, "`nSite` must be at least `countSites(h)==$nSiteMin`."))
     end
 
-    nothing
+    nSiteInt
 end
 
 
 function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
                   checkForm::Bool=true) where {T<:SignedReal, T1<:SignedReal}
-    checkPauliSumMatConfig(T, h, nSite)
+    nSite = checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
 
     checkPauliOpForm(h, checkForm)
@@ -241,7 +241,7 @@ toMatrix(Int, str, nSite)
 function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}}, 
                    h::PauliSum{T1}, nSite::Integer=countSites(h); checkForm::Bool=true
                    ) where {T<:SignedReal, T1<:SignedReal}
-    checkPauliSumMatConfig(T, h, nSite)
+    nSite = checkPauliSumMatConfig(T, h, nSite)
     if !(size(dst, 1) == size(dst, 2) == getPauliOpMatOrder(nSite))
         throw(ArgumentError("`dst` must be a square matrix of order `2^$nSite`."))
     end
@@ -296,7 +296,7 @@ end
 function processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
                                 nSite::Integer=countSites(h); checkForm::Bool=true
                                 ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
-    checkPauliSumMatConfig(T, h, nSite)
+    nSite = checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
     checkPauliOpForm(h, checkForm)
     hLocal = checkForm ? h : lazyCanonicalize(h, false)

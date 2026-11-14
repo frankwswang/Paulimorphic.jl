@@ -4,7 +4,8 @@ using LinearAlgebra: kron
 using SparseArrays: SparseMatrixCSC, nnz, rowvals, nzrange
 using Paulimorphic
 using Paulimorphic: isIndexLabel, dumpTo!, posRea, posImg, negRea, negImg, setCoeff!, 
-                    formatPauliOpMatInfo, genPauliOpMatEntryEvaluator
+                    formatPauliOpMatInfo, genPauliOpMatEntryEvaluator, 
+                    processOperatorMatInfo
 
 @testset "Tensors.jl" begin
 
@@ -73,6 +74,10 @@ end
     @test formatPauliOpMatInfo(Int, h, 3) == info #> Identity on the additional site
     #> The coefficients are converted to the given core type before the phases are folded
     @test formatPauliOpMatInfo(Float64, h).second[end] isa Memory{ComplexF64}
+    #> A site count below the one of the input clears the bits above it. The public 
+    #> functions reject such a site count before this internal function is reached
+    infoLow = 2 => (UInt[1, 1, 0, 0], UInt[0, 1, 0, 1], [1, 3im, 2, 4])
+    @test formatPauliOpMatInfo(Int, h, 1) == infoLow
 end
 
 @testset "toMatrix" begin
@@ -226,7 +231,7 @@ end
     @test dst == fill(7, 2, 2)
     #>> The default value of `checkForm` should be the same for every method
     @test_throws ArgumentError toMatrix(Float64, hd)
-    @test_throws ArgumentError toMatrix(Float64, hd, checkForm=true) #>> Guard
+    @test_throws ArgumentError toMatrix(Float64, hd, checkForm=true)
     #>> With `checkForm=false`, a non-canonical `PauliSum` is canonicalized upon input
     @test toMatrix(hd, checkForm=false) == 5 .* toMatrix(pauli"X")
     @test toMatrix!(zeros(ComplexF64, 2, 2), hd, checkForm=false) == 5 .* toMatrix(pauli"X")
@@ -273,6 +278,12 @@ end
     @test_throws DomainError toMatrix(pauli"XZ", 1)
     @test_throws DomainError toMatrix(symX, 0)
     @test_throws DomainError toMatrix(Float64, PauliSum([pauli"XZ"], [1.0]), 1)
+    #>> An `nSite` of any integer type is accepted as long as an `Int` can represent it
+    @test toMatrix(pauli"X", Int8(2)) == toMatrix(pauli"X", 2)
+    @test toMatrix(Float64, hInt, UInt8(3)) == toMatrix(Float64, hInt, 3)
+    @test toMatrix!(zeros(Int, 4, 4), symZ, big(2)) == toMatrix!(zeros(Int, 4, 4), symZ, 2)
+    @test processOperatorMatInfo((_, _) -> nothing, Int, hInt, Int8(2)) == 
+          processOperatorMatInfo((_, _) -> nothing, Int, hInt, 2)
 
     #> The transient buffers of `toMatrix` are bounded by the number of distinct `x`-masks 
     #> among the terms (`1` for a diagonal operator) instead of the number of terms (`66` 

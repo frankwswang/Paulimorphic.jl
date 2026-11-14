@@ -54,7 +54,7 @@ toBitIntData(Int, rng, boundName)
 function adaptAdd(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
         Base.checked_add(num1, num2)
-    elseif T <: Complex{<:BitSInteger}
+    elseif T <: ComplexBitSInteger
         x = adaptAdd(real(num1), real(num2))
         y = adaptAdd(imag(num1), imag(num2))
         Complex(x, y)
@@ -69,7 +69,7 @@ adaptAdd(num1::RealOrComplex, num2::RealOrComplex) = adaptAdd(promote(num1, num2
 function adaptMul(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
         Base.checked_mul(num1, num2)
-    elseif T <: Complex{<:BitSInteger}
+    elseif T <: ComplexBitSInteger
         x1, y1 = reim(num1)
         x2, y2 = reim(num2)
         x = Base.checked_sub(adaptMul(x1, x2), adaptMul(y1, y2))
@@ -84,7 +84,7 @@ adaptMul(num1::RealOrComplex, num2::RealOrComplex) = adaptMul(promote(num1, num2
 
 
 function adaptConj(num::T) where {T<:RealOrComplex}
-    if T <: Complex{<:BitSInteger}
+    if T <: ComplexBitSInteger
         Complex(real(num), adaptNeg( imag(num) ))
     else
         conj(num)
@@ -95,7 +95,7 @@ end
 function adaptNeg(num::T) where {T<:RealOrComplex}
     if T <: BitSInteger
         Base.checked_neg(num)
-    elseif T <: Complex{<:BitSInteger}
+    elseif T <: ComplexBitSInteger
         Complex(adaptNeg( real(num) ), adaptNeg( imag(num) ))
     else
         -num

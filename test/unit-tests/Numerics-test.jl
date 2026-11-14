@@ -1,5 +1,5 @@
 using Test
-using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
+using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude, extendType
 using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
 
 @testset "Numerics.jl" begin
@@ -45,6 +45,19 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
         @test adaptNeg(Complex(1//2, -1//3)) === Complex(-1//2, 1//3)
         @test adaptAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
         @test adaptNeg(big(typemin(Int))) == -big(typemin(Int))
+
+        #> `@allocated` is evaluated twice, so that the first one absorbs the compilation.
+        #> For the second evaluation, each adaptive operation should be allocation free.
+        for x in (3, 1.5, 1//2, Complex(1, 2), 1.0 + 2.0im, Complex(1//2, -1//3))
+            for f in (adaptAdd, adaptMul)
+                @allocated f(x, x)
+                @test (@allocated f(x, x)) == 0
+            end
+            for f in (adaptConj, adaptNeg)
+                @allocated f(x)
+                @test (@allocated f(x)) == 0
+            end
+        end
     end
 
     @testset "neumaierStep" begin
@@ -118,6 +131,24 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
         @test evalMagnitude(ComplexF32(3, 4)) == 5f0
         @test evalMagnitude(3) == 3.0
         @test evalMagnitude(-3.0f0) == 3.0f0
+    end
+
+    @testset "extendType" begin
+        #> Same category (both floating-point or both exact): promoted; otherwise, `T`
+        @test extendType(Float32, Float64) === extendType(Float64, Float32) === Float64
+        @test extendType(Int16, Rational{Int8}) === Rational{Int16}
+        @test extendType(Int, Float64) === Float64
+        @test extendType(Float64, Rational{Int16}) === Rational{Int16}
+        #> A complex `T` has its real and imaginary parts extended alike
+        @test extendType(Int16, Complex{Rational{Int8}}) === Complex{Rational{Int16}}
+        @test extendType(Float64, Complex{Int}) === Complex{Int}
+        @test extendType(Float64, ComplexF64) === ComplexF64
+
+        #> The returned type sets the element type of accumulation buffers (e.g., in the 
+        #> constructors of `PauliSum` and in `mul`), so every method must be inferable
+        @test (@inferred extendType(Int, Float64)) === Float64
+        @test (@inferred extendType(Float64, ComplexF64)) === ComplexF64
+        @test (@inferred extendType(Float32, Complex{BigFloat})) === Complex{BigFloat}
     end
 
     @testset "toBitIntData" begin

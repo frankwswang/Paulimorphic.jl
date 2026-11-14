@@ -3,7 +3,8 @@ using Random: Xoshiro
 using LinearAlgebra: kron
 using SparseArrays: SparseMatrixCSC, nnz, rowvals, nzrange
 using Paulimorphic
-using Paulimorphic: isIndexLabel, dumpTo!, posRea, posImg, negRea, negImg, setCoeff!
+using Paulimorphic: isIndexLabel, dumpTo!, posRea, posImg, negRea, negImg, setCoeff!, 
+                    formatPauliOpMatInfo, genPauliOpMatEntryEvaluator
 
 @testset "Tensors.jl" begin
 
@@ -62,6 +63,18 @@ end
     @test PauliSum([pauli"X", pauli"Y"], ZeroBasedVector([0.5, 0.25]), false) == refSum
 end
 
+@testset "formatPauliOpMatInfo" begin
+    #> One `x`-mask, one `z`-mask, and one coefficient (with the `im` of every `Y` folded 
+    #> in) per term in the stored order, preceded by the number of distinct `x`-masks, 
+    #> which bounds the number of non-zero entries in each column of the matrix
+    h = PauliSum([pauli"XI", pauli"IZ", pauli"YI", pauli"ZZ"], [1, 2, 3, 4])
+    info = 2 => (UInt[1, 1, 0, 0], UInt[0, 1, 2, 3], [1, 3im, 2, 4])
+    @test formatPauliOpMatInfo(Int, h) == formatPauliOpMatInfo(Int, h, 2) == info
+    @test formatPauliOpMatInfo(Int, h, 3) == info #> Identity on the additional site
+    #> The coefficients are converted to the given core type before the phases are folded
+    @test formatPauliOpMatInfo(Float64, h).second[end] isa Memory{ComplexF64}
+end
+
 @testset "toMatrix" begin
     syms = [symI, symX, symY, symZ]
     phases = [posRea, posImg, negRea, negImg]
@@ -101,6 +114,26 @@ end
     @test Matrix(toMatrix(pauli"-")) == fill(-1, 1, 1) #> Zero-site string: its phase
     @test Matrix(toMatrix(pauli"XI")) == [0 1 0 0; 1 0 0 0; 0 0 0 1; 0 0 1 0]
     @test Matrix(toMatrix(pauli"IX")) == [0 0 1 0; 0 0 0 1; 1 0 0 0; 0 1 0 0]
+
+    #> An `nSite` above the site count pads the operator with the identity on the upper 
+    #> sites, i.e., on the more significant bits of the basis-state index
+    for str in (pauli"-", pauli"X", pauli"iYZ", pauli"-iZXY"), nPad in 0:2
+        nSite = countSites(str) + nPad
+        mat = toMatrix(str, nSite)
+        @test size(mat) == (2^nSite, 2^nSite) && Matrix(mat) == kronRef(str, nSite)
+    end
+    @test toMatrix(pauli"X", 2) == toMatrix(pauli"XI")
+    @test Matrix(toMatrix(pauli"-", 2)) == [-1 0 0 0; 0 -1 0 0; 0 0 -1 0; 0 0 0 -1]
+    for sym in syms
+        @test toMatrix(sym, 1) == toMatrix(sym)
+        @test Matrix(toMatrix(sym, 3)) == kronRef(PauliStr(1, sym), 3)
+        @test toMatrix(Float64, sym, 2) isa SparseMatrixCSC{ComplexF64, Int}
+    end
+    @test Matrix(toMatrix(symZ, 2)) == [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
+    hPad = PauliSum([pauli"XI", pauli"IZ", pauli"YY"], [1.0, 2.0, 0.5im])
+    @test Matrix(toMatrix(hPad, 3)) == sumRef(hPad, 3) == kron([1 0; 0 1], sumRef(hPad))
+    @test toMatrix(hPad, 3) == toMatrix(reframe(hPad, 3))
+    @test toMatrix(Float32, hPad, 3) isa SparseMatrixCSC{ComplexF32, Int}
 
     #> Random sums: duplicates, zero coefficients, and phases exercise the merging in the 
     #> constructor, the phase folding, and the dropping of exactly cancelled entries
@@ -153,6 +186,7 @@ end
     @test toMatrix(Float32, hInt) isa SparseMatrixCSC{ComplexF32, Int}
     @test toMatrix(Float32, hInt) == toMatrix(hInt) == toMatrix(Rational{Int}, hInt)
     @test_throws ArgumentError toMatrix(Signed, hInt) #> Not a concrete core type
+    @test_throws ArgumentError toMatrix(Signed, symX)
     @test_throws MethodError toMatrix(Bool, hInt)
     @test_throws InexactError toMatrix(Int, PauliSum([pauli"X"], [0.5]))
     #>> Narrowing to `Float32` rounds the entries to exact zero, which are then not stored
@@ -167,36 +201,101 @@ end
     @test_throws OverflowError toMatrix(hNeg)
     @test_throws OverflowError toMatrix(Float64, hNeg) #> `extendType(Float64, Int) == Int`
     @test toMatrix(Int128, hNeg) == [typemin(Int) 0; 0 -Int128(typemin(Int))]
+    #>> The phase of a string is folded into its coefficient at the same precision level: 
+    #>> the entries `±128` of `-128 * YY` only require a `T` wider than `Int8`
+    hYY = PauliSum([pauli"YY"], Int8[-128])
+    refYY = [0 0 0 128; 0 0 -128 0; 0 -128 0 0; 128 0 0 0]
+    @test_throws OverflowError toMatrix(hYY)
+    @test toMatrix(Int16, hYY) == refYY
+    @test toMatrix!(zeros(Int16, 4, 4), hYY) == refYY
+    hZZ = PauliSum([pauli"ZZ"], Int8[-128]) #> The signs of `ZZ` involve no phase
+    @test toMatrix(Int16, hZZ) == [-128 0 0 0; 0 128 0 0; 0 0 128 0; 0 0 0 -128]
 
-    #> When `checkForm=true`, `toMatrix` requires input `PauliSum` to be already in the 
-    #> canonical form
+    #> By default (`checkForm=true`), the input `PauliSum` is required to be in the 
+    #> canonical form; with `checkForm=false`, it is canonicalized (on a copy) upon input
     hd = PauliSum([pauli"X", pauli"Y"], [1.0, 2.0])
-    hd.str[2] = pauli"X" #> Artificial non-canonical from
+    hd.str[2] = pauli"X" #> Artificial non-canonical form
     @test toMatrix(hd, checkForm=false) == 3 .* toMatrix(pauli"X")
     setCoeff!(hd, 3.0, 1)
     @test !isCanonical(hd)
     @test_throws ArgumentError toMatrix(hd)
     @test_throws ArgumentError toMatrix!(zeros(ComplexF64,2,2), hd)
-    #>> By default, non-canonical `PauliSum` is canonicalized upon input
+    #>> The rejection precedes any write to the destination
+    dst = fill(7.0 + 0.0im, 2, 2)
+    @test_throws ArgumentError toMatrix!(dst, hd)
+    @test dst == fill(7, 2, 2)
+    #>> The default value of `checkForm` should be the same for every method
+    @test_throws ArgumentError toMatrix(Float64, hd)
+    @test_throws ArgumentError toMatrix(Float64, hd, checkForm=true) #>> Guard
+    #>> With `checkForm=false`, a non-canonical `PauliSum` is canonicalized upon input
     @test toMatrix(hd, checkForm=false) == 5 .* toMatrix(pauli"X")
     @test toMatrix!(zeros(ComplexF64, 2, 2), hd, checkForm=false) == 5 .* toMatrix(pauli"X")
     @test toMatrix(PauliSum(hd)) == 5 .* toMatrix(pauli"X")
+    @test toMatrix(Float64, hd, checkForm=false) == 5 .* toMatrix(pauli"X")
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea #> The first stored term is `Z`
     @test_throws ArgumentError toMatrix(hp)
     @test toMatrix(hp, checkForm=false) == toMatrix(PauliSum(hp)) == [-2 1; 1 2] #> X - 2Z
-    #>> Strings of different site counts (the buffer of `h` can hold them while `h` stays 
-    #>> canonical) are implicitly padded
+    #>> Strings of different site counts (the buffer of `h` can hold them, which breaks the 
+    #>> canonical form) are implicitly padded
     hm = PauliSum([pauli"XI", pauli"IZ"], [1, 2])
     hm.str[begin] = pauli"X"
     @test !isCanonical(hm) && countSites(hm) == 2
     @test toMatrix(hm, checkForm=false) == toMatrix(PauliSum([pauli"XI",pauli"IZ"], [1,2]))
+    #>> Terms that are merely out of order are sorted on a shallow copy of the sum, which 
+    #>> leaves the input (including the order of its stored terms) untouched
+    hs = PauliSum([pauli"XI", pauli"IZ"], [1.0, 2.0])
+    refS = [2 1 0 0; 1 2 0 0; 0 0 -2 1; 0 0 1 -2]
+    @test toMatrix(hs) == refS
+    hs.str[1], hs.str[2] = hs.str[2], hs.str[1]
+    hs.coeff[1], hs.coeff[2] = hs.coeff[2], hs.coeff[1]
+    strsBefore, coeffsBefore = copy(hs.str), copy(hs.coeff)
+    @test !isCanonical(hs)
+    @test_throws ArgumentError toMatrix(hs)
+    @test toMatrix(hs, checkForm=false) == refS
+    @test toMatrix!(zeros(ComplexF64, 4, 4), hs, checkForm=false) == refS
+    @test all(hs.str .=== strsBefore) && hs.coeff == coeffsBefore && !isCanonical(hs)
 
     #> The empty sum is the 1×1 zero matrix; the site count is bounded by the `Int` range
     @test toMatrix(PauliSum(Float64)) == zeros(1, 1) && nnz(toMatrix(PauliSum(Int))) == 0
     @test_throws DomainError toMatrix(PauliStr(8sizeof(Int) - 1))
     @test_throws DomainError toMatrix!(zeros(1, 1), PauliStr(8sizeof(Int) - 1))
+    #>> An explicit `nSite` (of any integer type) is subject to the same upper bound, and 
+    #>> it sets the order of the zero matrix representing the empty sum
+    matEmpty = toMatrix(PauliSum(Float64), 2)
+    @test size(matEmpty) == (4, 4) && nnz(matEmpty) == 0
+    @test_throws DomainError toMatrix(pauli"X", 8sizeof(Int) - 1)
+    @test_throws DomainError toMatrix(pauli"X", -1)
+    @test_throws DomainError toMatrix(pauli"X", BigInt(2)^80)
+    @test_throws DomainError toMatrix!(zeros(2, 2), pauli"X", -1)
+    #>> An `nSite` below the site count is rejected instead of cropping the operator
+    @test_throws DomainError toMatrix(pauli"XZ", 1)
+    @test_throws DomainError toMatrix(symX, 0)
+    @test_throws DomainError toMatrix(Float64, PauliSum([pauli"XZ"], [1.0]), 1)
+
+    #> The transient buffers of `toMatrix` are bounded by the number of distinct `x`-masks 
+    #> among the terms (`1` for a diagonal operator) instead of the number of terms (`66` 
+    #> below).
+    nDiag = 12
+    genZZStr(i::Int, j::Int) = PauliStr([k == i || k == j ? symZ : symI for k in 1:nDiag])
+    hDiag = PauliSum([genZZStr(i, j) for i in 1:nDiag for j in (i + 1):nDiag], 
+                     ones(nDiag * (nDiag - 1) ÷ 2))
+    nXMask, (xMasksDiag, zMasksDiag, coeffsDiag) = formatPauliOpMatInfo(Float64, hDiag)
+    @test nXMask == 1 && length(coeffsDiag) == countTerms(hDiag) == 66
+    matDiag = toMatrix(hDiag) #> This call also compiles the one measured below
+    @test nnz(matDiag) == 2^nDiag
+    @test (@allocated toMatrix(hDiag)) < 2^20 #> 1 MiB
+    #>> The evaluator of the entries is concretely typed (otherwise, every column pays a 
+    #>> run-time dispatch), and evaluating a column with it allocates nothing
+    evalArgTypes = (Type{Float64}, Memory{UInt}, Memory{UInt}, Memory{ComplexF64})
+    @test isconcretetype(only(Base.return_types(genPauliOpMatEntryEvaluator, evalArgTypes)))
+    evalDiag = genPauliOpMatEntryEvaluator(Float64, xMasksDiag, zMasksDiag, coeffsDiag)
+    skipEntry(::Pair, ::Int) = nothing
+    colLabel = UInt(5)
+    @test evalDiag(skipEntry, colLabel, 0) == 1 #> Also sets up the accumulator's storage
+    @test evalDiag(skipEntry, colLabel, 3) == 4
+    @test (@allocated evalDiag(skipEntry, colLabel, 0)) == 0
 end
 
 @testset "toMatrix!" begin
@@ -206,6 +305,12 @@ end
     #> Overwrite semantics and the returned object
     dst = fill(7.0 + 0.0im, 4, 4)
     @test toMatrix!(dst, h) === dst && dst == ref
+    #>> Every element of `dst` is assigned, also by the methods for a single-site operator
+    for sym in (symI, symX, symY, symZ)
+        @test toMatrix!(fill(7 + 7im, 2, 2), sym) == Matrix(toMatrix(sym))
+        @test toMatrix!(fill(7 + 7im, 4, 4), sym, 2) == Matrix(toMatrix(sym, 2))
+    end
+    @test toMatrix!(fill(7, 2, 2), symI) == [1 0; 0 1]
 
     #> Element-type conversion upon assignment
     @test toMatrix!(zeros(ComplexF32, 4, 4), h) == ref
@@ -213,6 +318,9 @@ end
     @test toMatrix!(zeros(Int, 2, 2), PhaseFactor(1) * pauli"Y") == [0 1; -1 0] #> Real
     @test_throws InexactError toMatrix!(zeros(2, 2), pauli"Y")
     @test_throws InexactError toMatrix!(zeros(Int, 2, 2), PauliSum([pauli"X"], [0.5]))
+    #>> A non-real entry for a real `dst` raises the same error through every method
+    @test_throws InexactError toMatrix!(zeros(2, 2), symY)
+    @test_throws InexactError toMatrix!(zeros(2, 2), symY, 1)
 
     #> Size check (before any write), including the `PauliSym` and zero-site cases
     @test_throws ArgumentError toMatrix!(zeros(ComplexF64, 4, 5), h)
@@ -223,6 +331,24 @@ end
     end
     @test toMatrix!(fill(1, 1, 1), pauli"-") == fill(-1, 1, 1)
     @test toMatrix!(fill(1.0, 1, 1), PauliSum(Float64)) == zeros(1, 1)
+
+    #> An explicit `nSite` above the site count pads the operator with the identity on the 
+    #> upper sites; the order of `dst` must then be `2^nSite`
+    @test toMatrix!(fill(7.0 + 0.0im, 8, 8), h, 3) == kron([1 0; 0 1], ref)
+    @test toMatrix!(fill(7.0 + 0.0im, 4, 4), pauli"X", 2) == Matrix(toMatrix(pauli"XI"))
+    @test toMatrix!(zeros(Int, 4, 4), symZ, 2) == [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
+    @test_throws ArgumentError toMatrix!(zeros(ComplexF64, 4, 4), h, 3)
+    @test_throws ArgumentError toMatrix!(zeros(4, 4), pauli"X")
+    #>> An `nSite` below the site count is rejected before any write to `dst`
+    dstLow = fill(7.0, 2, 2)
+    @test_throws DomainError toMatrix!(dstLow, pauli"XZ", 1)
+    @test dstLow == fill(7.0, 2, 2)
+
+    #> The core data type of `dst` is checked by every method
+    dstAbstract = Matrix{Signed}(undef, 2, 2)
+    @test_throws ArgumentError toMatrix!(dstAbstract, PauliSum([pauli"Z"], [1]))
+    @test_throws ArgumentError toMatrix!(dstAbstract, pauli"Z")
+    @test_throws ArgumentError toMatrix!(dstAbstract, symZ)
 
     #> A view addresses a block of a larger matrix; the rest of the matrix is untouched
     big = zeros(ComplexF64, 6, 6)

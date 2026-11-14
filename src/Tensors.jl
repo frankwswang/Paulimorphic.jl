@@ -1,6 +1,6 @@
 export toMatrix, toMatrix!
 
-public isIndexLabel, findAxisPermViolation
+public isIndexLabel, findAxisPermViolation, processOperatorMatInfo
 
 using SparseArrays: spzeros, SparseMatrixCSC
 
@@ -31,8 +31,6 @@ function isIndexLabel(candidate::NonEmptyTuple{Integer},
 end
 
 
-const ComplexSMat{T<:Real, TI<:Integer} = SparseMatrixCSC{Complex{T}, TI}
-
 """
     toMatrix(::Type{T}, sym::PauliSym) where {T<:SignedReal} -> 
     $(SparseMatrixCSC|>repr){Complex{T}, Int}
@@ -45,6 +43,7 @@ Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Comple
 matrix is newly allocated on every call and shares no data with any global state.
 """
 function toMatrix(::Type{T}, sym::PauliSym) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
     mat = spzeros(Complex{T}, 2, 2)
     toMatrix!(mat, sym)
 end
@@ -66,7 +65,7 @@ function getPauliOpMatOrder(nSite::Int)
         nSiteRange = 0:CONSTVAR!!matrixRepMaxSiteCount
         throw(DomainError(nSite, "The site count `nSite` of a Pauli operator must be in "*
                                  "$nSiteRange so that the order of the operator's matrix "*
-                                 "representation 2^nSite` can be expressed as a `Int`."))
+                                 "representation 2^nSite` can be expressed as an `Int`."))
     end
     one(Int) << nSite
 end
@@ -74,10 +73,14 @@ end
 
 #> Obtain the formatted info of k-th term in `h::PauliSum` as `xMasks[k]` / `zMasks[k]` and 
 #> the associated `coeffs[k]`, independent of the column-major Pauli-Z basis |b> they act 
-#> on: xStr(xMasks[k]) xStr(xMasks[k]) |b> = (-1)^count_ones(zMasks[k] & b) |b ⊻ xMasks[k]>
-#> A deterministic assembly is enforced by a canonical checking via `checkPauliOpForm`.
-function formatPauliOpMatInfo(h::PauliSum{T}, nSite::Int=countSite(h)) where {T<:SignedReal}
-    checkPauliOpForm(h, true, checkSimplification=false)
+#> on: xStr(xMasks[k]) zStr(zMasks[k]) |b> = (-1)^count_ones(zMasks[k] & b) |b ⊻ xMasks[k]>
+#> The assembly is done in `T`, which is deterministic when `h` is in the canonical form.
+function formatPauliOpMatInfo(::Type{T}, h::PauliSum, nSite::Int=countSites(h)
+                              ) where {T<:SignedReal}
+    nSiteMin = countSites(h)
+    if nSite < nSiteMin
+        throw(ArgumentError("`nSite` just be as least `countSites(h)==$nSiteMin`."))
+    end
     bitsMask = (UInt∘getPauliOpMatOrder)(nSite) - one(UInt) #> Also check `nSite` bound
 
     nTerm = countTerms(h)
@@ -99,14 +102,15 @@ function formatPauliOpMatInfo(h::PauliSum{T}, nSite::Int=countSite(h)) where {T<
 
         phaseY = PhaseFactor(count_ones(xMask & zMask) & 3) #> Compute im^nPauliY
         phase = mul(str.phase, phaseY)
-        coeff = h.coeff[begin+k-1]
+        coeff = coeffT(h.coeff[begin+k-1])
         phase == posRea || (coeff = adaptMul( coeff, (coeffT∘evalPhase)(phase) ))
         xMasks[begin+k-1] = xMask
         zMasks[begin+k-1] = zMask
         coeffs[begin+k-1] = coeff
     end
 
-    (xMasks, zMasks, coeffs) #> There may be repeated elements in `xMasks`
+    xMaskCount = (length∘Set)(xMasks) #> Number of unique `xMask` in `xMasks`
+    xMaskCount => (xMasks, zMasks, coeffs) #> There may be repeated elements in `xMasks`
 end
 
 
@@ -115,12 +119,12 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                                      zMasks::AbstractVector{UInt}, 
                                      coeffs::AbstractVector{C}
                                      ) where {T<:SignedReal, C<:Complex{<:SignedReal}}
-    accuT = extendType(T, C)
-    accumulator = NeuAccumulator{UInt, accuT}()
+    extT = extendType(T, C)
+    accumulator = NeuAccumulator{UInt, extT}()
     nTerm = length(coeffs)
-    
+
     if !(nTerm == length(xMasks) == length(zMasks))
-        throw(ArgumentError("`xMasks`, `zMasks`, and `zMasks` must have the same length."))
+        throw(ArgumentError("`xMasks`, `zMasks`, and `coeffs` must have the same length."))
     end
 
     function evaluateEntry(processor::F, zBitStr::UInt, nzCount::Int
@@ -129,8 +133,8 @@ function genPauliOpMatEntryEvaluator(::Type{T},
         empty!(accumulator)
 
         @inbounds for iTerm in 0:(nTerm-1)     #> Zero-based term indexer
-            coeff = accuT(coeffs[begin+iTerm]) #> `coeff` is represented in the extend type
-            iszero(coeff) && continue          #> Skip column without any non-zero values
+            coeff = extT(coeffs[begin+iTerm])  #> `coeff` is represented in the extend type
+            iszero(coeff) && continue          #> Skip the terms with zero coefficients
 
             xMask = xMasks[begin+iTerm]
             zMask = zMasks[begin+iTerm]
@@ -161,23 +165,22 @@ function genPauliOpMatEntryEvaluator(::Type{T},
     end
 end
 
-#> At a target column `b` (one-based index) of the storing matrix `m`, a Pauli term 
-#> P(`xMask`, `zMask`, `coeff`) only touch one entry: `m[(xMask ⊻ b) + 1, b]`.
+
 function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
-                  canonicalization::Bool=true) where {T<:SignedReal, T1<:SignedReal}
+                  checkForm::Bool=false) where {T<:SignedReal, T1<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     nSite = toBitIntData(nSite, "nSite")
-    # iszero(nSite) && (return spzeros(Complex{T}, 1, 1))
     order = getPauliOpMatOrder(nSite)
 
-    hLocal = canonicalization ? lazyCanonicalize(h, false) : h
-    xMasks, zMasks, coeffs = formatPauliOpMatInfo(hLocal, nSite)
+    checkPauliOpForm(h, checkForm)
+    hLocal = checkForm ? h : lazyCanonicalize(h, false)
+    nXM, (xMasks, zMasks, coeffs) = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite)
 
     colPtrs = Vector{Int}(undef, order+1)
-    maxSave = adaptMul(order, countTerms(hLocal))
+    maxSave = adaptMul(order, nXM)
     nzvRows = Vector{Int}(undef, maxSave)
     nzvList = Vector{Complex{T}}(undef, maxSave)
-    permBuf = Memory{Int}(undef, maxSave)
+    permBuf = Memory{Int}(undef, nXM)
     permBuf .= 0
 
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
@@ -218,17 +221,18 @@ end
 toMatrix(::Type{T}, str::PauliStr, nSite::Integer=countSites(str)) where {T<:SignedReal} = 
 toMatrix(T, PauliSum(Int, genMemory(str)), nSite)
 
-toMatrix(h::PauliSum{T}, nSite::Integer=countSites(h); canonicalization::Bool=true
+toMatrix(h::PauliSum{T}, nSite::Integer=countSites(h); checkForm::Bool=true
          ) where {T<:SignedReal} = 
-toMatrix(T, h, nSite; canonicalization)
+toMatrix(T, h, nSite; checkForm)
 
 toMatrix(str::PauliStr, nSite::Integer=countSites(str)) = 
 toMatrix(Int, str, nSite)
 
 
-function toMatrix!(dst::AbstractMatrix{C}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
-                   canonicalization::Bool=true
-                   ) where {T<:SignedReal, C<:RealOrComplex{T}, T1<:SignedReal}
+function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}}, 
+                   h::PauliSum{T1}, nSite::Integer=countSites(h); checkForm::Bool=true
+                   ) where {T<:SignedReal, T1<:SignedReal}
+    checkCoreDataTypeForPauliSum(T)
     nSite = toBitIntData(nSite, "nSite")
     order = size(dst, 1)
     order == size(dst, 2) || throw(ArgumentError("`dst` must be a square matrix."))
@@ -241,8 +245,10 @@ function toMatrix!(dst::AbstractMatrix{C}, h::PauliSum{T1}, nSite::Integer=count
         dst[begin+iRow-1, begin+iCol-1] = matVal
     end
 
-    fill!(dst, zero(C)) #> Reset `dst` as `processMatrixInfo` only updates non-zero entries
-    processMatrixInfo(assign!, real(C), h, nSite; canonicalization)
+    checkPauliOpForm(h, checkForm)
+    hLocal = checkForm ? h : lazyCanonicalize(h, false) #> Format `h` first before mutation
+    fill!(dst, zero(Complex{T})) #> Reset `dst` with non-zero entries
+    processOperatorMatInfo(assign!, T, hLocal, nSite, checkForm=false)
 
     dst
 end
@@ -254,19 +260,21 @@ toMatrix!(dst, PauliSum( Int, genMemory(str) ), nSite)
 toMatrix!(dst::AbstractMatrix{<:SRealOrComplex}, sym::PauliSym, nSite::Integer) = 
 toMatrix!(dst, PauliStr(1, sym), nSite)
 
-function toMatrix!(dst::AbstractMatrix{T}, sym::PauliSym) where {T<:SRealOrComplex}
+function toMatrix!(dst::AbstractMatrix{C}, sym::PauliSym) where {C<:SRealOrComplex}
+    checkCoreDataTypeForPauliSum(real(C))
     if size(dst) != (2, 2)
         throw(ArgumentError("`dst` must be a 2-by-2 matrix."))
     end
 
-    if sym == symY && (T <: Real)
-        throw(ArgumentError("`eltype(dst)` must be a subtype of `Complex` for `sym=$sym`."))
+    if sym == symY && (C <: Real)
+        formattedImag = complex(C)(CONSTVAR!!pauliYMatEles[begin+1])
+        throw(InexactError(nameof(C), C, formattedImag))
     end
 
     dstVec = vec(dst)
 
     if sym == symI
-        dstVec[begin] = dstVec[end] = one(T)
+        dstVec .= (1, 0, 0, 1)
     elseif sym == symX
         dstVec .= CONSTVAR!!pauliXMatEles
     elseif sym == symY
@@ -279,14 +287,14 @@ function toMatrix!(dst::AbstractMatrix{T}, sym::PauliSym) where {T<:SRealOrCompl
 end
 
 
-function processMatrixInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
-                           nSite::Integer=countSites(h); canonicalization::Bool=true
-                           ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
+function processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
+                                nSite::Integer=countSites(h); checkForm::Bool=true
+                                ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
     nSite = toBitIntData(nSite, "nSite")
     order = getPauliOpMatOrder(nSite)
-
-    hLocal = canonicalization ? lazyCanonicalize(h, false) : h
-    xMasks, zMasks, coeffs = formatPauliOpMatInfo(hLocal, nSite)
+    checkPauliOpForm(h, checkForm)
+    hLocal = checkForm ? h : lazyCanonicalize(h, false)
+    xMasks, zMasks, coeffs = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite).second
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 
     for iCol in 0:(order-1)

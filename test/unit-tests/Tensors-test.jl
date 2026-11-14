@@ -168,30 +168,30 @@ end
     @test_throws OverflowError toMatrix(Float64, hNeg) #> `extendType(Float64, Int) == Int`
     @test toMatrix(Int128, hNeg) == [typemin(Int) 0; 0 -Int128(typemin(Int))]
 
-    #> When `canonicalization=false`, `toMatrix` requires input `PauliSum` to be already in 
-    #> the canonical form
+    #> When `checkForm=true`, `toMatrix` requires input `PauliSum` to be already in the 
+    #> canonical form
     hd = PauliSum([pauli"X", pauli"Y"], [1.0, 2.0])
     hd.str[2] = pauli"X" #> Artificial non-canonical from
-    @test toMatrix(hd) == 3 .* toMatrix(pauli"X")
+    @test toMatrix(hd, checkForm=false) == 3 .* toMatrix(pauli"X")
     setCoeff!(hd, 3.0, 1)
     @test !isCanonical(hd)
-    @test_throws ArgumentError toMatrix(hd, canonicalization=false)
-    @test_throws ArgumentError toMatrix!(zeros(ComplexF64,2,2), hd, canonicalization=false)
+    @test_throws ArgumentError toMatrix(hd)
+    @test_throws ArgumentError toMatrix!(zeros(ComplexF64,2,2), hd)
     #>> By default, non-canonical `PauliSum` is canonicalized upon input
-    @test toMatrix(hd) == 5 .* toMatrix(pauli"X")
-    @test toMatrix!(zeros(ComplexF64, 2, 2), hd) == 5 .* toMatrix(pauli"X")
+    @test toMatrix(hd, checkForm=false) == 5 .* toMatrix(pauli"X")
+    @test toMatrix!(zeros(ComplexF64, 2, 2), hd, checkForm=false) == 5 .* toMatrix(pauli"X")
     @test toMatrix(PauliSum(hd)) == 5 .* toMatrix(pauli"X")
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea #> The first stored term is `Z`
-    @test_throws ArgumentError toMatrix(hp, canonicalization=false)
-    @test toMatrix(hp) == toMatrix(PauliSum(hp)) == [-2 1; 1 2] #> X - 2Z
+    @test_throws ArgumentError toMatrix(hp)
+    @test toMatrix(hp, checkForm=false) == toMatrix(PauliSum(hp)) == [-2 1; 1 2] #> X - 2Z
     #>> Strings of different site counts (the buffer of `h` can hold them while `h` stays 
     #>> canonical) are implicitly padded
     hm = PauliSum([pauli"XI", pauli"IZ"], [1, 2])
     hm.str[begin] = pauli"X"
     @test !isCanonical(hm) && countSites(hm) == 2
-    @test toMatrix(hm) == toMatrix(PauliSum([pauli"XI", pauli"IZ"], [1, 2]))
+    @test toMatrix(hm, checkForm=false) == toMatrix(PauliSum([pauli"XI",pauli"IZ"], [1,2]))
 
     #> The empty sum is the 1×1 zero matrix; the site count is bounded by the `Int` range
     @test toMatrix(PauliSum(Float64)) == zeros(1, 1) && nnz(toMatrix(PauliSum(Int))) == 0

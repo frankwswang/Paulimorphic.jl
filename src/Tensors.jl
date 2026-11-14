@@ -75,12 +75,9 @@ end
 #> the associated `coeffs[k]`, independent of the column-major Pauli-Z basis |b> they act 
 #> on: xStr(xMasks[k]) zStr(zMasks[k]) |b> = (-1)^count_ones(zMasks[k] & b) |b ⊻ xMasks[k]>
 #> The assembly is done in `T`, which is deterministic when `h` is in the canonical form.
+#> NOTE: `nSite` can be lower than `countSites(h)` since this is an internal function.
 function formatPauliOpMatInfo(::Type{T}, h::PauliSum, nSite::Int=countSites(h)
                               ) where {T<:SignedReal}
-    nSiteMin = countSites(h)
-    if nSite < nSiteMin
-        throw(ArgumentError("`nSite` just be as least `countSites(h)==$nSiteMin`."))
-    end
     bitsMask = (UInt∘getPauliOpMatOrder)(nSite) - one(UInt) #> Also check `nSite` bound
 
     nTerm = countTerms(h)
@@ -166,10 +163,23 @@ function genPauliOpMatEntryEvaluator(::Type{T},
 end
 
 
-function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
-                  checkForm::Bool=false) where {T<:SignedReal, T1<:SignedReal}
+function checkPauliSumMatConfig(::Type{T}, h::PauliSum, nSite::Integer
+                                ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
+
     nSite = toBitIntData(nSite, "nSite")
+    nSiteMin = countSites(h)
+    if nSite < nSiteMin
+        throw(DomainError(nSite, "`nSite` must be as least `countSites(h)==$nSiteMin`."))
+    end
+
+    nothing
+end
+
+
+function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
+                  checkForm::Bool=true) where {T<:SignedReal, T1<:SignedReal}
+    checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
 
     checkPauliOpForm(h, checkForm)
@@ -181,7 +191,6 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
     nzvRows = Vector{Int}(undef, maxSave)
     nzvList = Vector{Complex{T}}(undef, maxSave)
     permBuf = Memory{Int}(undef, nXM)
-    permBuf .= 0
 
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 
@@ -232,12 +241,9 @@ toMatrix(Int, str, nSite)
 function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}}, 
                    h::PauliSum{T1}, nSite::Integer=countSites(h); checkForm::Bool=true
                    ) where {T<:SignedReal, T1<:SignedReal}
-    checkCoreDataTypeForPauliSum(T)
-    nSite = toBitIntData(nSite, "nSite")
-    order = size(dst, 1)
-    order == size(dst, 2) || throw(ArgumentError("`dst` must be a square matrix."))
-    if getPauliOpMatOrder(nSite) != order
-        throw(ArgumentError("The order of `dst` must equal `2^$nSite`."))
+    checkPauliSumMatConfig(T, h, nSite)
+    if !(size(dst, 1) == size(dst, 2) == getPauliOpMatOrder(nSite))
+        throw(ArgumentError("`dst` must be a square matrix of order `2^$nSite`."))
     end
 
     function assign!(pair::Pair{NTuple{2, Int}, Complex{T}}, ::Int)
@@ -274,7 +280,7 @@ function toMatrix!(dst::AbstractMatrix{C}, sym::PauliSym) where {C<:SRealOrCompl
     dstVec = vec(dst)
 
     if sym == symI
-        dstVec .= (1, 0, 0, 1)
+        dstVec .= CONSTVAR!!QubitIMatEles
     elseif sym == symX
         dstVec .= CONSTVAR!!pauliXMatEles
     elseif sym == symY
@@ -290,19 +296,21 @@ end
 function processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
                                 nSite::Integer=countSites(h); checkForm::Bool=true
                                 ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
-    nSite = toBitIntData(nSite, "nSite")
+    checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
     checkPauliOpForm(h, checkForm)
     hLocal = checkForm ? h : lazyCanonicalize(h, false)
     xMasks, zMasks, coeffs = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite).second
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 
+    nzCount = 0
+
     for iCol in 0:(order-1)
         zBasisBitStr = UInt(iCol)
-        evaluator(processor, zBasisBitStr, 0)
+        nzCount = evaluator(processor, zBasisBitStr, nzCount)
     end
 
-    hLocal
+    nzCount
 end
 
 

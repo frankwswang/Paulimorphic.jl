@@ -43,6 +43,7 @@ getFrustrationInfo
 checkMajoranaEnc
 checkDiracEnc
 checkSpinSectoredEnc
+processOperatorMatInfo
 ```
 
 ## Structures

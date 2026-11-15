@@ -7,10 +7,11 @@ names can serve as the indicators of their functionalities and potential extensi
 
 ### Functions
 
-Function names are in camelCase. Except for common-operation names that can be described by 
-single verbs (e.g., [`Paulimorphic.add`](@ref)) and well-established algorithm names (e.g., 
-[`breadthFirstSearch`](@ref)), they should start with a verb. The following verb prefixes 
-carry fixed meanings:
+Function names are in camelCase. In particular, each function name should start with a word 
+that describes the **operation** or **expectation** of the function, potentially followed 
+by a noun phrase to specify type of objects the function acts on.
+
+The following verb prefixes carry fixed meanings:
 
 * `is*` verifies a property of a single object (e.g., [`isHermitian`](@ref)).
 
@@ -21,10 +22,6 @@ carry fixed meanings:
 * `count*`, `list*`, `get*`, `index*`, `find*`, and `contain*` query information about 
   their input without altering it (e.g., [`countTerms`](@ref)).
 
-* `to*` returns a newly allocated object derived from its input, typically in another 
-  representation (e.g., [`toString`](@ref)); `as*` is reserved for views that share data 
-  with the input.
-
 * `gen*` and `build*` construct new objects (e.g., [`genLineGraph`](@ref), 
   [`buildMajoranaFrame`](@ref)).
 
@@ -32,11 +29,24 @@ carry fixed meanings:
   objects. For instance, the value can be a number (e.g., [`evalPhase`](@ref)) or an 
   operator (e.g., [`evalCommute`](@ref)).
 
+The fellowing non-verb prefiexs carry fixed meanings:
+
+* `to*` returns a newly allocated object derived from its input, typically in another 
+  representation (e.g., [`toString`](@ref)); `as*` is reserved for views that share data 
+  with the input.
+
+* `any*` returns a `Bool` to define if any its input (or the input element) meets a certain 
+  condition.
+
 A function that (optionally) mutates any of its arguments should have a name that ends 
 with `!`; when exactly one argument is mutated, it is typically the first non-function, 
 non-type argument. A function is exempt from this rule when the only arguments it 
 (optionally) mutates are reusable cache-like data structures, which must be named with the 
 suffix `!Self` (e.g., `cache!Self` in [`breadthFirstSearch`](@ref)).
+
+!!! note "Exceptions to the function-name convention"
+    If a function is a direct implementation of a well-established algorithm, its name 
+    should also directly match the algorithm's name (e.g., [`breadthFirstSearch`](@ref)).
 
 ### Types
 

@@ -1063,8 +1063,8 @@ function checkPauliOpForm(h::PauliSum, checkForm::Bool=true;
              "canonicalize `h` first (in place via `canonicalize!`, or by rebuilding it "*
              "via `PauliSum(h, false)`)")
         end
-        throw(ArgumentError("`h` is not in the $errText1 form. To lift this error, either "*
-                            "$errText2 or set `checkForm=false`."))
+        throw(ArgumentError("`h` failed the check of being in the $errText1 form. To pass "*
+                            "this check, $errText2."))
     end
 
     nothing

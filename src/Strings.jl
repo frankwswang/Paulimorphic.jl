@@ -732,6 +732,7 @@ end
 
 function PauliSum(::Type{T}, strs::AbstractVector{PauliStr}=PauliStr[], 
                   simplification::Bool=true) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
     PauliSum(strs, one(Complex{T}), simplification)
 end
 

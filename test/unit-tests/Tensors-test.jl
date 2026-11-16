@@ -219,8 +219,14 @@ end
     hInt = PauliSum([pauli"XI", pauli"IZ"], [1, 2])
     @test toMatrix(Float32, hInt) isa SparseMatrixCSC{ComplexF32, Int}
     @test toMatrix(Float32, hInt) == toMatrix(hInt) == toMatrix(Rational{Int}, hInt)
+    #>> Without `T`, the core type of the result is the one of the input `PauliSum`
+    @test toMatrix(PauliSum(Float32, hInt)) isa SparseMatrixCSC{ComplexF32, Int}
     @test_throws ArgumentError toMatrix(Signed, hInt) #> Not a concrete core type
     @test_throws ArgumentError toMatrix(Signed, symX)
+    @test_throws ArgumentError toMatrix(Signed, symX, 2)
+    @test_throws ArgumentError toMatrix(Signed, pauli"X")
+    @test_throws ArgumentError toMatrix(Rational{<:Signed}, hInt)
+    @test_throws ArgumentError toMatrix(Rational{<:Signed}, pauli"X")
     @test_throws MethodError toMatrix(Bool, hInt)
     @test_throws InexactError toMatrix(Int, PauliSum([pauli"X"], [0.5]))
     #>> Narrowing to `Float32` rounds the entries to exact zero, which are then not stored

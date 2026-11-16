@@ -279,6 +279,7 @@ end
     @test_throws MethodError PauliSum(UInt8, h)
     @test_throws MethodError PauliSum(Rational{UInt8}, h)
     @test_throws ArgumentError PauliSum(AbstractFloat, [pauli""])
+    @test_throws ArgumentError PauliSum(Rational{<:Signed}, [pauli""])
     #> Sign-less coefficient inputs are rejected at dispatch (`im` is a `Complex{Bool}`)
     @test_throws MethodError PauliSum(Float64, [pauli"X"], im)
     @test_throws MethodError PauliSum([pauli"X"], [true])

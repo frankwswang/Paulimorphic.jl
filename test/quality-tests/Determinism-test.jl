@@ -183,12 +183,15 @@ end
     strs = [pauli"II", pauli"ZI", pauli"IZ", pauli"ZZ"]
     coeffs = [1.0 + 2.0^-53*im, 2.0^54 - 1.0im, -2.0^54 + 2.0^-60*im, 2.0^-53 + 1.0im]
     small = 2.0^-53 + 2.0^-60
-    goldenDiag = [1.0 + small*im, -2.0^55 + small*im, 2.0^55 - 2.0im, 1.0 + 2.0im]
+    goldenDiag = [1.0 + small*im, 2.0^55 - 2.0im, -2.0^55 + small*im, 1.0 + 2.0im]
     golden = [i == j ? goldenDiag[i] : zero(ComplexF64) for i in 1:4, j in 1:4]
+    #>> The reversed order of the Kronecker product only permutes the same entries
+    goldenR = golden[[1, 3, 2, 4], [1, 3, 2, 4]]
     for perm in ([1, 2, 3, 4], [4, 3, 2, 1], [2, 4, 1, 3])
         h = PauliSum(strs[perm], coeffs[perm])
         @test Matrix(toMatrix(h)) == golden
         @test toMatrix!(zeros(ComplexF64, 4, 4), h) == golden
+        @test Matrix(toMatrix(h, reverseKron=true)) == goldenR
     end
 end
 

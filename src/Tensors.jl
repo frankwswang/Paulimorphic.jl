@@ -48,12 +48,14 @@ function toMatrix(::Type{T}, sym::PauliSym) where {T<:SignedReal}
     toMatrix!(mat, sym)
 end
 
-toMatrix(::Type{T}, sym::PauliSym, nSite::Integer) where {T<:SignedReal} = 
-toMatrix(T, PauliStr(1, sym), nSite)
+toMatrix(::Type{T}, sym::PauliSym, nSite::Integer; reverseKron::Bool=false
+         ) where {T<:SignedReal} = 
+toMatrix(T, PauliStr(1, sym), nSite; reverseKron)
 
 toMatrix(sym::PauliSym) = toMatrix(Int, sym)
 
-toMatrix(sym::PauliSym, nSite::Integer) = toMatrix(Int, sym, nSite)
+toMatrix(sym::PauliSym, nSite::Integer; reverseKron::Bool=false) = 
+toMatrix(Int, sym, nSite; reverseKron)
 
 
 #> Largest site count `n` for which the (square) matrix order `2^n` (and the length 
@@ -75,10 +77,14 @@ end
 #> the associated `coeffs[k]`, independent of the column-major Pauli-Z basis |b> they act 
 #> on: xStr(xMasks[k]) zStr(zMasks[k]) |b> = (-1)^count_ones(zMasks[k] & b) |b ⊻ xMasks[k]>
 #> The assembly is done in `T`, which is deterministic when `h` is in the canonical form.
+#> The masks and `b` share one bit layout: by default, site `k` is bit `nSite-k` (so that 
+#> site `1` is the most significant bit of the basis-state index, from right to left); when 
+#> `reverseKron=true`, site `k` is bit `k-1`, which is the bit layout of `PauliStr`.
 #> NOTE: `nSite` can be lower than `countSites(h)` since this is an internal function.
-function formatPauliOpMatInfo(::Type{T}, h::PauliSum, nSite::Int=countSites(h)
-                              ) where {T<:SignedReal}
+function formatPauliOpMatInfo(::Type{T}, h::PauliSum, nSite::Int=countSites(h); 
+                              reverseKron::Bool=false) where {T<:SignedReal}
     bitsMask = (UInt∘getPauliOpMatOrder)(nSite) - one(UInt) #> Also check `nSite` bound
+    nShift = 8sizeof(UInt) - nSite #> Positive, since `nSite` has passed the check above
 
     nTerm = countTerms(h)
     coeffT = Complex{T}
@@ -94,7 +100,10 @@ function formatPauliOpMatInfo(::Type{T}, h::PauliSum, nSite::Int=countSites(h)
         #> Bits above `nSite` are cleared (via `bitsMask`) regardless of layout of `str`.
         xMask, zMask = map((:x, :z)) do prprty
             buffer = getproperty(str, prprty)
-            isempty(buffer) ? zero(UInt) : (first(buffer) & bitsMask)
+            word = isempty(buffer) ? zero(UInt) : (first(buffer) & bitsMask)
+            #>>  Case when `reverseKron=` | `true` | `false`
+            #>>  00XXXX (4 sites, 6 bits) | 004321 | 001234  (number-labeled sites)
+            reverseKron ? word : (bitreverse(word) >> nShift)
         end
 
         phaseY = PhaseFactor(count_ones(xMask & zMask) & 3) #> Compute im^nPauliY
@@ -178,13 +187,15 @@ end
 
 
 function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
-                  requireCanonical::Bool=true) where {T<:SignedReal, T1<:SignedReal}
+                  requireCanonical::Bool=true, reverseKron::Bool=false
+                  ) where {T<:SignedReal, T1<:SignedReal}
     nSite = checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
 
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false)
-    nXM, (xMasks, zMasks, coeffs) = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite)
+    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite; reverseKron)
+    nXM, (xMasks, zMasks, coeffs) = matInfo
 
     colPtrs = Vector{Int}(undef, order+1)
     maxSave = adaptMul(order, nXM)
@@ -227,20 +238,22 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
     SparseMatrixCSC(order, order, colPtrs, nzvRows, nzvList)
 end
 
-toMatrix(::Type{T}, str::PauliStr, nSite::Integer=countSites(str)) where {T<:SignedReal} = 
-toMatrix(T, PauliSum(Int, genMemory(str)), nSite)
+toMatrix(::Type{T}, str::PauliStr, nSite::Integer=countSites(str); 
+         reverseKron::Bool=false) where {T<:SignedReal} = 
+toMatrix(T, PauliSum(Int, genMemory(str)), nSite; reverseKron)
 
-toMatrix(h::PauliSum{T}, nSite::Integer=countSites(h); requireCanonical::Bool=true
-         ) where {T<:SignedReal} = 
-toMatrix(T, h, nSite; requireCanonical)
+toMatrix(h::PauliSum{T}, nSite::Integer=countSites(h); requireCanonical::Bool=true, 
+         reverseKron::Bool=false) where {T<:SignedReal} = 
+toMatrix(T, h, nSite; requireCanonical, reverseKron)
 
-toMatrix(str::PauliStr, nSite::Integer=countSites(str)) = 
-toMatrix(Int, str, nSite)
+toMatrix(str::PauliStr, nSite::Integer=countSites(str); reverseKron::Bool=false) = 
+toMatrix(Int, str, nSite; reverseKron)
 
 
 function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}}, 
                    h::PauliSum{T1}, nSite::Integer=countSites(h); 
-                   requireCanonical::Bool=true) where {T<:SignedReal, T1<:SignedReal}
+                   requireCanonical::Bool=true, reverseKron::Bool=false
+                   ) where {T<:SignedReal, T1<:SignedReal}
     nSite = checkPauliSumMatConfig(T, h, nSite)
     if !(size(dst, 1) == size(dst, 2) == getPauliOpMatOrder(nSite))
         throw(ArgumentError("`dst` must be a square matrix of order `2^$nSite`."))
@@ -254,17 +267,18 @@ function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}},
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false) #> Format `h` before mutation
     fill!(dst, zero(Complex{T})) #> Reset `dst` with non-zero entries
-    processOperatorMatInfo(assign!, T, hLocal, nSite, requireCanonical=false)
+    processOperatorMatInfo(assign!, T, hLocal, nSite; requireCanonical=false, reverseKron)
 
     dst
 end
 
 toMatrix!(dst::AbstractMatrix{<:SRealOrComplex}, str::PauliStr, 
-          nSite::Integer=countSites(str)) = 
-toMatrix!(dst, PauliSum( Int, genMemory(str) ), nSite)
+          nSite::Integer=countSites(str); reverseKron::Bool=false) = 
+toMatrix!(dst, PauliSum( Int, genMemory(str) ), nSite; reverseKron)
 
-toMatrix!(dst::AbstractMatrix{<:SRealOrComplex}, sym::PauliSym, nSite::Integer) = 
-toMatrix!(dst, PauliStr(1, sym), nSite)
+toMatrix!(dst::AbstractMatrix{<:SRealOrComplex}, sym::PauliSym, nSite::Integer; 
+          reverseKron::Bool=false) = 
+toMatrix!(dst, PauliStr(1, sym), nSite; reverseKron)
 
 function toMatrix!(dst::AbstractMatrix{C}, sym::PauliSym) where {C<:SRealOrComplex}
     checkCoreDataTypeForPauliSum(real(C))
@@ -294,13 +308,15 @@ end
 
 
 function processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
-                                nSite::Integer=countSites(h); requireCanonical::Bool=true
+                                nSite::Integer=countSites(h); requireCanonical::Bool=true, 
+                                reverseKron::Bool=false
                                 ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
     nSite = checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false)
-    xMasks, zMasks, coeffs = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite).second
+    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite; reverseKron)
+    xMasks, zMasks, coeffs = matInfo.second
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 
     nzCount = 0

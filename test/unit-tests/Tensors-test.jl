@@ -69,9 +69,15 @@ end
     #> in) per term in the stored order, preceded by the number of distinct `x`-masks, 
     #> which bounds the number of non-zero entries in each column of the matrix
     h = PauliSum([pauli"XI", pauli"IZ", pauli"YI", pauli"ZZ"], [1, 2, 3, 4])
-    info = 2 => (UInt[1, 1, 0, 0], UInt[0, 1, 2, 3], [1, 3im, 2, 4])
+    #>> By default, site `k` is bit `nSite-k` of the masks, which thus depend on `nSite`
+    info = 2 => (UInt[2, 2, 0, 0], UInt[0, 2, 1, 3], [1, 3im, 2, 4])
     @test formatPauliOpMatInfo(Int, h) == formatPauliOpMatInfo(Int, h, 2) == info
-    @test formatPauliOpMatInfo(Int, h, 3) == info #> Identity on the additional site
+    info3 = 2 => (UInt[4, 4, 0, 0], UInt[0, 4, 2, 6], [1, 3im, 2, 4])
+    @test formatPauliOpMatInfo(Int, h, 3) == info3 #> Identity on the additional site
+    #>> With `reverseKron=true`, site `k` is bit `k-1` of the masks, as in a `PauliStr`
+    infoR = 2 => (UInt[1, 1, 0, 0], UInt[0, 1, 2, 3], [1, 3im, 2, 4])
+    @test formatPauliOpMatInfo(Int, h, reverseKron=true) == infoR
+    @test formatPauliOpMatInfo(Int, h, 3, reverseKron=true) == infoR
     #> The coefficients are converted to the given core type before the phases are folded
     @test formatPauliOpMatInfo(Float64, h).second[end] isa Memory{ComplexF64}
     #> A site count below the one of the input clears the bits above it. The public 
@@ -86,16 +92,19 @@ end
     rng = Xoshiro(1234)
     randStr(nSite::Int) = PauliStr([rand(rng, syms) for _ in 1:nSite], rand(rng, phases))
 
-    #> Independent dense reference of the documented basis convention: site `k` is the 
-    #> `k`-th factor from the right of the Kronecker product (least significant bit first)
-    function kronRef(str::PauliStr, nSite::Int=countSites(str))
-        mats = [Matrix(toMatrix(indexSite(str, k, true))) for k in nSite:-1:1]
+    #> Independent dense reference of the documented basis convention: by default, site 
+    #> `k` is the `k`-th factor from the left of the Kronecker product (most significant 
+    #> bit first); with `reverseKron=true`, it is the `k`-th factor from the right
+    function kronRef(str::PauliStr, nSite::Int=countSites(str); reverseKron::Bool=false)
+        sites = reverseKron ? (nSite:-1:1) : (1:1:nSite)
+        mats = [Matrix(toMatrix(indexSite(str, k, true))) for k in sites]
         evalPhase(str) .* foldl(kron, mats; init=ones(Complex{Int}, 1, 1))
     end
-    function sumRef(h::PauliSum{T}, nSite::Int=countSites(h)) where {T}
+    function sumRef(h::PauliSum{T}, nSite::Int=countSites(h); reverseKron::Bool=false
+                    ) where {T}
         res = zeros(Complex{T}, 2^nSite, 2^nSite)
         for (str, coeff) in listTerms(h)
-            res .+= coeff .* kronRef(str, nSite)
+            res .+= coeff .* kronRef(str, nSite; reverseKron)
         end
         res
     end
@@ -112,31 +121,45 @@ end
         bl *= mat isa SparseMatrixCSC{Complex{Int}, Int}
         bl *= size(mat) == (2^nSite, 2^nSite) && nnz(mat) == 2^nSite
         bl *= Matrix(mat) == kronRef(str)
+        bl *= Matrix(toMatrix(str, reverseKron=true)) == kronRef(str, reverseKron=true)
         bl *= toMatrix(Float64, str) == mat
         bl *= toMatrix(Float64, str) isa SparseMatrixCSC{ComplexF64, Int}
         @test bl
     end
     @test Matrix(toMatrix(pauli"-")) == fill(-1, 1, 1) #> Zero-site string: its phase
-    @test Matrix(toMatrix(pauli"XI")) == [0 1 0 0; 1 0 0 0; 0 0 0 1; 0 0 1 0]
-    @test Matrix(toMatrix(pauli"IX")) == [0 0 1 0; 0 0 0 1; 1 0 0 0; 0 1 0 0]
+    @test Matrix(toMatrix(pauli"XI")) == [0 0 1 0; 0 0 0 1; 1 0 0 0; 0 1 0 0]
+    @test Matrix(toMatrix(pauli"IX")) == [0 1 0 0; 1 0 0 0; 0 0 0 1; 0 0 1 0]
+    #>> `reverseKron=true` reverses the order of the factors of the Kronecker product
+    matZZY = kron(toMatrix(symZ), toMatrix(symZ), toMatrix(symY))
+    @test toMatrix(pauli"ZZY") == matZZY == toMatrix(pauli"YZZ", reverseKron=true)
+    @test toMatrix(pauli"ZZY", reverseKron=true) == toMatrix(pauli"YZZ") != matZZY
 
     #> An `nSite` above the site count pads the operator with the identity on the upper 
-    #> sites, i.e., on the more significant bits of the basis-state index
+    #> sites, i.e., on the less significant bits of the basis-state index by default, and 
+    #> on the more significant ones with `reverseKron=true`
     for str in (pauli"-", pauli"X", pauli"iYZ", pauli"-iZXY"), nPad in 0:2
         nSite = countSites(str) + nPad
         mat = toMatrix(str, nSite)
         @test size(mat) == (2^nSite, 2^nSite) && Matrix(mat) == kronRef(str, nSite)
+        matR = toMatrix(str, nSite, reverseKron=true)
+        @test Matrix(matR) == kronRef(str, nSite, reverseKron=true)
     end
     @test toMatrix(pauli"X", 2) == toMatrix(pauli"XI")
     @test Matrix(toMatrix(pauli"-", 2)) == [-1 0 0 0; 0 -1 0 0; 0 0 -1 0; 0 0 0 -1]
     for sym in syms
         @test toMatrix(sym, 1) == toMatrix(sym)
         @test Matrix(toMatrix(sym, 3)) == kronRef(PauliStr(1, sym), 3)
+        @test Matrix(toMatrix(sym, 3, reverseKron=true)) == 
+              kronRef(PauliStr(1, sym), 3, reverseKron=true)
         @test toMatrix(Float64, sym, 2) isa SparseMatrixCSC{ComplexF64, Int}
     end
-    @test Matrix(toMatrix(symZ, 2)) == [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
+    @test Matrix(toMatrix(symZ, 2)) == [1 0 0 0; 0 1 0 0; 0 0 -1 0; 0 0 0 -1]
+    @test Matrix(toMatrix(symZ, 2, reverseKron=true)) == 
+          [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
     hPad = PauliSum([pauli"XI", pauli"IZ", pauli"YY"], [1.0, 2.0, 0.5im])
-    @test Matrix(toMatrix(hPad, 3)) == sumRef(hPad, 3) == kron([1 0; 0 1], sumRef(hPad))
+    @test Matrix(toMatrix(hPad, 3)) == sumRef(hPad, 3) == kron(sumRef(hPad), [1 0; 0 1])
+    @test Matrix(toMatrix(hPad, 3, reverseKron=true)) == 
+          kron([1 0; 0 1], sumRef(hPad, reverseKron=true))
     @test toMatrix(hPad, 3) == toMatrix(reframe(hPad, 3))
     @test toMatrix(Float32, hPad, 3) isa SparseMatrixCSC{ComplexF32, Int}
 
@@ -157,6 +180,12 @@ end
         bl3 *= all(j->issorted(rowvals(mat)[nzrange(mat, j)]), 1:2^n) #> Valid CSC layout
         bl4 *= toMatrix!(zeros(Complex{Int}, 2^n, 2^n), h) == ref
         bl5 *= toMatrix(Float64, h) == ref
+        #>> The same checks in the reversed order of the Kronecker product
+        refR = sumRef(h, reverseKron=true)
+        matR = toMatrix(h, reverseKron=true)
+        bl1 *= Matrix(matR) == refR
+        bl3 *= all(j->issorted(rowvals(matR)[nzrange(matR, j)]), 1:2^n)
+        bl4 *= toMatrix!(zeros(Complex{Int}, 2^n, 2^n), h, reverseKron=true) == refR
     end
     @test bl1
     @test bl2
@@ -216,11 +245,11 @@ end
     hZZ = PauliSum([pauli"ZZ"], Int8[-128]) #> The signs of `ZZ` involve no phase
     @test toMatrix(Int16, hZZ) == [-128 0 0 0; 0 128 0 0; 0 0 128 0; 0 0 0 -128]
 
-    #> By default (`checkForm=true`), the input `PauliSum` is required to be in the 
-    #> canonical form; with `checkForm=false`, it is canonicalized (on a copy) upon input
+    #> By default (`requireCanonical=true`), the input `PauliSum` is required to be in the 
+    #> canonical form; with `requireCanonical=false`, it is canonicalized (on a copy)
     hd = PauliSum([pauli"X", pauli"Y"], [1.0, 2.0])
     hd.str[2] = pauli"X" #> Artificial non-canonical form
-    @test toMatrix(hd, checkForm=false) == 3 .* toMatrix(pauli"X")
+    @test toMatrix(hd, requireCanonical=false) == 3 .* toMatrix(pauli"X")
     setCoeff!(hd, 3.0, 1)
     @test !isCanonical(hd)
     @test_throws ArgumentError toMatrix(hd)
@@ -229,37 +258,40 @@ end
     dst = fill(7.0 + 0.0im, 2, 2)
     @test_throws ArgumentError toMatrix!(dst, hd)
     @test dst == fill(7, 2, 2)
-    #>> The default value of `checkForm` should be the same for every method
+    #>> The default value of `requireCanonical` should be the same for every method
     @test_throws ArgumentError toMatrix(Float64, hd)
-    @test_throws ArgumentError toMatrix(Float64, hd, checkForm=true)
-    #>> With `checkForm=false`, a non-canonical `PauliSum` is canonicalized upon input
-    @test toMatrix(hd, checkForm=false) == 5 .* toMatrix(pauli"X")
-    @test toMatrix!(zeros(ComplexF64, 2, 2), hd, checkForm=false) == 5 .* toMatrix(pauli"X")
+    @test_throws ArgumentError toMatrix(Float64, hd, requireCanonical=true)
+    #>> With `requireCanonical=false`, a non-canonical `PauliSum` is canonicalized on input
+    @test toMatrix(hd, requireCanonical=false) == 5 .* toMatrix(pauli"X")
+    @test toMatrix!(zeros(ComplexF64, 2, 2), hd, requireCanonical=false) == 
+          5 .* toMatrix(pauli"X")
     @test toMatrix(PauliSum(hd)) == 5 .* toMatrix(pauli"X")
-    @test toMatrix(Float64, hd, checkForm=false) == 5 .* toMatrix(pauli"X")
+    @test toMatrix(Float64, hd, requireCanonical=false) == 5 .* toMatrix(pauli"X")
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea #> The first stored term is `Z`
     @test_throws ArgumentError toMatrix(hp)
-    @test toMatrix(hp, checkForm=false) == toMatrix(PauliSum(hp)) == [-2 1; 1 2] #> X - 2Z
+    @test toMatrix(hp, requireCanonical=false) == toMatrix(PauliSum(hp)) == 
+          [-2 1; 1 2] #> X - 2Z
     #>> Strings of different site counts (the buffer of `h` can hold them, which breaks the 
     #>> canonical form) are implicitly padded
     hm = PauliSum([pauli"XI", pauli"IZ"], [1, 2])
     hm.str[begin] = pauli"X"
     @test !isCanonical(hm) && countSites(hm) == 2
-    @test toMatrix(hm, checkForm=false) == toMatrix(PauliSum([pauli"XI",pauli"IZ"], [1,2]))
+    @test toMatrix(hm, requireCanonical=false) == 
+          toMatrix(PauliSum([pauli"XI", pauli"IZ"], [1, 2]))
     #>> Terms that are merely out of order are sorted on a shallow copy of the sum, which 
     #>> leaves the input (including the order of its stored terms) untouched
     hs = PauliSum([pauli"XI", pauli"IZ"], [1.0, 2.0])
-    refS = [2 1 0 0; 1 2 0 0; 0 0 -2 1; 0 0 1 -2]
+    refS = [2 0 1 0; 0 -2 0 1; 1 0 2 0; 0 1 0 -2]
     @test toMatrix(hs) == refS
     hs.str[1], hs.str[2] = hs.str[2], hs.str[1]
     hs.coeff[1], hs.coeff[2] = hs.coeff[2], hs.coeff[1]
     strsBefore, coeffsBefore = copy(hs.str), copy(hs.coeff)
     @test !isCanonical(hs)
     @test_throws ArgumentError toMatrix(hs)
-    @test toMatrix(hs, checkForm=false) == refS
-    @test toMatrix!(zeros(ComplexF64, 4, 4), hs, checkForm=false) == refS
+    @test toMatrix(hs, requireCanonical=false) == refS
+    @test toMatrix!(zeros(ComplexF64, 4, 4), hs, requireCanonical=false) == refS
     @test all(hs.str .=== strsBefore) && hs.coeff == coeffsBefore && !isCanonical(hs)
 
     #> The empty sum is the 1×1 zero matrix; the site count is bounded by the `Int` range
@@ -345,9 +377,19 @@ end
 
     #> An explicit `nSite` above the site count pads the operator with the identity on the 
     #> upper sites; the order of `dst` must then be `2^nSite`
-    @test toMatrix!(fill(7.0 + 0.0im, 8, 8), h, 3) == kron([1 0; 0 1], ref)
+    @test toMatrix!(fill(7.0 + 0.0im, 8, 8), h, 3) == kron(ref, [1 0; 0 1])
     @test toMatrix!(fill(7.0 + 0.0im, 4, 4), pauli"X", 2) == Matrix(toMatrix(pauli"XI"))
-    @test toMatrix!(zeros(Int, 4, 4), symZ, 2) == [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
+    @test toMatrix!(zeros(Int, 4, 4), symZ, 2) == [1 0 0 0; 0 1 0 0; 0 0 -1 0; 0 0 0 -1]
+    #>> `reverseKron=true` reverses the order of the Kronecker product for every method 
+    #>> that takes `nSite`, with the identity padded on the more significant bits
+    refR = Matrix(toMatrix(h, reverseKron=true))
+    @test refR != ref && toMatrix!(fill(7.0 + 0.0im, 4, 4), h, reverseKron=true) == refR
+    @test toMatrix!(fill(7.0 + 0.0im, 8, 8), h, 3, reverseKron=true) == 
+          kron([1 0; 0 1], refR)
+    @test toMatrix!(fill(7.0 + 0.0im, 4, 4), pauli"XI", reverseKron=true) == 
+          Matrix(toMatrix(pauli"IX"))
+    @test toMatrix!(zeros(Int, 4, 4), symZ, 2, reverseKron=true) == 
+          [1 0 0 0; 0 -1 0 0; 0 0 1 0; 0 0 0 -1]
     @test_throws ArgumentError toMatrix!(zeros(ComplexF64, 4, 4), h, 3)
     @test_throws ArgumentError toMatrix!(zeros(4, 4), pauli"X")
     #>> An `nSite` below the site count is rejected before any write to `dst`

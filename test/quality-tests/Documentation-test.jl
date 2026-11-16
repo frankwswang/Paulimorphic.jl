@@ -96,7 +96,7 @@ end
     exempt = [Paulimorphic.getFrustrationInfoCore!, Paulimorphic.pasteBits!, 
               Paulimorphic.shiftBits!, Paulimorphic.stampBits!, Paulimorphic.genMemory, 
               Paulimorphic.PauliTermDict, Paulimorphic.compareBits, 
-              Paulimorphic.toBitIntData]
+              Paulimorphic.toBitIntData, Paulimorphic.traverseMatrixEntries]
     @test checkHiddenAPI(Paulimorphic, exempt)
 end
 

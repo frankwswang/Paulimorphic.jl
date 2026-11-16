@@ -5,7 +5,7 @@ using SparseArrays: SparseMatrixCSC, nnz, rowvals, nzrange
 using Paulimorphic
 using Paulimorphic: isIndexLabel, dumpTo!, posRea, posImg, negRea, negImg, setCoeff!, 
                     formatPauliOpMatInfo, genPauliOpMatEntryEvaluator, 
-                    processOperatorMatInfo
+                    traverseMatrixEntries
 
 @testset "Tensors.jl" begin
 
@@ -314,8 +314,8 @@ end
     @test toMatrix(pauli"X", Int8(2)) == toMatrix(pauli"X", 2)
     @test toMatrix(Float64, hInt, UInt8(3)) == toMatrix(Float64, hInt, 3)
     @test toMatrix!(zeros(Int, 4, 4), symZ, big(2)) == toMatrix!(zeros(Int, 4, 4), symZ, 2)
-    @test processOperatorMatInfo((_, _) -> nothing, Int, hInt, Int8(2)) == 
-          processOperatorMatInfo((_, _) -> nothing, Int, hInt, 2)
+    @test traverseMatrixEntries((_, _) -> nothing, Int, hInt, Int8(2)) == 
+          traverseMatrixEntries((_, _) -> nothing, Int, hInt, 2)
 
     #> The transient buffers of `toMatrix` are bounded by the number of distinct `x`-masks 
     #> among the terms (`1` for a diagonal operator) instead of the number of terms (`66` 

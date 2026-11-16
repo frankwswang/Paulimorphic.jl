@@ -1,6 +1,6 @@
 export toMatrix, toMatrix!
 
-public isIndexLabel, findAxisPermViolation, processOperatorMatInfo
+public isIndexLabel, findAxisPermViolation
 
 using SparseArrays: spzeros, SparseMatrixCSC
 
@@ -521,7 +521,7 @@ function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}},
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false) #> Format `h` before mutation
     fill!(dst, zero(Complex{T})) #> Reset `dst` with non-zero entries
-    processOperatorMatInfo(assign!, T, hLocal, nSite; requireCanonical=false, reverseKron)
+    traverseMatrixEntries(assign!, T, hLocal, nSite; requireCanonical=false, reverseKron)
 
     dst
 end
@@ -562,10 +562,10 @@ end
 
 
 """
-    processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
-                           nSite::Integer=countSites(h); requireCanonical::Bool=true, 
-                           reverseKron::Bool=false
-                           ) where {F<:Union{Function, Type}, T<:SignedReal, T1<:SignedReal} -> 
+    traverseMatrixEntries(processor::Union{Function, Type}, ::Type{T}, h::PauliSum{T1}, 
+                          nSite::Integer=countSites(h); requireCanonical::Bool=true, 
+                          reverseKron::Bool=false
+                          ) where {T<:SignedReal, T1<:SignedReal} -> 
     Int
 
 Traverse the entries of the matrix representation (with element type set to `Complex{T}`) 
@@ -601,7 +601,7 @@ julia> x = [1, 2, 3, 4];
 
 julia> y = zeros(Complex{Int}, 4);
 
-julia> $(processOperatorMatInfo|>repr)(Int, h) do entry, count
+julia> $(traverseMatrixEntries|>repr)(Int, h) do entry, count
            (iRow, iCol), val = entry
            y[iRow] += val * x[iCol]
        end
@@ -611,10 +611,10 @@ julia> y == toMatrix(h) * x
 true
 ```
 """
-function processOperatorMatInfo(processor::F, ::Type{T}, h::PauliSum{T1}, 
-                                nSite::Integer=countSites(h); requireCanonical::Bool=true, 
-                                reverseKron::Bool=false
-                                ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
+function traverseMatrixEntries(processor::F, ::Type{T}, h::PauliSum{T1}, 
+                               nSite::Integer=countSites(h); requireCanonical::Bool=true, 
+                               reverseKron::Bool=false
+                               ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
     nSite = checkPauliSumMatConfig(T, h, nSite)
     order = getPauliOpMatOrder(nSite)
     checkPauliOpForm(h, requireCanonical)

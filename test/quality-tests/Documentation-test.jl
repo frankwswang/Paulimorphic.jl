@@ -100,7 +100,7 @@ end
     @test checkHiddenAPI(Paulimorphic, exempt)
 end
 
-@testset "Docstring-based est" begin
+@testset "Docstring-based test" begin
     DocMeta.setdocmeta!(Paulimorphic, :DocTestSetup, :(using Paulimorphic); recursive=true)
     doctest(Paulimorphic)
 end

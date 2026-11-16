@@ -467,7 +467,7 @@ be a square matrix of order `2^nSite` (or `2` for the method signature without a
 `nSite`); otherwise, an `ArgumentError` is thrown. Its element core type `T` is subject to 
 the same restriction as the core data type of any [`PauliSum`](@ref) instance. Every 
 element of `dst` is overwritten by the corresponding entry of the matrix representation 
-converted to `C<:Union{Complex{T}, T}}`, and `dst` shares no data with the represented 
+converted to `C<:Union{Complex{T}, T}`, and `dst` shares no data with the represented 
 operator once the function successfully executes. Therefore, a real `C` requires every 
 entry to be real; otherwise, an `InexactError` is thrown (e.g., `pauli"Y"`, whose entries 
 are `±im`, cannot be written into a `Matrix{Float64}`). 

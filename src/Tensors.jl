@@ -48,13 +48,14 @@ Pauli operator tagged by `sym::`[`PauliSym`](@ref), with element type as `Comple
     toMatrix(sym::PauliSym, nSite::Integer; reverseKron::Bool=false) -> 
     $(SparseMatrixCSC|>repr){Complex{Int}, Int}
 
-Return a sparse square matrix of order `2^nSite` (`nSite must be positive`) that represents 
+Return a sparse square matrix of order `2^nSite` (`nSite` must be positive) that represents 
 the operator that acts as `sym` on the first of `nSite` sites and as the identity on the 
 other sites (in the Pauli-Z eigenbasis). The format of the returned matrix (and 
 correspondingly argument constraints) is the same as that for method 
-[`toMatrix(T, [PauliStr(1, sym)], nSite; reverseKron)`](@ref `toMatrix(::PauliSum)`), 
-where `reverseKron` controls whether the order of the chained Kronecker product is the in 
-the same or reverse order as the sites are displayed in a Pauli string.
+[`toMatrix(h, nSite; reverseKron)`](@ref `toMatrix(::PauliSum)`) with 
+`h=PauliSum(T, [PauliStr(1, sym)])`, where `reverseKron` controls whether the order of 
+the chained Kronecker product is in the same or reverse order as the sites are displayed in 
+a Pauli string.
 
 For all four method signatures, `T` is subject to the same restriction as the core data 
 type of any [`PauliSum`](@ref) instance and defaults to `Int`; the returned matrix is also 
@@ -231,10 +232,10 @@ the core data type of any [`PauliSum`](@ref) instance and defaults to `Int`. The
 matrix is newly allocated and shares no data with `str`.
 
 The format of the returned matrix (and correspondingly argument constraints) is the same as 
-that for method [`toMatrix(T, [str], nSite; reverseKron)`](@ref `toMatrix(::PauliSum)`), 
-where `reverseKron` controls whether the order of the chained Kronecker product is the in 
-the same or reverse order as the sites are displayed in a Pauli string. In particular, a 
-zero-site `str` yields by default the 1×1 matrix holding 
+that for method [`toMatrix(h, nSite; reverseKron)`](@ref `toMatrix(::PauliSum)`) with 
+`h=PauliSum(T, [str])`, where `reverseKron` controls whether the order of the chained 
+Kronecker product is in the same or reverse order as the sites are displayed in a Pauli 
+string. In particular, a zero-site `str` yields by default a 1-by-1 matrix holding 
 [`evalPhase(str)`](@ref `evalPhase(::PauliStr)`).
 
 # Examples
@@ -282,12 +283,12 @@ toMatrix(Int, str, nSite; reverseKron)
 
 Return the matrix representation of `h` on `nSite` sites as a sparse square matrix of order 
 `2^nSite` with element type `Complex{T}`. `T` is subject to the same restriction as 
-the core data type of any [`PauliSum`](@ref) instance and defaults to `Int`. The returned 
-matrix is newly allocated and shares no data with `h`. An empty `h` yields a zero matrix of 
-order `2^nSite`.
+the core data type of any [`PauliSum`](@ref) instance and defaults to that of `h`. The 
+returned matrix is newly allocated and shares no data with `h`. An empty `h` yields a zero 
+matrix of order `2^nSite`.
 
 # Site count
-The value of `nSite` must be in [`countSites(h)`](@ref `countSites`):(8sizeof(Int) - 2)`, 
+The value of `nSite` must be in [`countSites(h)`](@ref `countSites`)`:(8sizeof(Int) - 2)`, 
 where the upper bound keeps the axial index of the returned matrix (and related internal 
 array structures) representable as an `Int`; otherwise, a `DomainError` is thrown. When 
 `nSite` is larger than its default value `countSites(h)`, the string associated with each 
@@ -297,35 +298,36 @@ identity-padding convention of [`PauliStr`](@ref).
 # Basis ordering convention
 The returned matrix `res` is always expressed with respect to the eigenbasis of the (tensor 
 product of) single-site Pauli-Z operators, i.e., the computational basis. When 
-`reverseKron=false` (by default), the matrix representation of the Pauli string associated 
-with each term in `h` matches the Kronecker product (via `Base.kron`) of (single-site) 
-Pauli matrices in ascending-site order from left to right (i.e., same as the text literals 
-such as `pauli"ZZY"` used to generate [`PauliStr`](@ref)):
+`reverseKron=false` (by default), the matrix representation of the (phase-absorbed) Pauli 
+string associated with each term in `h` matches the Kronecker product (via 
+`Base.kron`) of (single-site) Pauli matrices in ascending-site order from left to right 
+(i.e., same as the text literals such as `pauli"ZZY"` used to generate [`PauliStr`](@ref)):
 
 ```math
-\\mathtt{kron}(M_1, \\, M_2, \\, \\ldots, \\, M_{\\mathtt{nSite}}), 
+M_1 \\otimes M_2 \\otimes \\cdots \\otimes M_{\\mathtt{nSite}}, 
 ```
+
 where ``M_k`` denotes the matrix returned by `toMatrix(T, sym)` for the single-site 
 operator `sym` in the string on site ``k``. Accordingly, the (one-based) axial index 
-`i::Int` (``1 \\le i \\le 2^n``) of `res` labels the computational-basis state for which 
+`i::Int` (`1 <= i <= 2^nSite`) of `res` labels the computational-basis state for which 
 the corresponding bitstring is also the binary representation of `i-1` as a decimal number 
 (i.e., a lexicographic order):
 
 ```math
-\\mathtt{res[i, j]} = \\langle \\mathtt{bitstring(i)[(end-nSite+1):end]} \\lvert
+\\mathtt{res[i, j]} = \\langle \\mathtt{bitstring(i-1)[(end-nSite+1):end]} \\lvert
                       \\mathtt{h}
-                      \\lvert \\mathtt{bitstring(j)[(end-nSite+1):end]} \\rangle
+                      \\lvert \\mathtt{bitstring(j-1)[(end-nSite+1):end]} \\rangle
 ```
 
 In contrast, when `reverseKron=true`, the order of the Kronecker product for the 
-(single-site) Pauli matrices associated with same Pauli string is chained in a reversed 
-order:
+(single-site) Pauli matrices associated with the same Pauli string is chained in a 
+reversed order:
 
 ```math
-\\mathtt{kron}(M_n, \\, \\ldots, \\, M_2, \\, M_1), 
+M_{\\mathtt{nSite}} \\otimes \\cdots \\otimes M_2 \\otimes M_1, 
 ```
 
-and the order of the axial index `i::Int` is also reversed.
+and the bitstring labeling each axial index is also reversed accordingly.
 
 Compared to the lexicographic order, the reversed order can be more convenient for 
 numerical computations in mainly two respects: 
@@ -335,30 +337,31 @@ numerical computations in mainly two respects:
   lexicographic-order basis it indexes the state of site `nSite + 1 - k`.
 - It keeps the identity padding separable: appending sites (e.g., from `pauli"X"` to 
   `pauli"XI"`) does not change the vector indices of the existing basis states. For 
-  instance, for `mat1 = toMatrix(h, nSite; reverseKron=true)` (with `nSite > 1`), 
-  `mat2 = toMatrix(h, nSite+1; reverseKron=true)` is a block-diagonal matrix that is 
-  the direct sum of `mat1` (i.e., `mat2 == cat(mat1, mat1, dims=(1, 2))`), whereas in the 
-  lexicographic-order basis, the entries of two `mat1` interleaved in `mat2`.
+  instance, for `mat1 = toMatrix(h, nSite; reverseKron=true)` (assuming `nSite > 0` and 
+  `h` has at least one term), `mat2 = toMatrix(h, nSite+1; reverseKron=true)` is a 
+  block-diagonal matrix that is the direct sum of `mat1` (i.e., 
+  `mat2 == cat(mat1, mat1, dims=(1, 2))`), whereas in the lexicographic-order basis, the 
+  entries of two `mat1` are interleaved in `mat2`.
 
 # Evaluation of the entries
 Each entry of the returned matrix is evaluated at the precision level of 
-`complex($(extendType|>repr)(T, T1))` by accumulating over every the term that has a 
+`complex($(extendType|>repr)(T, T1))` by accumulating over every term that has a 
 non-zero contribution to it (i.e., every term whose matrix representation has a non-zero 
-value at that entry index). When the entry constrained to `Complex{<:AbstractFloat}`, 
-the accumulation is realized by 
+value at that entry index). When this precision level is a floating-point one, the 
+accumulation is realized by 
 [Neumaier summation](https://doi.org/10.1002/zamm.19740540106). If the resulting value of 
 the entry is exactly zero, the entry value is not stored. To ensure deterministic entry 
 values regardless of different formats of `h` with equivalent mathematical expressions, a 
-checking for the canonical form of `h` is performed at the beginning of the function call.
-If `h` is already in the canonical form, it is directly for the subsequent accumulation 
-subroutine. Otherwise, an `ArgumentError` is thrown when `requireCanonical=true`, or a copy 
-equivalent to `PauliSum(h, false)` is construct and used for the subroutine when 
-`requireCanonical=false`.
+check for the canonical form of `h` is performed at the beginning of the function call. 
+If `h` is already in the canonical form, it is directly used for the subsequent 
+accumulation subroutine. Otherwise, an `ArgumentError` is thrown when 
+`requireCanonical=true`, or a copy equivalent to `PauliSum(h, false)` is constructed and 
+used for the subroutine when `requireCanonical=false`.
 
 # Examples
 ```jldoctest
 julia> let h=PauliSum(Float64, [pauli"ZI", pauli"IZ"], [1, 1])
-            toMatrix(h) == [2 0 0 0; 0 0 0 0; 0 0 0 0; 0 0 0 -2]
+            toMatrix(h) == [2 0 0 0; 0 0 0 0; 0 0 0 0; 0 0 0 -2] && 
             toMatrix(h, 3) == toMatrix(PauliSum([pauli"ZII", pauli"IZI"], [1, 1]))
        end
 true
@@ -460,18 +463,21 @@ toMatrix(T, h, nSite; requireCanonical, reverseKron)
 
 Overwrite `dst` in place with the matrix representation of a [`PauliSum`](@ref), a 
 [`PauliStr`](@ref), or a [`PauliSym`](@ref) on `nSite` sites, and return `dst`. `dst` must 
-be a square matrix of order `2^nSite`; otherwise, an `ArgumentError` is thrown. Its element 
-type `C` must be `TC<:Real` or `Complex{T<:Real}`, where `TC` is subject to the same 
-restriction as the core data type of any [`PauliSum`](@ref) instance. Every element of 
-`dst` is overwritten, and it does not shares no data with the represented operator once the 
-function secussfully executes. Therefore, a real `C` requires every entry to be real; 
-otherwise, an `InexactError` is thrown (e.g., `pauli"Y"`, whose entries are `±im`, cannot 
-be written into a `Matrix{Float64}`). For consistency, the overwritten `dst` is 
-element-wise equal (including its basis ordering convention) to the square matrix returned 
-by [`toMatrix`](@ref `toMatrix`). Thus, the function arguments with correspondingly the 
-same names are also subject to same constraints. For instance, `reverseKron` controls 
-whether the order of the chained Kronecker product is the in the same or reverse order as 
-the sites are displayed in a Pauli string.
+be a square matrix of order `2^nSite` (or `2` for the method signature without argument 
+`nSite`); otherwise, an `ArgumentError` is thrown. Its element core type `T` is subject to 
+the same restriction as the core data type of any [`PauliSum`](@ref) instance. Every 
+element of `dst` is overwritten by the corresponding entry of the matrix representation 
+converted to `C<:Union{Complex{T}, T}}`, and `dst` shares no data with the represented 
+operator once the function successfully executes. Therefore, a real `C` requires every 
+entry to be real; otherwise, an `InexactError` is thrown (e.g., `pauli"Y"`, whose entries 
+are `±im`, cannot be written into a `Matrix{Float64}`). 
+
+For consistency, the overwritten `dst` is element-wise equal (including its basis ordering 
+convention) to the square matrix returned by [`toMatrix`](@ref `toMatrix`). Thus, the 
+function arguments with correspondingly the same names are also subject to the same 
+constraints. For instance, `reverseKron` controls whether the order of the chained 
+Kronecker product is in the same or reverse order as the sites are displayed in a Pauli 
+string.
 
 !!! info
     Unlike `toMatrix`, this function does not construct a sparse matrix; its typical use is 
@@ -482,8 +488,8 @@ the sites are displayed in a Pauli string.
 
 !!! warning
     If an error is thrown after the initial verifications (the shape and the element type 
-    of `dst`, as well as the form of `h`) during the reassigning entries of `dst` (e.g., an 
-    entry cannot be properly updated), `dst` may be left partially overwritten.
+    of `dst`, as well as the form of `h`) during the reassignment of the entries of `dst` 
+    (e.g., an entry cannot be properly updated), `dst` may be left partially overwritten.
 
 # Examples
 ```jldoctest
@@ -582,16 +588,16 @@ the order of the entries within a column is unspecified.
 For consistency, the traversed matrix representation is element-wise equal (including its 
 basis ordering convention) to the square matrix returned by 
 [`toMatrix(T, h, nSite; requireCanonical, reverseKron)`](@ref `toMatrix(::PauliSum)`). 
-Thus, the function arguments with correspondingly the same names are also subject to same 
-constraints. `processor` is called only after `T`, `nSite`, and the form of `h` have been 
-checked; an error thrown later (e.g., by an arithmetic overflow of an exact numeric type) 
-ends the traversal after `processor` has been called for the entries before it. 
+Thus, the function arguments with correspondingly the same names are also subject to the 
+same constraints. `processor` is called only after `T`, `nSite`, and the form of `h` have 
+been checked; an error thrown later (e.g., by an arithmetic overflow of an exact numeric 
+type) ends the traversal after `processor` has been called for the entries before it.
 
 !!! info
-    Since the traversal subroutine only stores the data of one matrix column at a time, so 
-    its memory use scales with the number of terms of `h` instead of the order of the 
-    matrix. This makes the function suitable for operations that do not need the matrix as 
-    a whole (e.g., multiplying the matrix by a vector).
+    Since the traversal subroutine only stores the data of one matrix column at a time, its 
+    memory use scales with the number of terms of `h` instead of the order of the matrix. 
+    This makes the function suitable for operations that do not need the matrix as a whole 
+    (e.g., multiplying the matrix by a vector).
 
 # Examples
 ```jldoctest

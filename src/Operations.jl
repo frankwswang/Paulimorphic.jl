@@ -151,10 +151,11 @@ where `f` is a callable object that transforms the coefficient associated with e
 
     f(strCoeffPair::Pair{PauliStr, <:Complex{<:SignedReal}}) -> T1
 
-where `T1` is convertible to `T` through `Base.convert`; and for any `term` as an element 
-in `terms`, if `term isa PauliStr`, `(s, c) = (term, one(Complex{T}))`, else (i.e., `term 
-isa PauliSum`) `(s, c) = (term.str[i], term.coeff[i])` for all possible values of `i`. 
-Technically, the first method falls back to calling the third method with `f=(_, c)->c`.
+where `T1` is convertible to `Complex{T}` through `Base.convert`; and for any `term` as an 
+element in `terms`, if `term isa PauliStr`, `strCoeffPair = (term => one(Complex{T}))`, 
+else (i.e., `term isa PauliSum`) `strCoeffPair = (term.str[i] => term.coeff[i])` for all 
+possible values of `i`. Technically, the first method falls back to calling the third 
+method with `f=(scPair->scPair.second)`.
 
 # Examples
 ```jldoctest
@@ -197,7 +198,7 @@ function combine(f::F, ::Type{T}, terms::AbstractVector{PauliStr}, simplificatio
     checkCoreDataTypeForPauliSum(T)
     isempty(terms) && (return PauliSum(T))
     coeff = one(Complex{T})
-    coeffs = map(x->f(x, coeff), terms)
+    coeffs = map(x->convert(Complex{T}, f(x=>coeff)), terms)
     PauliSum(T, terms, coeffs, simplification)
 end
 

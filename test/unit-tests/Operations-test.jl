@@ -167,6 +167,19 @@ end
     #>> A single `PauliStr` stored in a mixed-type container
     @test combine(Union{PauliStr, PauliSum}[pauli"X"]) == PauliSum(Int, [pauli"X"])
     @test combine(Union{PauliStr, PauliSum}[pauli"X", ha]) == PauliSum([pauli"X"], [2.0])
+    #>> A callable first argument is called as `f(str => coeff)` for every element type of 
+    #>> `terms`: a container of `PauliStr` only gives the same result as a mixed-type one
+    sX, sZ = pauli"X", pauli"Z"
+    mixed = Union{PauliStr, PauliSum}[sX, sZ]
+    twice = (pair::Pair) -> 2 * pair.second
+    @test combine(twice, Float64, [sX, sZ]) == combine(twice, Float64, mixed) == 
+          PauliSum([sX, sZ], [2.0, 2.0])
+    #>> The values returned by the callable are converted to `Complex{T}`
+    @test combine(_->0x03, Int, [sX, sZ]) == combine(_->0x03, Int, mixed) == 
+          PauliSum([sX, sZ], [3, 3])
+    pick = pair -> (pair.first == sX ? 1 : 2.0)
+    @test combine(pick, Float64, [sX, sZ]) == combine(pick, Float64, mixed) == 
+          PauliSum([sX, sZ], [1.0, 2.0])
 end
 
 @testset "sub" begin

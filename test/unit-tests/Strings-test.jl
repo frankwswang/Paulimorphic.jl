@@ -581,6 +581,11 @@ end
     hBig = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
     @test_throws OverflowError sumCoeffs(hBig)
     @test sumCoeffs(hBig, Int128) == Complex{Int128}(typemax(Int)) + 1
+    #> A non-concrete `R` is rejected by the core-type check, whatever the core type of `h`
+    @test_throws "core data type" sumCoeffs(h, Signed)
+    @test_throws "core data type" sumCoeffs(h, AbstractFloat)
+    @test_throws "core data type" sumCoeffs(PauliSum([pauli"X"], [3]), AbstractFloat)
+    @test_throws ArgumentError sumCoeffs(h, Rational{<:Signed})
 
     #> `checkForm` (`true` by default): the accumulation follows the term order of `h`, so 
     #> a sum that is not in the canonical form is rejected unless the check is lifted

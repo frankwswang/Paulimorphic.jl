@@ -1963,7 +1963,9 @@ end
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
 string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
 a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
-selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned.
+selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned. `R` is 
+subject to the same restriction as the core data type of any [`PauliSum`](@ref) instance 
+and defaults to that of `h`.
 
 The accumulation is performed at the precision level of 
 `complex($(extendType|>repr)(R, T))` and converted to `Complex{R}` only once at the end. 
@@ -1988,6 +1990,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 """
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
                    checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
+    checkCoreDataTypeForPauliSum(R, "R") #> First ensure that `R` is a valid core data type
     accuT = (complex∘extendType)(R, T)
     checkPauliOpForm(h, checkForm)
     nTerm = countTerms(h)

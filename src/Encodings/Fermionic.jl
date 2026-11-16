@@ -165,8 +165,8 @@ As a result, the expression of each occupation-number vector state remains uncha
 Pauli-Z basis: 
 
 ```math
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle \\mapsto
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle.
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{mode}} \\mapsto
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{qubit}}.
 ```
 
 The maximum Pauli weight (i.e., the number of non-identity single-qubit Pauli operators) of 
@@ -222,9 +222,9 @@ encoding the prefix-sum dual of the Jordan–Wigner encoding. Each occupation-nu
 state is represented by its prefix-parity counterpart in the Pauli-Z basis:
 
 ```math
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle \\mapsto
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{mode}} \\mapsto
 \\lvert n_1, n_1 \\veebar n_2, \\ldots, n_1 \\veebar \\cdots 
-\\veebar n_p, \\ldots \\rangle,
+\\veebar n_p, \\ldots \\rangle_{\\mathrm{qubit}},
 ```
 
 where ``\\veebar`` denotes the XOR (exclusive or) operation on the binary occupation 

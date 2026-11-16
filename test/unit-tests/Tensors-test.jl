@@ -86,6 +86,133 @@ end
     @test formatPauliOpMatInfo(Int, h, 1) == infoLow
 end
 
+@testset "Matrix assembly from non-canonical `PauliSum`" begin
+    #> The public matrix functions pass a `PauliSum` to `formatPauliOpMatInfo` and 
+    #> `genPauliOpMatEntryEvaluator` only once it is in the canonical form. Here, the two 
+    #> functions are called directly by non-canonical `PauliSum`, to test their working 
+    #> mechanism independent of the effects from the canonical-form check.
+
+    #> Construct a `PauliSum` holding the given terms as they are without canonicalization
+    function rawPSum(::Type{T}, strs::Vector{PauliStr}, coeffs::AbstractVector) where {T}
+        nTerm = length(strs)
+        genSeed(k::Int) = PauliStr([i == k ? symX : symI for i in 1:nTerm])
+        h = PauliSum(T, PauliStr[genSeed(k) for k in 1:nTerm], false)
+        h.str .= strs
+        h.coeff .= coeffs
+        h
+    end
+
+    #> The column loop shared by `toMatrix`, `toMatrix!`, and `traverseMatrixEntries`, 
+    #> applied to `h` as it is stored (neither checked nor canonicalized), with the 
+    #> reported entries collected into a dense matrix
+    function assembleRaw(h::PauliSum{T}, nSite::Int=countSites(h); 
+                         reverseKron::Bool=false) where {T}
+        nXMask, (xMasks, zMasks, coeffs) = formatPauliOpMatInfo(T, h, nSite; reverseKron)
+        evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
+        order = 2^nSite
+        mat = zeros(Complex{T}, order, order)
+        nzCount = nSeen = 0
+        isValid = true
+        for jCol in 1:order
+            nStart = nzCount
+            nzCount = evaluator(UInt(jCol - 1), nzCount) do pair, nBefore
+                (iRow, iCol), val = pair
+                #>> Each non-zero entry of the column is reported once, along with the 
+                #>> number of entries reported before it
+                isValid &= iCol == jCol && nBefore == nSeen
+                isValid &= !iszero(val) && iszero(mat[iRow, iCol])
+                mat[iRow, iCol] = val
+                nSeen += 1
+            end
+            #>> The number of distinct `x`-masks bounds the entries reported per column
+            isValid &= nzCount == nSeen && nzCount - nStart <= nXMask
+        end
+        (; mat, nzCount, isValid)
+    end
+
+    #> A `PauliSum` that leaves the canonical form in every possible way: phases inside the 
+    #> strings, a descending order, different site counts (down to zero), operators 
+    #> that coincide up to a phase (`IX`, `-IX`) or up to the identity padding (`X`, 
+    #> `-XI`), two terms canceling each other, and one term with a zero coefficient.
+    strs = [pauli"IZ", pauli"X", pauli"-XI", pauli"iYI", pauli"-", pauli"IX", pauli"-IX", 
+            pauli"ZZ"]
+    hRaw = rawPSum(Int, strs, [2, 1, 3, 1, 5, 4, 4, 0])
+    @test !isCanonical(hRaw) && countTerms(hRaw) == 8 && countSites(hRaw) == 2
+    coeffsRaw = [2, 1, -3, -1, -5, 4, -4, 0]
+    info = 3 => (UInt[0, 2, 2, 2, 0, 1, 1, 0], UInt[1, 0, 0, 2, 0, 0, 0, 3], coeffsRaw)
+    @test formatPauliOpMatInfo(Int, hRaw) == info
+    infoR = 3 => (UInt[0, 1, 1, 1, 0, 2, 2, 0], UInt[2, 0, 0, 1, 0, 0, 0, 3], coeffsRaw)
+    @test formatPauliOpMatInfo(Int, hRaw, reverseKron=true) == infoR
+    #>> 2 IZ - 2 XI + (im*Y)I - 5 II: the terms that cancel each other and the one with a 
+    #>> zero coefficient leave no entry behind (the former still add a third `x`-mask)
+    refRaw = [-3 0 -1 0; 0 -7 0 -1; -3 0 -3 0; 0 -3 0 -7]
+    res = assembleRaw(hRaw)
+    @test res.isValid && res.mat == refRaw && res.nzCount == 8
+    resR = assembleRaw(hRaw, reverseKron=true)
+    @test resR.isValid && resR.mat == [-3 -1 0 0; -3 -3 0 0; 0 0 -7 -1; 0 0 -3 -7]
+    @test toMatrix(PauliSum(hRaw, false)) == refRaw #> The same sum once canonicalized
+
+    #> Each way of breaking from the canonical form, for the same operator XI + 2 IZ
+    refS = [2 0 1 0; 0 -2 0 1; 1 0 2 0; 0 1 0 -2]
+    hD = rawPSum(Int, [pauli"IZ", pauli"XI"], [2, 1])                #>> Descending order
+    hP = rawPSum(Int, [pauli"-XI", pauli"iIZ"], [-1, -2im])          #>> Phases
+    hE = rawPSum(Int, [pauli"XI", pauli"XI", pauli"IZ"], [3, -2, 2]) #>> Equal strings
+    hS = rawPSum(Int, [pauli"X", pauli"IZ"], [1, 2])                 #>> Site counts
+    for h in (hD, hP, hE, hS)
+        resS = assembleRaw(h)
+        @test !isCanonical(h) && resS.isValid && resS.mat == refS && resS.nzCount == 8
+        @test assembleRaw(h, reverseKron=true).mat == refS[[1, 3, 2, 4], [1, 3, 2, 4]]
+    end
+
+    #> Random sums on up to two sites that are never in the canonical form (the first 
+    #> string always carries a non-trivial phase), against the canonicalized sum. With 
+    #> integer-valued coefficients, the accumulation is exact for every core type (the 
+    #> checked arithmetic of `Int`, the plain one of `Rational{Int}`, and the compensated 
+    #> summation of `Float64`), so the two matrices must hold the same entries. With 
+    #> coefficients whose sums are rounded, the order and the grouping of the accumulation 
+    #> matter at the rounding level: the entries agree up to numerical noise, which may 
+    #> also leave a tiny entry where the other route cancels exactly (hence the numbers of 
+    #> entries are not compared)
+    rng = Xoshiro(4321)
+    syms = [symI, symX, symY, symZ]
+    phases = [posRea, posImg, negRea, negImg]
+    randStr(phasePool) = PauliStr(PauliSym[rand(rng, syms) for _ in 1:rand(rng, 0:2)], 
+                                  rand(rng, phasePool))
+    genInt() = Complex(rand(rng, -3:3), rand(rng, -3:3))
+    genFloat() = Complex(rand(rng) - 0.5, rand(rng) - 0.5)
+    bl1 = bl2 = bl3 = true
+    for (T, genCoeff) in ((Int, genInt), (Rational{Int}, genInt), (Float64, genInt), 
+                          (Float64, genFloat)), _ in 1:100
+        strsR = [randStr(k == 1 ? phases[2:end] : phases) for k in 1:rand(rng, 2:8)]
+        h = rawPSum(T, strsR, [genCoeff() for _ in strsR])
+        hCan = PauliSum(h, false)
+        for reverseKron in (false, true)
+            nSite = countSites(h) + rand(rng, 0:1) #>> With and without identity padding
+            resT = assembleRaw(h, nSite; reverseKron)
+            matCan = toMatrix(hCan, nSite; reverseKron)
+            bl1 *= !isCanonical(h) && resT.isValid
+            if genCoeff === genInt
+                bl2 *= resT.mat == matCan && resT.nzCount == nnz(matCan)
+            else
+                bl3 *= resT.mat ≈ Matrix(matCan)
+            end
+        end
+    end
+    @test bl1
+    @test bl2
+    @test bl3
+
+    #> The terms are accumulated in their stored order, which a fixed-width integer core 
+    #> type exposes through its overflow check: between two orders of the same three terms, 
+    #> one overflows midway and the other does not. The canonical form fixes that order 
+    #> (equal strings are merged by the values of their coefficients)
+    strsX = [pauli"X", pauli"X", pauli"X"]
+    hOver = rawPSum(Int8, strsX, Int8[100, 100, -100])
+    @test_throws OverflowError assembleRaw(hOver)
+    @test assembleRaw(rawPSum(Int8, strsX, Int8[100, -100, 100])).mat == 
+          toMatrix(PauliSum(hOver, false)) == [0 100; 100 0]
+end
+
 @testset "toMatrix" begin
     syms = [symI, symX, symY, symZ]
     phases = [posRea, posImg, negRea, negImg]

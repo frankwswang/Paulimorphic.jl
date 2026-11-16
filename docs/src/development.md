@@ -9,7 +9,7 @@ names can serve as the indicators of their functionalities and potential extensi
 
 Function names are in camelCase. In particular, each function name should start with a word 
 that describes the **operation** or **expectation** of the function, potentially followed 
-by a noun phrase to specify type of objects the function acts on.
+by a noun phrase to specify the type of objects the function acts on.
 
 The following verb prefixes carry fixed meanings:
 
@@ -29,14 +29,13 @@ The following verb prefixes carry fixed meanings:
   objects. For instance, the value can be a number (e.g., [`evalPhase`](@ref)) or an 
   operator (e.g., [`evalCommute`](@ref)).
 
-The fellowing non-verb prefiexs carry fixed meanings:
+The following non-verb prefixes carry fixed meanings:
 
 * `to*` returns a newly allocated object derived from its input, typically in another 
   representation (e.g., [`toString`](@ref)); `as*` is reserved for views that share data 
   with the input.
 
-* `any*` returns a `Bool` to define if any its input (or the input element) meets a certain 
-  condition.
+* `all*`/`any*` return a `Bool` that tells whether all/any of the inputs, or of the elements of an input, meet a certain condition.
 
 A function that (optionally) mutates any of its arguments should have a name that ends 
 with `!`; when exactly one argument is mutated, it is typically the first non-function, 

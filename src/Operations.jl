@@ -110,9 +110,11 @@ Add a single `PauliStr` to `h`, i.e., shorthand for `add(h, s=>one(T), simplific
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h` or `s`.
 """
-add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
-    ) where {T<:SignedReal} = 
-add(T, h, s=>one(T), simplification)
+function add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
+    add(T, h, s=>one(T), simplification)
+end
 
 add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
 add(T, h, s, simplification)
@@ -359,8 +361,11 @@ simplification procedure used by the `PauliSum` constructor (when the same-named
 is set to `true`) is applied to the result. The result does not reference any data in 
 either `h` or `s`.
 """
-sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
-sub(T, h, s=>one(T), simplification)
+function sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
+    sub(T, h, s=>one(T), simplification)
+end
 
 function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
              ) where {T<:SignedReal}

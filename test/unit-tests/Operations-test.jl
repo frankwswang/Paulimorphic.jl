@@ -131,6 +131,13 @@ end
     @test_throws MethodError pauli"X" + (pauli"Y"=>2.0)
     @test_throws MethodError add(h, pauli"Y"=>im)      #>> `im` is a `Complex{Bool}`
 
+    #>> A non-concrete `T` is rejected by the core-type check in every method
+    @test_throws ArgumentError add(Signed, h1, h2)
+    @test_throws ArgumentError add(Rational{<:Signed}, h1, h2)
+    @test_throws ArgumentError add(Rational{<:Signed}, h, pauli"X"=>1)
+    @test_throws ArgumentError add(Rational{<:Signed}, h, pauli"X")
+    @test_throws ArgumentError add(Rational{<:Signed}, pauli"X", pauli"Z")
+
     #> Type-conversion methods
     h1 = PauliSum([pauli"X"], [3])
     h2 = PauliSum([pauli"Z"], [0.5])
@@ -321,6 +328,8 @@ end
     @test_throws MethodError sub(h1, pauli"X"=>im) #> `im` is a `Complex{Bool}`
     @test_throws ArgumentError sub(AbstractFloat, pauli"X", pauli"Z") #> Non-concrete `T`
     @test_throws ArgumentError sub(Signed, h1, h2)
+    @test_throws ArgumentError sub(Rational{<:Signed}, h1, pauli"X")
+    @test_throws ArgumentError sub(Rational{<:Signed}, pauli"X", h1)
 end
 
 @testset "mul" begin

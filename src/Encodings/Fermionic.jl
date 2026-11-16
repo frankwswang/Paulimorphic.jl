@@ -378,6 +378,7 @@ method falls back to the first method with `T=Rational{Int}`. The result in both
 does not reference any data in `enc`.
 """
 function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
     oneHalf = one(T) / 2
     if !(oneHalf isa T) || oneHalf + oneHalf != one(T)
         throw(ArgumentError("`T` must be able to exactly represent one half (`1//2`)."))

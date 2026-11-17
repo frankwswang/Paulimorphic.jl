@@ -207,7 +207,7 @@ function checkPauliSumMatConfig(::Type{T}, h::PauliSum, nSite::Integer
                                 ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
 
-    nSiteInt = toBitIntData(nSite, "nSite")
+    nSiteInt = toBitIntData(nSite, :nSite)
     nSiteMin = countSites(h)
     if nSiteInt < nSiteMin
         throw(DomainError(nSiteInt, "`nSite` must be at least `countSites(h)==$nSiteMin`."))

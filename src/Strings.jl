@@ -122,7 +122,7 @@ mutable struct PauliStr <: DiscreteOperator
     const n::Int
 
     function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=posRea)
-        nSite = toBitIntData(nSite, "nSite")
+        nSite = toBitIntData(nSite, :nSite)
         nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         nSitePerWord = 8 * sizeof(UInt)
         nWord = cld(nSite, nSitePerWord)
@@ -138,7 +138,7 @@ mutable struct PauliStr <: DiscreteOperator
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Integer=8*sizeof(UInt)*length(xWords))
-        nSite = toBitIntData(nSite, "nSite")
+        nSite = toBitIntData(nSite, :nSite)
         nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         maxWordNum = length(xWords)
         if maxWordNum != length(zWords)
@@ -332,7 +332,7 @@ the explicit site count returns the implicit identity `symI`, hence `i` need onl
 positive. The phase of `str` (`str.phase`) does not affect the returned value.
 """
 function indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false)
-    i = toBitIntData(i, "i")
+    i = toBitIntData(i, :i)
     nSite = countSites(str)
     if indexImplicitSite
         i < 1 && throw(DomainError(i, "`i` must be a positive integer."))
@@ -412,7 +412,7 @@ Return the `String` representation of the single-site Pauli operator acting on s
 in `1:`[`countSites(pStr)`](@ref `countSites`).
 """
 function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
-    i = toBitIntData(i, "i")
+    i = toBitIntData(i, :i)
     sym = indexSite(pStr, i)
 
     if sym == symI
@@ -716,9 +716,9 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
     end
 end
 
-function checkCoreDataTypeForPauliSum(::Type{T}, typeStr::AbstractString="T") where {T}
+function checkCoreDataTypeForPauliSum(::Type{T}, typeName::Symbol=:T) where {T}
     if !(isconcretetype(T) && (T <: SignedReal))
-        throw(ArgumentError("`$typeStr = $T` is not a valid core data type: it must be a "*
+        throw(ArgumentError("`$typeName = $T` is not a valid core data type: it must be a "*
                             "concrete subtype of $SignedReal."))
     end
 
@@ -791,7 +791,7 @@ coefficient associated with the `i`-th term. `i` must be in `1:length(h.str)`.
     disturb its canonical layout.
 """
 function indexTerm(h::PauliSum, i::Integer, copyStr::Bool=true)
-    i = toBitIntData(i, "i")
+    i = toBitIntData(i, :i)
     nTerm = length(h.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     str = h.str[begin+i-1]
@@ -818,7 +818,7 @@ is a copy of `h.str[begin+i-1]`.
     zero-coefficient terms, rebuild the mutated `h` via `PauliSum(h, true)`.
 """
 function setCoeff!(h::PauliSum, coeff::SRealOrComplex, i::Integer, copyStr::Bool=true)
-    i = toBitIntData(i, "i")
+    i = toBitIntData(i, :i)
     nTerm = length(h.str)
     1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
     h.coeff[begin+i-1] = coeff
@@ -1297,7 +1297,7 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 ```
 """
 function shift!(str::PauliStr, nShift::Integer, lowToHigh::Bool=true)
-    nShift = toBitIntData(nShift, "nShift")
+    nShift = toBitIntData(nShift, :nShift)
     nShift < 0 && throw(DomainError(nShift, "`nShift` must be non-negative."))
     (iszero(nShift) || iszero(str.n)) && return str #> Nothing to shift
 
@@ -1433,8 +1433,8 @@ lowToHigh = true  (dstStart=2, srcRange=2:3):
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
                 src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
-    dstStart = toBitIntData(dstStart, "dstStart")
-    srcRange = toBitIntData(srcRange, "srcRange")
+    dstStart = toBitIntData(dstStart, :dstStart)
+    srcRange = toBitIntData(srcRange, :srcRange)
 
     nSiteDst = dst.n
     if !(1 <= dstStart <= nSiteDst)
@@ -1554,8 +1554,8 @@ lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSit
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 lowToHigh::Bool=true)
-    startSite = toBitIntData(startSite, "startSite")
-    nSite = toBitIntData(nSite, "nSite")
+    startSite = toBitIntData(startSite, :startSite)
+    nSite = toBitIntData(nSite, :nSite)
 
     nSiteDst = dst.n
     if !(1 <= startSite <= nSiteDst)
@@ -1648,7 +1648,7 @@ true
 """
 function reframe(h::PauliSum, nSite::Integer=countSites(h); lowToHigh::Bool=true, 
                  filler::PauliSym=symI, simplification::Bool=true)
-    nSite = toBitIntData(nSite, "nSite")
+    nSite = toBitIntData(nSite, :nSite)
     nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
 
     coeffs = h.coeff
@@ -1766,8 +1766,8 @@ true
 """
 function compareSites(pStr1::PauliStr, pStr2::PauliStr; startSite::Integer=1, 
                       finalSite::Integer=max( countSites(pStr1), countSites(pStr2) ))
-    startSite = toBitIntData(startSite, "startSite")
-    finalSite = toBitIntData(finalSite, "finalSite")
+    startSite = toBitIntData(startSite, :startSite)
+    finalSite = toBitIntData(finalSite, :finalSite)
     startSite > 0 || throw(DomainError(startSite, "`startSite` must be positive."))
 
     siteWindow = startSite:finalSite
@@ -1990,7 +1990,7 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 """
 function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
                    checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
-    checkCoreDataTypeForPauliSum(R, "R") #> First ensure that `R` is a valid core data type
+    checkCoreDataTypeForPauliSum(R, :R) #> First ensure that `R` is a valid core data type
     accuT = (complex∘extendType)(R, T)
     checkPauliOpForm(h, checkForm)
     nTerm = countTerms(h)

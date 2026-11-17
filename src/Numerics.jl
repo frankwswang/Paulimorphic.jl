@@ -1,49 +1,54 @@
 public extendType, evalMagnitude
 
 """
-    toBitIntData(::Type{T}, val::Integer, boundName::AbstractString="val"
+    toBitIntData(::Type{T}, val::Integer, objName::Symbol=:val, 
+                 accessorName::Union{Missing, Symbol}=missing
                  ) where {T<:$BitSInteger} -> 
     T
 
-    toBitIntData(val::Integer, boundName::AbstractString="val") -> Int
+    toBitIntData(val::Integer, objName::Symbol=:val, 
+                 accessorName::Union{Missing, Symbol}=missing) -> 
+    Int
 
-Convert `val` to `T` (by default, `Int`), or throw a `DomainError` that refers to `val` as 
-`\$boundName` when `val` is not representable by `T`. 
+Convert `val` to `T` (by default, `Int`), or throw a `DomainError` when `val` is not 
+representable by `T`. The error message refers to `val` as `\$objName` if `accessorName` 
+is `missing` (the default), and as `\$accessorName(\$objName)` otherwise.
 """
-function toBitIntData(::Type{T}, val::Integer, boundName::AbstractString="val"
-                      ) where {T<:BitSInteger}
+function toBitIntData(::Type{T}, val::Integer, objName::Symbol=:val, 
+                      accessorName::MissingOr{Symbol}=missing) where {T<:BitSInteger}
     if !(applicable(T, val) && typemin(T) <= val <= typemax(T))
-        throw(DomainError(val, "Aside from being an `Integer`, `$boundName` must also "*
+        valName = ismissing(accessorName) ? "$objName" : "$accessorName($objName)"
+        throw(DomainError(val, "Aside from being an `Integer`, `$valName` must also "*
                                "be representable by `$T`."))
     end
 
     T(val)
 end
 
-toBitIntData(val::Integer, boundName::AbstractString="val") = 
-toBitIntData(Int, val, boundName)
+toBitIntData(val::Integer, objName::Symbol=:val, 
+             accessorName::MissingOr{Symbol}=missing) = 
+toBitIntData(Int, val, objName, accessorName)
 
 """
-    toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, boundName::AbstractString="rng"
+    toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, objName::Symbol=:rng
                  ) where {T<:$BitSInteger} -> 
     UnitRange{T}
 
-    toBitIntData(rng::UnitRange{<:Integer}, boundName::AbstractString="rng") -> 
-    UnitRange{Int}
+    toBitIntData(rng::UnitRange{<:Integer}, objName::Symbol=:rng) -> UnitRange{Int}
 
 Convert `rng` to `UnitRange{T}`, throwing an individual error message when either the 
-start or the stop index of `rng` (referred to as `first(\$boundName)` or 
-`last(\$boundName)`, respectively) is not representable by `T`.
+start or the stop index of `rng` (referred to as `first(\$objName)` or 
+`last(\$objName)`, respectively) is not representable by `T`.
 """
-function toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, 
-                      boundName::AbstractString="rng") where {T<:BitSInteger}
-    lo = toBitIntData(T, first(rng), "first($boundName)")
-    hi = toBitIntData(T, last(rng), "last($boundName)")
+function toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, objName::Symbol=:rng
+                      ) where {T<:BitSInteger}
+    lo = toBitIntData(T, first(rng), objName, :first)
+    hi = toBitIntData(T, last(rng), objName, :last)
     lo:hi
 end
 
-toBitIntData(rng::UnitRange{<:Integer}, boundName::AbstractString="rng") = 
-toBitIntData(Int, rng, boundName)
+toBitIntData(rng::UnitRange{<:Integer}, objName::Symbol=:rng) = 
+toBitIntData(Int, rng, objName)
 
 
 #> Adaptive overflow-check arithmetics for numeric types based on fixed-width signed 

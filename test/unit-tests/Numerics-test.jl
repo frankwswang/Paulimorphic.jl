@@ -161,5 +161,24 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
         @test_throws DomainError toBitIntData(typemax(UInt))
         @test_throws DomainError toBitIntData(big(2)^70)
         @test_throws DomainError toBitIntData(Int8, 1:200)
+
+        #> The error message refers to the unrepresentable value by the provided names
+        @test_throws "`val`" toBitIntData(Int8, 128)
+        @test_throws "`nSite`" toBitIntData(Int8, 128, :nSite)
+        @test_throws "`first(posPair)`" toBitIntData(Int8, 128, :posPair, :first)
+        @test_throws "`nSite`" toBitIntData(typemax(UInt), :nSite)
+        @test_throws "`last(posPair)`" toBitIntData(typemax(UInt), :posPair, :last)
+        @test_throws "`first(rng)`" toBitIntData(Int8, 200:300)
+        @test_throws "`last(rng)`" toBitIntData(Int8, 1:200)
+        @test_throws "`first(srcRange)`" toBitIntData(Int8, 200:300, :srcRange)
+        @test_throws "`last(srcRange)`" toBitIntData(UInt(1):typemax(UInt), :srcRange)
+
+        #> `@allocated` is evaluated twice, so that the first one absorbs the compilation. 
+        #> For the second evaluation, converting a representable range should be 
+        #> allocation free (i.e., no part of the error message is prepared in advance).
+        for rng in (2:5, UInt(2):UInt(5))
+            @allocated toBitIntData(rng, :srcRange)
+            @test (@allocated toBitIntData(rng, :srcRange)) == 0
+        end
     end
 end

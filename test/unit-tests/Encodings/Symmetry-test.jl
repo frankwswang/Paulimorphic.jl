@@ -37,4 +37,26 @@ gF[2, 1, 1, 1] = 1.0
     @test  checkNBodyInteTensor(Symmetric(h1s), (2,), (1,), (true,))
 end
 
+@testset "Particle positions" begin
+    #> Both checkers convert the positions to `Int` before examining their ranges. Hence, 
+    #> a position that is not representable by `Int` is reported as such by either of them.
+    bigPos = big(2)^70
+    @test_throws DomainError checkIntePairTransposition(g2, bigPos)
+    @test_throws "`pos` must also be representable" checkIntePairTransposition(g2, bigPos)
+    @test_throws DomainError checkInteParticleExchange(g2, (1, bigPos))
+    @test_throws "`last(posPair)` must also" checkInteParticleExchange(g2, (1, bigPos))
+
+    #> A representable position must be within `1:2`, since `g2` holds two particles
+    @test_throws DomainError checkIntePairTransposition(g2, 3)
+    @test_throws "`pos` must be within `1:2`" checkIntePairTransposition(g2, 3)
+    @test_throws DomainError checkInteParticleExchange(g2, (0, 2))
+    @test_throws "`posPair` must be within `1:2`" checkInteParticleExchange(g2, (0, 2))
+
+    #> The integer type of an in-range position does not affect the result
+    @test  checkIntePairTransposition(g2, UInt8(2))
+    @test !checkIntePairTransposition(gD, big(1))
+    @test  checkInteParticleExchange(g2, (2, 0x01))
+    @test !checkInteParticleExchange(gF, (big(1), 2))
+end
+
 end

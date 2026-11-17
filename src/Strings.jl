@@ -1905,7 +1905,8 @@ function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor,
 end
 
 """
-    toPauliStr(str::AbstractString, fallbackStr::MissingOr{PauliStr}=missing) -> PauliStr
+    toPauliStr(str::AbstractString, fallbackStr::Union{Missing, PauliStr}=missing) -> 
+    PauliStr
 
 Parse `str` as a `PauliStr`. For `str` to be a valid string, it should be an optionally 
 empty phase marker concatenated with a string of Pauli characters, each representing one of 

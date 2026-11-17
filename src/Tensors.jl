@@ -602,7 +602,7 @@ non-zero entry, `processor` is invoked through
     processor((index=>val)::Pair{NTuple{2, Int}, Complex{T}}, count::Int)
 
 The entries are traversed column by column in ascending order of the column index, whereas 
-the order of the entries within a column is unspecified.
+the order of the entries within a column is not guaranteed to be fixed.
 
 For consistency, the traversed matrix representation is element-wise equal (including its 
 basis ordering convention) to the square matrix returned by 

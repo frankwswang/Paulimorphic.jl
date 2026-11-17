@@ -116,7 +116,7 @@ function condNeg(num::T, flag::Bool) where {T<:RealOrComplex}
     if T <: BitSInteger
         mask = -T(flag) #> `0` (no bits) if `flag` is `false`, and `-1` (all bits) otherwise
         res, hasOverflow = Base.Checked.sub_with_overflow(xor(num, mask), mask)
-        #> The subtraction overflows only when the negation does (e.g., `num=typemin(T)`)
+        #> The subtraction overflows only when the negation does (under `num=typemin(T)`)
         hasOverflow ? adaptNeg(num) : res #> `adaptNeg` reports the `OverflowError`
     elseif T <: ComplexBitSInteger
         Complex(condNeg( real(num), flag ), condNeg( imag(num), flag ))

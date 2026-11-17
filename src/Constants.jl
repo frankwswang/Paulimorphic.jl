@@ -112,18 +112,11 @@ $(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")); otherwise, `input` 
 valid, and an `ArgumentError` is thrown.
 """
 function toPhase(input::RealOrComplex)
-    if isone(input)
-        posRea
-    elseif isone(-im * input)
-        posImg
-    elseif isone(-input)
-        negRea
-    elseif isone(im * input)
-        negImg
-    else
-        throw(ArgumentError("`input=$input` is not a numerical value representable by "*
-                            "`PhaseFactor`."))
+    for p in instances(PhaseFactor)
+        input == evalPhase(p) && (return p)
     end
+    throw(ArgumentError("`input=$input` is not a numerical value representable by "*
+                        "`PhaseFactor`."))
 end
 
 function toPhase(input::AbstractString)

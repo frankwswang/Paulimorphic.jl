@@ -487,7 +487,7 @@ end
     evalDiag = genPauliOpMatEntryEvaluator(Float64, xMasksDiag, zMasksDiag, coeffsDiag)
     skipEntry(::Pair, ::Int) = nothing
     colLabel = UInt(5)
-    @test evalDiag(skipEntry, colLabel, 0) == 1 #> Also sets up the accumulator's storage
+    @test evalDiag(skipEntry, colLabel, 0) == 1 #> Also compiles the call measured below
     @test evalDiag(skipEntry, colLabel, 3) == 4
     @test (@allocated evalDiag(skipEntry, colLabel, 0)) == 0
     #>> Putting the entries of a column (`32` per column below) in ascending order of their 

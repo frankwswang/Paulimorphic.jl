@@ -164,6 +164,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
     end
 
     #> Permuted indices are stable and zero-based: used for grouping strings of same `xMask`
+    #> NOTE: The grouping is fixed here, so `xMasks` must not be modified afterwards.
     posPerm = (sortperm(xMasks) .-= firstindex(xMasks))
 
     function evaluateEntry(processor::F, zBitStr::UInt, nzCount::Int
@@ -173,13 +174,13 @@ function genPauliOpMatEntryEvaluator(::Type{T},
         sResidue = zero(extT)
 
         @inbounds for (i, shift) in enumerate(posPerm)
-            coeff = extT(coeffs[begin+shift]) #> `coeff` is represented in the extend type
+            coeff = extT(coeffs[begin+shift]) #> `coeff` is represented in the extended type
             xMask = xMasks[begin+shift]
             zMask = zMasks[begin+shift]
 
             if !iszero(coeff)
                 #> Update the coefficient associated with a Pauli-Z basis state labeled by 
-                #> `zBitStr` when a Pauli  term P(`xMask`, zMask`, `coeff`) acts on it:
+                #> `zBitStr` when a Pauli term P(`xMask`, `zMask`, `coeff`) acts on it:
                 #> P |zBitStr> = coeff * (-1)^count_ones(zMask & zBitStr) |zBitStr ⊻ xMask>
                 termCoeff = isodd(count_ones(zMask & zBitStr)) ? adaptNeg(coeff) : coeff
 
@@ -189,7 +190,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
 
             #> At the end of current `xMask` group
             if i == nTerm || xMask != xMasks[begin+posPerm[begin+i]]
-                #>> Process the accumulated coefficient sum from the last group
+                #>> Process the accumulated coefficient sum from the current group
                 nzRow = reinterpret(Int, xor(xMask, zBitStr)) + 1
                 nzCol = reinterpret(Int, zBitStr) + 1
                 coeffSum = Complex{T}(adaptAdd(naiveSum, sResidue))
@@ -429,7 +430,7 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
             nEntry = nFinal - nStart + 1
             nzRowSector = @view nzvRows[(begin+nStart):(begin+nFinal)]
             permBSector = @view permBuf[begin:(begin+nEntry-1)]
-            #>> `QuickSort` works in place, whereas `sortperm!` by default make allocate
+            #>> `QuickSort` works in place, whereas `sortperm!` by default may allocate
             sortperm!(permBSector, nzRowSector; alg=QuickSort) #>> `permBSector` one-based
             for iEntry in 0:(nEntry-1) #>> Store reordered vals and rows in the buffers
                 iSource = nStart + permBuf[begin+iEntry] - 1
@@ -612,7 +613,7 @@ been checked; an error thrown later (e.g., by an arithmetic overflow of an exact
 type) ends the traversal after `processor` has been called for the entries before it.
 
 !!! info
-    Since the traversal subroutine only stores the data of one matrix column at a time, its 
+    Since the traversal evaluates the entries one at a time from the terms of `h`, its 
     memory use scales with the number of terms of `h` instead of the order of the matrix. 
     This makes the function suitable for operations that do not need the matrix as a whole 
     (e.g., multiplying the matrix by a vector).

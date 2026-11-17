@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude, extendType
-using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
+using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, condNeg, toBitIntData
 
 @testset "Numerics.jl" begin
     @testset "adaptAdd / adaptMul / adaptConj / adaptNeg" begin
@@ -56,6 +56,48 @@ using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
             for f in (adaptConj, adaptNeg)
                 @allocated f(x)
                 @test (@allocated f(x)) == 0
+            end
+        end
+    end
+
+    @testset "condNeg" begin
+        #> `condNeg(num, true)` returns `adaptNeg(num)`; `condNeg(num, false)` returns `num`
+        @test condNeg(5, true) === -5 && condNeg(5, false) === 5
+        @test condNeg(0, true) === 0 && condNeg(-7, true) === 7
+        @test condNeg(Complex(1, -2), true) === Complex(-1, 2)
+        @test condNeg(Complex(1, -2), false) === Complex(1, -2)
+        @test condNeg(1.5, true) === -1.5 && condNeg(1.5, false) === 1.5
+        @test condNeg(0.0, true) === -0.0 && condNeg(-0.0, false) === -0.0
+        @test condNeg(1.0 + 2.0im, true) === -1.0 - 2.0im
+        @test condNeg(1//2, true) === -1//2 && condNeg(1//2, false) === 1//2
+        @test condNeg(Complex(1//2, -1//3), true) === Complex(-1//2, 1//3)
+        @test condNeg(big(typemin(Int)), true) == -big(typemin(Int))
+
+        #> For every fixed-width signed integer type, the result is that of the negation up 
+        #> to the limits of the type. The one value whose negation overflows throws the 
+        #> error of `adaptNeg`, but only if it is to be negated
+        for T in (Int8, Int16, Int32, Int64, Int128)
+            for num in (typemin(T) + one(T), -one(T), zero(T), one(T), typemax(T))
+                @test condNeg(num, true) === -num && condNeg(num, false) === num
+                @test condNeg(Complex(num, -num), true) === Complex(-num, num)
+            end
+
+            low = typemin(T)
+            @test condNeg(low, false) === low
+            @test condNeg(Complex(low, low), false) === Complex(low, low)
+
+            for num in (low, Complex(low, one(T)), Complex(one(T), low), Complex(low, low))
+                message = try adaptNeg(num) catch err; sprint(showerror, err) end
+                @test_throws OverflowError condNeg(num, true)
+                @test_throws message condNeg(num, true)
+            end
+        end
+
+        #> As for the other adaptive operations, the second evaluation allocates nothing
+        for x in (3, 1.5, 1//2, Complex(1, 2), 1.0 + 2.0im, Complex(1//2, -1//3))
+            for flag in (true, false)
+                @allocated condNeg(x, flag)
+                @test (@allocated condNeg(x, flag)) == 0
             end
         end
     end

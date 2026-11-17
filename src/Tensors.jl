@@ -182,7 +182,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                 #> Update the coefficient associated with a Pauli-Z basis state labeled by 
                 #> `zBitStr` when a Pauli term P(`xMask`, `zMask`, `coeff`) acts on it:
                 #> P |zBitStr> = coeff * (-1)^count_ones(zMask & zBitStr) |zBitStr ⊻ xMask>
-                termCoeff = isodd(count_ones(zMask & zBitStr)) ? adaptNeg(coeff) : coeff
+                termCoeff = condNeg(coeff, isodd(count_ones(zMask & zBitStr)))
 
                 #> Add the coefficient associated with a Pauli term of the same `xMask`
                 naiveSum, sResidue = neumaierAdd(naiveSum, termCoeff, sResidue)

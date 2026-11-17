@@ -108,6 +108,24 @@ function adaptNeg(num::T) where {T<:RealOrComplex}
 end
 
 
+#> A conditional caller of `adaptNeg`. It returns `adaptNeg(num)` if `flag` is `true`, and 
+#> `num` otherwise. For numeric types based on fixed-width signed integers (e.g., `Int64`), 
+#> the result is computed without a branch on `flag`; as a result, this function is often 
+#> faster than branch-based execution of `adaptNeg` when the branch predictions fail.
+function condNeg(num::T, flag::Bool) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        mask = -T(flag) #> `0` (no bits) if `flag` is `false`, and `-1` (all bits) otherwise
+        res, hasOverflow = Base.Checked.sub_with_overflow(xor(num, mask), mask)
+        #> The subtraction overflows only when the negation does (e.g., `num=typemin(T)`)
+        hasOverflow ? adaptNeg(num) : res #> `adaptNeg` reports the `OverflowError`
+    elseif T <: ComplexBitSInteger
+        Complex(condNeg( real(num), flag ), condNeg( imag(num), flag ))
+    else
+        flag ? adaptNeg(num) : num
+    end
+end
+
+
 #>-- Reference(s) --<#
 #> [DOI] 10.1002/zamm.19740540106 (Improved Kahan--Babuska algorithm proposed by Neumaier)
 @inline function neumaierStep(x1::T, x2::T) where {T<:AbstractFloat}

@@ -407,6 +407,8 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
     nzvRows = Vector{Int}(undef, maxSave)
     nzvList = Vector{Complex{T}}(undef, maxSave)
     permBuf = Memory{Int}(undef, nXM)
+    rowsBuf = Memory{Int}(undef, nXM)
+    valsBuf = Memory{Complex{T}}(undef, nXM)
 
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 
@@ -424,12 +426,21 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
 
         #> Reformat non-zero-element row indices in an ascending order for column `iCol`
         if nFinal > nStart #>> `iCol` has at least two non-zero entries
+            nEntry = nFinal - nStart + 1
             nzRowSector = @view nzvRows[(begin+nStart):(begin+nFinal)]
-            nzValSector = @view nzvList[(begin+nStart):(begin+nFinal)]
-            permBSector = @view permBuf[begin:(begin+nFinal-nStart)]
-            sortperm!(permBSector, nzRowSector)
-            nzRowSector .= nzRowSector[permBSector]
-            nzValSector .= nzValSector[permBSector]
+            permBSector = @view permBuf[begin:(begin+nEntry-1)]
+            #>> `QuickSort` works in place, whereas `sortperm!` by default make allocate
+            sortperm!(permBSector, nzRowSector; alg=QuickSort) #>> `permBSector` one-based
+            for iEntry in 0:(nEntry-1) #>> Store reordered vals and rows in the buffers
+                iSource = nStart + permBuf[begin+iEntry] - 1
+                rowsBuf[begin+iEntry] = nzvRows[begin+iSource]
+                valsBuf[begin+iEntry] = nzvList[begin+iSource]
+            end
+
+            for iEntry in 0:(nEntry-1) #>> Write in vals and rows from the buffers
+                nzvRows[begin+nStart+iEntry] = rowsBuf[begin+iEntry]
+                nzvList[begin+nStart+iEntry] = valsBuf[begin+iEntry]
+            end
         end
     end
     colPtrs[end] = nzCount + 1

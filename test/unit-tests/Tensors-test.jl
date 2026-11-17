@@ -490,6 +490,13 @@ end
     @test evalDiag(skipEntry, colLabel, 0) == 1 #> Also sets up the accumulator's storage
     @test evalDiag(skipEntry, colLabel, 3) == 4
     @test (@allocated evalDiag(skipEntry, colLabel, 0)) == 0
+    #>> Putting the entries of a column (`32` per column below) in ascending order of their 
+    #>> rows allocates nothing either, so that `toMatrix` makes fewer allocations than the 
+    #>> matrix has columns (`2^10` below)
+    flipStrs = [PauliStr([isodd(m >> k) ? symX : symI for k in 0:4]) for m in 0:31]
+    hFlip = PauliSum(flipStrs, ones(32))
+    @test nnz(toMatrix(hFlip, 10)) == 32 * 2^10 #> Also compiles the call measured below
+    @test (@allocations toMatrix(hFlip, 10)) < 2^10
 end
 
 @testset "toMatrix!" begin

@@ -1890,7 +1890,7 @@ conversion is impossible, an error identifying the violated condition is thrown 
 `fallbackStr` is `missing` (the default); otherwise `fallbackStr` is returned instead.
 """
 function toPauliStr(code::AbstractVector{<:Integer}, phase::PhaseFactor, 
-                    fallbackStr::Union{Missing, PauliStr}=missing)
+                    fallbackStr::MissingOr{PauliStr}=missing)
     valPool = map(UInt8, instances(PauliSym))
 
     for (i, val) in enumerate(code)

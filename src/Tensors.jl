@@ -98,7 +98,7 @@ function getPauliOpMatOrder(nSite::Int)
         nSiteRange = 0:CONSTVAR!!matrixRepMaxSiteCount
         throw(DomainError(nSite, "The site count `nSite` of a Pauli operator must be in "*
                                  "$nSiteRange so that the order of the operator's matrix "*
-                                 "representation 2^nSite` can be expressed as an `Int`."))
+                                 "representation `2^nSite` can be expressed as an `Int`."))
     end
     one(Int) << nSite
 end
@@ -416,7 +416,7 @@ function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h);
     nzCount = 0
     @inbounds for iCol in 0:(order-1)     #> Zero-based column indexer
         zBasisBitStr = UInt(iCol)         #> Bit-string label in Pauli-Z basis for `iCol`
-        colPtrs[begin+iCol] = nzCount + 1 #> `colPtrs` must starts with `1`
+        colPtrs[begin+iCol] = nzCount + 1 #> `colPtrs` must start with `1`
 
         nStart = nzCount
         nzCount = evaluator(zBasisBitStr, nzCount) do pair, nCountLocal

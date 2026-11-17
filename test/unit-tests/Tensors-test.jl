@@ -131,9 +131,10 @@ end
     end
 
     #> A `PauliSum` that leaves the canonical form in every possible way: phases inside the 
-    #> strings, a descending order, different site counts (down to zero), operators 
+    #> strings, a descending order, different site counts (down to zero), and operators 
     #> that coincide up to a phase (`IX`, `-IX`) or up to the identity padding (`X`, 
-    #> `-XI`), two terms canceling each other, and one term with a zero coefficient.
+    #> `-XI`). In addition, its two `IX` terms cancel each other, and its `ZZ` term has a 
+    #> zero coefficient.
     strs = [pauli"IZ", pauli"X", pauli"-XI", pauli"iYI", pauli"-", pauli"IX", pauli"-IX", 
             pauli"ZZ"]
     hRaw = rawPSum(Int, strs, [2, 1, 3, 1, 5, 4, 4, 0])

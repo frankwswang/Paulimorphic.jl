@@ -39,13 +39,30 @@ using Paulimorphic: isIndexLabel, dumpTo!, posRea, posImg, negRea, negImg, setCo
 end
 
 @testset "dumpTo!" begin
+    #> Stand-in for the internal `Base.IdentityUnitRange`: a unit range that is its own axis
+    struct IdentityAxis <: AbstractUnitRange{Int}
+        indices::UnitRange{Int}
+    end
+
+    Base.first(axis::IdentityAxis) = first(axis.indices)
+    Base.last(axis::IdentityAxis) = last(axis.indices)
+    Base.axes(axis::IdentityAxis) = (axis,)
+    Base.show(io::IO, axis::IdentityAxis) = print(io, "IdentityAxis(", axis.indices, ")")
+
+    #> `axis[i] == i`, whereas the generic indexing of a range counts positions from one
+    function Base.getindex(axis::IdentityAxis, i::Integer)
+        i isa Bool && throw(ArgumentError("invalid index: $i of type Bool"))
+        checkbounds(axis, i)
+        Int(i)
+    end
+
     #> Minimal zero-based vector (axes start at 0) for testing the axis-mismatch tolerance
     struct ZeroBasedVector{T} <: AbstractVector{T}
         data::Vector{T}
     end
 
     Base.size(v::ZeroBasedVector) = size(v.data)
-    Base.axes(v::ZeroBasedVector) = (Base.IdentityUnitRange(0:(length(v.data) - 1)),)
+    Base.axes(v::ZeroBasedVector) = (IdentityAxis(0:(length(v.data) - 1)),)
     Base.getindex(v::ZeroBasedVector, i::Int) = v.data[begin+i]
 
     src = ZeroBasedVector([1.0, 2.0])
@@ -465,8 +482,8 @@ end
     @test (@allocated toMatrix(hDiag)) < 2^20 #> 1 MiB
     #>> The evaluator of the entries is concretely typed (otherwise, every column pays a 
     #>> run-time dispatch), and evaluating a column with it allocates nothing
-    evalArgTypes = (Type{Float64}, Memory{UInt}, Memory{UInt}, Memory{ComplexF64})
-    @test isconcretetype(only(Base.return_types(genPauliOpMatEntryEvaluator, evalArgTypes)))
+    @test (@inferred genPauliOpMatEntryEvaluator(Float64, xMasksDiag, zMasksDiag, 
+                                                 coeffsDiag)) isa Function
     evalDiag = genPauliOpMatEntryEvaluator(Float64, xMasksDiag, zMasksDiag, coeffsDiag)
     skipEntry(::Pair, ::Int) = nothing
     colLabel = UInt(5)
@@ -548,7 +565,7 @@ end
     end
 
     Base.size(m::ZeroBasedMatrix) = size(m.data)
-    Base.axes(m::ZeroBasedMatrix) = map(n->Base.IdentityUnitRange(0:(n - 1)), size(m.data))
+    Base.axes(m::ZeroBasedMatrix) = map(n->IdentityAxis(0:(n - 1)), size(m.data))
     Base.getindex(m::ZeroBasedMatrix, i::Int, j::Int) = m.data[begin+i, begin+j]
     Base.setindex!(m::ZeroBasedMatrix, v, i::Int, j::Int) = (m.data[begin+i, begin+j] = v)
 

@@ -58,7 +58,7 @@ toBitIntData(Int, rng, objName)
 #> by an `InexactError` throw.
 function adaptAdd(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
-        Base.checked_add(num1, num2)
+        Base.Checked.checked_add(num1, num2)
     elseif T <: ComplexBitSInteger
         x = adaptAdd(real(num1), real(num2))
         y = adaptAdd(imag(num1), imag(num2))
@@ -73,11 +73,11 @@ adaptAdd(num1::RealOrComplex, num2::RealOrComplex) = adaptAdd(promote(num1, num2
 
 function adaptMul(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
-        Base.checked_mul(num1, num2)
+        Base.Checked.checked_mul(num1, num2)
     elseif T <: ComplexBitSInteger
         x1, y1 = reim(num1)
         x2, y2 = reim(num2)
-        x = Base.checked_sub(adaptMul(x1, x2), adaptMul(y1, y2))
+        x = Base.Checked.checked_sub(adaptMul(x1, x2), adaptMul(y1, y2))
         y = adaptAdd(adaptMul(x1, y2), adaptMul(y1, x2))
         Complex(x, y)
     else
@@ -99,7 +99,7 @@ end
 
 function adaptNeg(num::T) where {T<:RealOrComplex}
     if T <: BitSInteger
-        Base.checked_neg(num)
+        Base.Checked.checked_neg(num)
     elseif T <: ComplexBitSInteger
         Complex(adaptNeg( real(num) ), adaptNeg( imag(num) ))
     else

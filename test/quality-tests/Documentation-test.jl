@@ -95,11 +95,12 @@ end
 @testset "Hidden API check" begin
     exempt = [Paulimorphic.getFrustrationInfoCore!, Paulimorphic.pasteBits!, 
               Paulimorphic.shiftBits!, Paulimorphic.stampBits!, Paulimorphic.genMemory, 
-              Paulimorphic.PauliTermDict]
+              Paulimorphic.PauliTermDict, Paulimorphic.compareBits, 
+              Paulimorphic.toBitIntData, Paulimorphic.traverseMatrixEntries]
     @test checkHiddenAPI(Paulimorphic, exempt)
 end
 
-@testset "Docstring-based est" begin
+@testset "Docstring-based test" begin
     DocMeta.setdocmeta!(Paulimorphic, :DocTestSetup, :(using Paulimorphic); recursive=true)
     doctest(Paulimorphic)
 end

@@ -193,6 +193,8 @@ end
 
     #> Fail-fast ordering: invalid `T` is reported first even when `enc` is also invalid
     @test_throws "one half" toDiracEnc(Int, PauliStr[] => PauliStr[])
+    @test_throws "core data type" toDiracEnc(AbstractFloat, PauliStr[] => PauliStr[])
+    @test_throws ArgumentError toDiracEnc(Rational{<:Signed}, enc)
 
     #> Invalid encoding is rejected up front
     @test_throws ArgumentError toDiracEnc(PauliStr[] => PauliStr[])

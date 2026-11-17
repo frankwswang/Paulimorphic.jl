@@ -43,5 +43,8 @@ const AbstractCallable = Union{Function, Type}
 const Interface = Union{AbstractCallable, Module}
 
 
+#> Necessary to avoid reconstruction of `Complex{<:BitSInteger}` on every runtime evaluation
+const ComplexBitSInteger{T<:BitSInteger} = Complex{T}
+
 #> Pre-declared functions for forward referencing in docstrings <#
 function toAdjoint end #> From Operations.jl

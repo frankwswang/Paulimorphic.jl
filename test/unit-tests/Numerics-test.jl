@@ -1,37 +1,63 @@
 using Test
-using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude
-using Paulimorphic: checkedAdd, checkedMul, checkedConj
+using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude, extendType
+using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, toBitIntData
 
 @testset "Numerics.jl" begin
-    @testset "checkedAdd / checkedMul / checkedConj" begin
+    @testset "adaptAdd / adaptMul / adaptConj / adaptNeg" begin
         #> Fixed-width signed integers (real, or as complex components) throw on overflow
-        @test checkedAdd(typemax(Int) - 1, 1) === typemax(Int)
-        @test_throws OverflowError checkedAdd(typemax(Int), 1)
-        @test_throws OverflowError checkedAdd(Int8(100), Int8(100))
-        @test checkedAdd(Complex(1, 2), Complex(3, 4)) === Complex(4, 6)
-        @test_throws OverflowError checkedAdd(Complex(0, typemax(Int)), Complex(0, 1))
-        @test checkedMul(2^31, 2^31) === 2^62
-        @test_throws OverflowError checkedMul(2^32, 2^32)
-        @test checkedMul(Complex(1, 2), Complex(3, 4)) === Complex(-5, 10)
-        @test_throws OverflowError checkedMul(Complex(2^32, 0), Complex(0, 2^32))
-        @test_throws OverflowError checkedMul(Complex(typemin(Int), 0), Complex(-1, 0))
-        @test checkedConj(Complex(1, 2)) === Complex(1, -2)
-        @test_throws OverflowError checkedConj(Complex(0, typemin(Int)))
-        @test_throws OverflowError checkedConj(Complex(Int8(0), typemin(Int8)))
+        @test adaptAdd(typemax(Int) - 1, 1) === typemax(Int)
+        @test_throws OverflowError adaptAdd(typemax(Int), 1)
+        @test_throws OverflowError adaptAdd(Int8(100), Int8(100))
+        @test adaptAdd(Complex(1, 2), Complex(3, 4)) === Complex(4, 6)
+        @test_throws OverflowError adaptAdd(Complex(0, typemax(Int)), Complex(0, 1))
+        @test adaptMul(2^31, 2^31) === 2^62
+        @test_throws OverflowError adaptMul(2^32, 2^32)
+        @test adaptMul(Complex(1, 2), Complex(3, 4)) === Complex(-5, 10)
+        @test_throws OverflowError adaptMul(Complex(2^32, 0), Complex(0, 2^32))
+        @test_throws OverflowError adaptMul(Complex(typemin(Int), 0), Complex(-1, 0))
+        @test adaptConj(Complex(1, 2)) === Complex(1, -2)
+        @test_throws OverflowError adaptConj(Complex(0, typemin(Int)))
+        @test_throws OverflowError adaptConj(Complex(Int8(0), typemin(Int8)))
+        @test adaptNeg(5) === -5 && adaptNeg(typemin(Int) + 1) === typemax(Int)
+        @test_throws OverflowError adaptNeg(typemin(Int))
+        @test_throws OverflowError adaptNeg(typemin(Int8))
+        @test adaptNeg(Complex(1, -2)) === Complex(-1, 2)
+        @test adaptNeg(Complex(typemax(Int), typemin(Int) + 1)) === 
+              Complex(typemin(Int) + 1, typemax(Int))
+        @test_throws OverflowError adaptNeg(Complex(typemin(Int), 0))
+        @test_throws OverflowError adaptNeg(Complex(Int8(0), typemin(Int8)))
 
         #> Operands of different types are promoted first: an overflow is detected in the 
         #> promoted type, and a narrower result is left to the caller's conversion
-        @test checkedMul(Int8(100), 2) === 200
-        @test checkedMul(Complex(Int8(1), Int8(2)), 3) === Complex(3, 6)
-        @test_throws OverflowError checkedMul(Int8(2), 2^62)
-        @test checkedMul(2.0, 3) === 6.0
+        @test adaptMul(Int8(100), 2) === 200
+        @test adaptMul(Complex(Int8(1), Int8(2)), 3) === Complex(3, 6)
+        @test_throws OverflowError adaptMul(Int8(2), 2^62)
+        @test adaptMul(2.0, 3) === 6.0
 
         #> Every other type keeps its own arithmetic (plain IEEE operations for floats)
-        @test checkedAdd(1.0, 2.0) === 3.0 && checkedMul(1.5, 2.0) === 3.0
-        @test checkedAdd(1e308, 1e308) === Inf
-        @test checkedConj(1.0 + 2.0im) === 1.0 - 2.0im
-        @test checkedMul(1//2, 2//3) === 1//3
-        @test checkedAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
+        @test adaptAdd(1.0, 2.0) === 3.0 && adaptMul(1.5, 2.0) === 3.0
+        @test adaptAdd(1e308, 1e308) === Inf
+        @test adaptConj(1.0 + 2.0im) === 1.0 - 2.0im
+        @test adaptNeg(1.5) === -1.5 && adaptNeg(0.0) === -0.0 #> Signed zero kept
+        @test adaptNeg(1.0 + 2.0im) === -1.0 - 2.0im
+        @test adaptMul(1//2, 2//3) === 1//3
+        @test adaptNeg(1//2) === -1//2
+        @test adaptNeg(Complex(1//2, -1//3)) === Complex(-1//2, 1//3)
+        @test adaptAdd(big(typemax(Int)), big(1)) == big(typemax(Int)) + 1
+        @test adaptNeg(big(typemin(Int))) == -big(typemin(Int))
+
+        #> `@allocated` is evaluated twice, so that the first one absorbs the compilation.
+        #> For the second evaluation, each adaptive operation should be allocation free.
+        for x in (3, 1.5, 1//2, Complex(1, 2), 1.0 + 2.0im, Complex(1//2, -1//3))
+            for f in (adaptAdd, adaptMul)
+                @allocated f(x, x)
+                @test (@allocated f(x, x)) == 0
+            end
+            for f in (adaptConj, adaptNeg)
+                @allocated f(x)
+                @test (@allocated f(x)) == 0
+            end
+        end
     end
 
     @testset "neumaierStep" begin
@@ -105,5 +131,54 @@ using Paulimorphic: checkedAdd, checkedMul, checkedConj
         @test evalMagnitude(ComplexF32(3, 4)) == 5f0
         @test evalMagnitude(3) == 3.0
         @test evalMagnitude(-3.0f0) == 3.0f0
+    end
+
+    @testset "extendType" begin
+        #> Same category (both floating-point or both exact): promoted; otherwise, `T`
+        @test extendType(Float32, Float64) === extendType(Float64, Float32) === Float64
+        @test extendType(Int16, Rational{Int8}) === Rational{Int16}
+        @test extendType(Int, Float64) === Float64
+        @test extendType(Float64, Rational{Int16}) === Rational{Int16}
+        #> A complex `T` has its real and imaginary parts extended alike
+        @test extendType(Int16, Complex{Rational{Int8}}) === Complex{Rational{Int16}}
+        @test extendType(Float64, Complex{Int}) === Complex{Int}
+        @test extendType(Float64, ComplexF64) === ComplexF64
+
+        #> The returned type sets the element type of accumulation buffers (e.g., in the 
+        #> constructors of `PauliSum` and in `mul`), so every method must be inferable
+        @test (@inferred extendType(Int, Float64)) === Float64
+        @test (@inferred extendType(Float64, ComplexF64)) === ComplexF64
+        @test (@inferred extendType(Float32, Complex{BigFloat})) === Complex{BigFloat}
+    end
+
+    @testset "toBitIntData" begin
+        @test toBitIntData(UInt8(3)) === 3
+        @test toBitIntData(true) === 1
+        @test toBitIntData(Int8, 3) === Int8(3)
+        @test toBitIntData(UInt(1):UInt(3)) === 1:3
+        @test toBitIntData(Int8, 5:4) === Int8(5):Int8(4) #> Empty range
+        @test_throws DomainError toBitIntData(Int8, 128)
+        @test_throws DomainError toBitIntData(typemax(UInt))
+        @test_throws DomainError toBitIntData(big(2)^70)
+        @test_throws DomainError toBitIntData(Int8, 1:200)
+
+        #> The error message refers to the unrepresentable value by the provided names
+        @test_throws "`val`" toBitIntData(Int8, 128)
+        @test_throws "`nSite`" toBitIntData(Int8, 128, :nSite)
+        @test_throws "`first(posPair)`" toBitIntData(Int8, 128, :posPair, :first)
+        @test_throws "`nSite`" toBitIntData(typemax(UInt), :nSite)
+        @test_throws "`last(posPair)`" toBitIntData(typemax(UInt), :posPair, :last)
+        @test_throws "`first(rng)`" toBitIntData(Int8, 200:300)
+        @test_throws "`last(rng)`" toBitIntData(Int8, 1:200)
+        @test_throws "`first(srcRange)`" toBitIntData(Int8, 200:300, :srcRange)
+        @test_throws "`last(srcRange)`" toBitIntData(UInt(1):typemax(UInt), :srcRange)
+
+        #> `@allocated` is evaluated twice, so that the first one absorbs the compilation. 
+        #> For the second evaluation, converting a representable range should be 
+        #> allocation free (i.e., no part of the error message is prepared in advance).
+        for rng in (2:5, UInt(2):UInt(5))
+            @allocated toBitIntData(rng, :srcRange)
+            @test (@allocated toBitIntData(rng, :srcRange)) == 0
+        end
     end
 end

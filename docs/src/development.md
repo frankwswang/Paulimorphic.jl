@@ -7,10 +7,11 @@ names can serve as the indicators of their functionalities and potential extensi
 
 ### Functions
 
-Function names are in camelCase. Except for common-operation names that can be described by 
-single verbs (e.g., [`Paulimorphic.add`](@ref)) and well-established algorithm names (e.g., 
-[`breadthFirstSearch`](@ref)), they should start with a verb. The following verb prefixes 
-carry fixed meanings:
+Function names are in camelCase. In particular, each function name should start with a word 
+that describes the **operation** or **expectation** of the function, potentially followed 
+by a noun phrase to specify the type of objects the function acts on.
+
+The following verb prefixes carry fixed meanings:
 
 * `is*` verifies a property of a single object (e.g., [`isHermitian`](@ref)).
 
@@ -21,10 +22,6 @@ carry fixed meanings:
 * `count*`, `list*`, `get*`, `index*`, `find*`, and `contain*` query information about 
   their input without altering it (e.g., [`countTerms`](@ref)).
 
-* `to*` returns a newly allocated object derived from its input, typically in another 
-  representation (e.g., [`toString`](@ref)); `as*` is reserved for views that share data 
-  with the input.
-
 * `gen*` and `build*` construct new objects (e.g., [`genLineGraph`](@ref), 
   [`buildMajoranaFrame`](@ref)).
 
@@ -32,11 +29,23 @@ carry fixed meanings:
   objects. For instance, the value can be a number (e.g., [`evalPhase`](@ref)) or an 
   operator (e.g., [`evalCommute`](@ref)).
 
+The following non-verb prefixes carry fixed meanings:
+
+* `to*` returns a newly allocated object derived from its input, typically in another 
+  representation (e.g., [`toString`](@ref)); `as*` is reserved for views that share data 
+  with the input.
+
+* `all*`/`any*` return a `Bool` that tells whether all/any of the inputs, or of the elements of an input, meet a certain condition.
+
 A function that (optionally) mutates any of its arguments should have a name that ends 
 with `!`; when exactly one argument is mutated, it is typically the first non-function, 
 non-type argument. A function is exempt from this rule when the only arguments it 
 (optionally) mutates are reusable cache-like data structures, which must be named with the 
 suffix `!Self` (e.g., `cache!Self` in [`breadthFirstSearch`](@ref)).
+
+!!! note "Exceptions to the function-name convention"
+    If a function is a direct implementation of a well-established algorithm, its name 
+    should also directly match the algorithm's name (e.g., [`breadthFirstSearch`](@ref)).
 
 ### Types
 
@@ -71,6 +80,41 @@ capitalized to accommodate the applied letter-case style):
 
 * `com`: "commutation", "commutator"
 
+## Optional argument policy
+
+The optional arguments of a function method (i.e., its arguments with default values) 
+should be declared as positional or keyword arguments according to the following rules:
+
+* When a method has only one optional argument, it should be a positional argument by 
+  default (e.g., `lowToHigh` in [`shift!`](@ref)).
+
+* When a method has multiple optional arguments, in general, at most one of them should be 
+  a positional argument, and the others should be keyword arguments (e.g., `srcRange` and 
+  `lowToHigh` in [`paste!`](@ref), respectively). More than one optional positional 
+  argument is allowed only when each later one is either semantically dependent on the 
+  earlier ones or closely related to them in functionality but (intended to be) less 
+  important, so that all the optional positional arguments are positioned in decreasing 
+  order of importance (e.g., `phase` after `siteOp` in a constructor of 
+  [`PauliStr`](@ref)). Optional arguments that are closely related in functionality and 
+  equally important should instead all be keyword arguments, which are position-agnostic 
+  (e.g., `denseString` and `omitPlusSign` in [`toString`](@ref)).
+
+* When an argument is a keyword argument in one method of a function, it should also be a 
+  keyword argument in every other method of the function that accepts it, even when it is 
+  the only optional argument of that method (e.g., `omitPlusSign` in method 
+  [`toString(::PhaseFactor; omitPlusSign::Bool=false)`](@ref)). Note that this does not 
+  mean that a keyword argument has to appear in all methods of the same function (name).
+
+## Argument conversion policy
+
+A public function that takes an `Integer`-based argument (e.g., an index or a count) but 
+hands an equivalent `Int`-based datum to its internal subroutines should perform the 
+conversion at the beginning of its body using `Paulimorphic.toBitIntData`, which throws a 
+well-formatted error when the conversion is not possible. Accordingly, the docstring of 
+such a function need not state any condition on the argument beyond its being 
+`Integer`-based, whereas the lower-level internal functions behind it should only receive 
+the corresponding `Int`-based variables as arguments.
+
 ## Export policy
 
 A public object is also exported unless it is one of the following:
@@ -80,8 +124,7 @@ A public object is also exported unless it is one of the following:
   `Base.:*` forwards to [`Paulimorphic.mul`](@ref), thus `mul` is public but not exported.
 
 * A function that manipulates instances of [`PauliStr`](@ref) or [`PauliSum`](@ref) but  
-  does not necessarily preserve or restore their canonical forms (e.g., 
-  [`Paulimorphic.setCoeff!`](@ref)).
+  does not necessarily preserve or restore their canonical forms.
 
 * A function that is designed as a lower-level building block for exported functions 
   (e.g., [`Paulimorphic.genNBodyOperator`](@ref)).

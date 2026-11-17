@@ -1,6 +1,7 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, setCoeff!, mul
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits
+using Random
 
 @testset "Strings.jl" begin
 
@@ -278,6 +279,7 @@ end
     @test_throws MethodError PauliSum(UInt8, h)
     @test_throws MethodError PauliSum(Rational{UInt8}, h)
     @test_throws ArgumentError PauliSum(AbstractFloat, [pauli""])
+    @test_throws ArgumentError PauliSum(Rational{<:Signed}, [pauli""])
     #> Sign-less coefficient inputs are rejected at dispatch (`im` is a `Complex{Bool}`)
     @test_throws MethodError PauliSum(Float64, [pauli"X"], im)
     @test_throws MethodError PauliSum([pauli"X"], [true])
@@ -289,6 +291,16 @@ end
 
     res2 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0])
     @test countTerms(res2) == 0
+
+    #> `simplification=false`: equal strings are merged all the same (the canonical form 
+    #> is unconditional); only the terms whose merged coefficient is exactly zero are 
+    #> retained, which leaves the sum outside the simplified form
+    res3 = PauliSum(fill(pauli"X", 3), [1e16, 1.0, -1e16], false)
+    @test res3 == res1
+    res4 = PauliSum(fill(pauli"X", 4), [1e16, 1.0, -1e16, -1.0], false)
+    @test countTerms(res4) == 1 && res4.coeff == Complex{Float64}[0.0]
+    @test isCanonical(res4) && !isCanonical(res4, true)
+    @test res4 == PauliSum(res4, false) && PauliSum(res4) == res2
 
     #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
     @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
@@ -320,6 +332,23 @@ end
     for p in ([2, 1, 3, 6, 5, 4], [6, 5, 4, 3, 2, 1], [3, 1, 5, 2, 6, 4], 
               [5, 3, 1, 4, 2, 6])
         @test PauliSum(strs[p], cs[p]) == ref
+    end
+
+    @testset "Term-filtering construction" begin
+        #> Stored order: ZI, IZ, XX
+        h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+        #> `selector` receives each term as a `Pair`; retained strings are shared with `h`
+        hf = PauliSum(term->countWeight(term.first) == 1 && real(term.second) > 2.0, h)
+        @test hf == PauliSum([pauli"ZI"], [3.0]) && hf.str[begin] === h.str[begin]
+        @test PauliSum(term->true, h) == h && PauliSum(term->false, h) == PauliSum(Float64)
+        @test PauliSum(term->true, PauliSum(Int)) == PauliSum(Int)
+        #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the 
+        #> check is lifted, in which case the retained terms simply keep the order of `h`
+        hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+        stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`: equal strings
+        @test_throws ArgumentError PauliSum(term->true, hd)
+        @test PauliSum(term->true, hd, false).coeff == ComplexF64[2.0, 1.0]
+        @test PauliSum(term->real(term.second) < 1.5, hd, false).coeff == ComplexF64[1.0]
     end
 end
 
@@ -378,14 +407,112 @@ end
     #> `copyStr` pass-through mirrors `indexTerm`
     @test setCoeff!(h, 2.0, 2, false).first === h.str[begin+1]
 
-    #> Documented non-merging: a zeroed coefficient leaves the term in place
+    #> Documented non-removal: a zeroed coefficient leaves the term in place, which keeps 
+    #> the canonical form (independent of the coefficients) but not the simplified form
     setCoeff!(h, 0, 3) #> `Real` input: converted, not rejected
     @test length(h.str) == 3 && iszero(h.coeff[end])
+    @test isCanonical(h) && !isCanonical(h, true)
+    @test h == PauliSum(h, false) && countTerms(PauliSum(h)) == 2
 
     #> Out-of-range `i` throws `DomainError` before any mutation occurs
     @test_throws DomainError setCoeff!(h, 99.0, 0)
     @test_throws DomainError setCoeff!(h, 99.0, 4)
     @test h.coeff == ComplexF64[3.0, 2.0, 0.0] #> Failed calls left `h` untouched
+
+    #> `coeff` is bound like every other coefficient input: `Bool`, `Unsigned`, and their 
+    #> complex forms (e.g., `im`) are rejected; a value that `Complex{T}` cannot represent 
+    #> throws `InexactError`
+    @test_throws MethodError setCoeff!(h, im, 1) #> `im` is a `Complex{Bool}`
+    @test_throws MethodError setCoeff!(h, true, 1)
+    @test_throws MethodError setCoeff!(h, 0x01, 1)
+    @test setCoeff!(h, 1im, 1) == (pauli"ZI" => 1.0im) #> `Complex{Int}` is accepted
+    hi = PauliSum([pauli"X"], [1])
+    @test_throws InexactError setCoeff!(hi, 0.5, 1)
+    @test_throws InexactError setCoeff!(hi, 1.5im, 1) #> Converted componentwise
+    @test hi.coeff == Complex{Int}[1] #> Failed conversions left `hi` untouched
+end
+
+@testset "isCanonical" begin
+    #> Constructor outputs are canonical, and simplified when `simplification=true`
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    @test isCanonical(h) && isCanonical(h, true)
+    @test isCanonical(PauliSum(Int)) && isCanonical(PauliSum(Int), true)
+    @test h == PauliSum(h, false) == PauliSum(h)
+
+    #> Retained zero-coefficient terms: canonical but not simplified
+    strs0 = [pauli"XX", pauli"IZ", pauli"ZI", pauli"ZI"]
+    h0 = PauliSum(strs0, [1.0, 0.0, 3.0, -3.0], false)
+    @test h0.str == [pauli"ZI", pauli"IZ", pauli"XX"] && h0.coeff == ComplexF64[0, 0, 1]
+    @test isCanonical(h0) && !isCanonical(h0, true)
+    @test h0 == PauliSum(h0, false) && h0 != PauliSum(h0)
+    @test PauliSum(h0) == PauliSum([pauli"XX"], [1.0])
+
+    #> Violations reachable only through the aliasing form of `indexTerm`: a phase left 
+    #> inside a stored string, strings out of order, and equal strings (the canonical order 
+    #> of `X` and `Z` on one site is `Z`, `X`)
+    hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    scale!(indexTerm(hp, 1, false).first, negRea)
+    @test !isCanonical(hp)
+    ho = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(ho, 1, false).first, 1, symY) #> `Z` -> `Y`, which sorts after `X`
+    @test !isCanonical(ho) && allunique(ho.str)
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
+    @test !isCanonical(hd) && issorted(hd.str)
+
+    #> Inconsistent site counts through direct assignment to `.str` (the strings below 
+    #> are still in ascending order, so only the site-count check can detect it)
+    hn = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    hn.str[begin+1] = pauli"XI"
+    @test !isCanonical(hn) && issorted(hn.str)
+    @test hn != PauliSum(hn, false)
+end
+
+@testset "canonicalize!" begin
+    #> A canonical sum is left as is, with the same term count
+    h = PauliSum([pauli"XX", pauli"IZ", pauli"ZI"], [1.0, 2.0, 3.0])
+    hc = deepcopy(h)
+    @test canonicalize!(hc) === hc && hc == h
+    @test canonicalize!(PauliSum(Float64)) == PauliSum(Float64)
+
+    #> In-place restoration: a phase left inside a stored string, and strings out of order 
+    #> (both through the aliasing form of `indexTerm`; the stored order of `X` and `Z` on 
+    #> one site is `Z`, `X`)
+    hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    scale!(indexTerm(hp, 1, false).first, negImg)
+    @test !isCanonical(hp)
+    @test canonicalize!(hp) === hp && isCanonical(hp)
+    @test hp == PauliSum([pauli"X", pauli"Z"], [1.0, -2.0im])
+    ho = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(ho, 1, false).first, 1, symY) #> `Z` -> `Y`: order becomes `Y`, `X`
+    @test !isCanonical(ho)
+    @test isCanonical(canonicalize!(ho)) && ho == PauliSum([pauli"Y", pauli"X"], [2.0, 1.0])
+
+    #> Conditions that cannot be restored in place throw before any mutation: strings 
+    #> equal up to their phases, and strings with different site counts
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
+    scale!(indexTerm(hd, 1, false).first, negRea)  #> ..., equal to the other up to phase
+    hdRef = deepcopy(hd)
+    @test_throws ArgumentError canonicalize!(hd)
+    @test hd == hdRef
+    @test PauliSum(hd, false) == PauliSum([pauli"X"], [-1.0]) #> The rebuild merges them
+    hn = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    hn.str[begin+1] = pauli"XI"
+    hnRef = deepcopy(hn)
+    @test_throws ArgumentError canonicalize!(hn)
+    @test hn == hnRef
+    hn.str[begin] = pauli"XI" #> Equal strings again, now sharing a site count of two
+    @test_throws ArgumentError canonicalize!(hn)
+
+    #> Phase absorption is overflow-checked for exact coefficient types; a failure leaves 
+    #> the offending term untouched, so `h` still represents the same operator
+    hi = PauliSum([pauli"X", pauli"Z"], [typemin(Int), 1]) #> Stored: `Z` => 1, `X` => min
+    indexTerm(hi, 2, false).first.phase = negRea
+    @test_throws OverflowError canonicalize!(hi)
+    @test hi.str[begin+1].phase == negRea && hi.coeff[begin+1] == Complex(typemin(Int))
+    @test PauliSum(Int128, hi) == 
+          PauliSum([pauli"X", pauli"Z"], [-Int128(typemin(Int)), Int128(1)])
 end
 
 #> `countWeight`
@@ -454,19 +581,33 @@ end
     hBig = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
     @test_throws OverflowError sumCoeffs(hBig)
     @test sumCoeffs(hBig, Int128) == Complex{Int128}(typemax(Int)) + 1
+    #> A non-concrete `R` is rejected by the core-type check, whatever the core type of `h`
+    @test_throws "core data type" sumCoeffs(h, Signed)
+    @test_throws "core data type" sumCoeffs(h, AbstractFloat)
+    @test_throws "core data type" sumCoeffs(PauliSum([pauli"X"], [3]), AbstractFloat)
+    @test_throws ArgumentError sumCoeffs(h, Rational{<:Signed})
 
     #> `checkForm` (`true` by default): the accumulation follows the term order of `h`, so 
     #> a sum that is not in the canonical form is rejected unless the check is lifted
     #>> Canonical subsets of a canonical sum are accepted
     @test sumCoeffs(curtail(h, 2.0)) == Complex(5.0)
-    #>> Equal strings out of the coefficient-keyed order (after `setCoeff!`)
-    hd = PauliSum([pauli"X", pauli"X"], [1.0, 2.0], false)
-    setCoeff!(hd, 3.0, 1)
+    #>> Retained zero-coefficient terms (canonical, not simplified) are accepted and do 
+    #>> not alter the result: after `setCoeff!`, or kept by `simplification=false`
+    hs = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    setCoeff!(hs, 0.0, 1)
+    @test isCanonical(hs) && sumCoeffs(hs) == sumCoeffs(PauliSum(hs)) == Complex(1.0)
+    hk = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
+    hk = sub(hk, pauli"YY"=>5.0, false)
+    @test countTerms(hk) == 4 && iszero(hk.coeff[end])
+    @test sumCoeffs(hk) == sumCoeffs(PauliSum(hk)) == Complex(1.0)
+    #>> Equal strings (through the aliasing form of `indexTerm`)
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
     @test !isCanonical(hd)
     @test_throws ArgumentError sumCoeffs(hd)
     @test_throws ArgumentError sumCoeffs(s -> true, hd, Float32)
-    @test sumCoeffs(hd; checkForm=false) == Complex(5.0)
-    @test sumCoeffs(canonicalize!(hd)) == Complex(5.0)
+    @test sumCoeffs(hd; checkForm=false) == Complex(3.0)
+    @test sumCoeffs(PauliSum(hd)) == Complex(3.0) #> The merged rebuild
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)
     hp = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
     indexTerm(hp, 1, false).first.phase = negRea
@@ -488,6 +629,112 @@ end
     @test curtail(PauliSum(Float64)) == PauliSum(Float64)
     #> Exact coefficient types: the default threshold only removes exact zeros
     @test curtail(PauliSum([pauli"X"], [1//10^9])) == PauliSum([pauli"X"], [1//10^9])
+    #> `checkForm` (`true` by default): a non-canonical `h` is rejected unless the check 
+    #> is lifted, in which case the retained terms simply keep the order of `h`
+    hd = PauliSum([pauli"X", pauli"Z"], [1.0, 2.0])
+    stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`: equal strings
+    @test_throws ArgumentError curtail(hd)
+    @test_throws ArgumentError curtail(hd, 1.5)
+    @test_throws DomainError curtail(hd, -1.0) #> `tolerance` is validated before the form
+    @test curtail(hd, checkForm=false).coeff == ComplexF64[2.0, 1.0]
+    @test curtail(hd, 1.5, checkForm=false).coeff == ComplexF64[2.0]
+end
+
+@testset "compareBits: shifted windows" begin
+    #> `compareSites` passes the same window for both buffers, so the shifted-window paths 
+    #>  of `compareBits` (`wordShift != 0`, `bitOffset != 0`) are reachable only directly
+    w1  = UInt8[0b0110_1001, 0b1101_0010]
+    w2  = UInt8[0x00, 0x40, 0x13] #> Bits 14:21 of `w2` equal bits 3:10 of `w1`
+    w2f = UInt8[0x00, 0x40, 0x12] #> `w2` with bit 17 flipped
+    @test  compareBits(w1, UInt8[0xd2], 9:16, 1:8) #> Word-aligned shift
+    @test  compareBits(w1, w2, 3:10, 14:21)        #> Misaligned, in either direction
+    @test  compareBits(w2, w1, 14:21, 3:10)
+    @test !compareBits(w1, w2f, 3:10, 14:21)
+    @test !compareBits(w2f, w1, 14:21, 3:10)
+    @test !compareBits(w1, w2, 3:20, 14:31)        #> Bits 11:16 of `w1` vs. zeros past `w2`
+    @test_throws ArgumentError compareBits(w1, w2, 1:4, 1:5)
+end
+
+@testset "compareSites" begin
+    #> Explicit sites, with the phases ignored
+    @test  compareSites(pauli"XZIY", pauli"XZIY")
+    @test  compareSites(pauli"XZIY", pauli"-iXZIY")
+    @test !compareSites(pauli"XZIY", pauli"YZIY") #> Site 1 differs
+    @test !compareSites(pauli"XZIY", pauli"XZIX") #> Site 4 differs
+
+    #> The window selects the compared sites
+    @test  compareSites(pauli"XZIY", pauli"XZIX", finalSite=3)
+    @test !compareSites(pauli"XZIY", pauli"XZIX", finalSite=4, startSite=4)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", finalSite=4, startSite=2)
+    @test  compareSites(pauli"XZIY", pauli"YZIY", finalSite=2, startSite=3) #> Empty window
+
+    #> Sites beyond the explicit site count carry the identity
+    @test  compareSites(pauli"XX", pauli"XXII")
+    @test  compareSites(pauli"XXII", pauli"XX")
+    @test !compareSites(pauli"XX", pauli"XXIX")
+    @test  compareSites(pauli"XX", pauli"XXIX", finalSite=3)
+    @test !compareSites(pauli"X", pauli"Z", finalSite=1000)
+    @test  compareSites(pauli"X", pauli"Z", finalSite=1000, startSite=2)
+    @test  compareSites(PauliStr(), PauliStr()) #> Default `finalSite` is 0: empty window
+    @test  compareSites(PauliStr(), pauli"-")
+    @test  compareSites(pauli"X", pauli"Z", finalSite=0)
+
+    #> Window edges at the word boundary (site 64 | site 65), and buffers of unequal length
+    a = stamp!(PauliStr(66), 64, symX)
+    b = stamp!(PauliStr(66), 65, symX)
+    @test  compareSites(a, b, finalSite=63)
+    @test !compareSites(a, b, finalSite=64)
+    @test !compareSites(a, b, finalSite=65, startSite=65)
+    @test  compareSites(a, b, finalSite=66, startSite=66)
+    @test  compareSites(a, PauliStr(a, 64)) #> Cropping keeps the `X` on site 64
+    @test !compareSites(b, PauliStr(b, 64)) #> Cropping drops the `X` on site 65
+    @test !compareSites(a, PauliStr())      #> Zero-site string: no word at all
+    @test  compareSites(a, PauliStr(), finalSite=63)
+    @test  compareSites(PauliStr(), b, finalSite=64)
+
+    #> Input validation
+    @test_throws DomainError compareSites(pauli"X", pauli"X", startSite=0)
+    @test_throws DomainError compareSites(pauli"X", pauli"X", finalSite=1, startSite=-1)
+
+    @testset "Cross-check with `indexSite`" begin
+        syms = [symI, symZ, symX, symY]
+        rng = MersenneTwister(1234)
+        for _ in 1:3000
+            a = PauliStr(PauliSym[rand(rng, syms) for _ in 1:rand(rng, 0:70)])
+            #> `b`: a cropped or identity-padded copy of `a`, or an unrelated string
+            b = if rand(rng, Bool)
+                PauliStr(a, rand(rng, 0:70))
+            else
+                PauliStr(PauliSym[rand(rng, syms) for _ in 1:rand(rng, 0:70)])
+            end
+            #> Overwrite one site of `b` half of the time
+            if !iszero(countSites(b)) && rand(rng, Bool)
+                stamp!(b, rand(rng, 1:countSites(b)), rand(rng, syms))
+            end
+
+            iFinal = rand(rng, 0:72)
+            iStart = rand(rng, 1:72)
+            ref = all(indexSite(a, k, true) == indexSite(b, k, true) for k in iStart:iFinal)
+            @test compareSites(a, b, finalSite=iFinal, startSite=iStart) == ref
+        end
+    end
+end
+
+@testset "Integer site indices and counts" begin
+    #> Any `Integer` is accepted at the surface and converted to `Int` on entry
+    @test PauliStr(UInt(3)) == PauliStr(3)
+    @test PauliStr(pauli"XZ", UInt8(3)) == pauli"XZI"
+    @test indexSite(pauli"XZ", UInt(2)) == symZ
+    @test toString(pauli"XZ", Int8(2)) == "Z₂"
+    @test indexTerm(PauliSum([pauli"X"], [1]), UInt(1)).first == pauli"X"
+    @test shift!(pauli"XIII", UInt(1)) == pauli"IXII"
+    @test paste!(pauli"XIII", UInt8(1), pauli"ZZ", UInt(1):UInt(2)) == pauli"ZZII"
+    @test stamp!(pauli"XIII", UInt(2), symZ, Int8(2)) == pauli"XZZI"
+    @test countSites(reframe(PauliSum([pauli"X"], [1]), UInt(4))) == 4
+    @test  compareSites(pauli"XX", pauli"XXIX", finalSite=UInt(3), startSite=UInt8(2))
+    @test !compareSites(pauli"XX", pauli"XXIX", finalSite=Int128(4))
+    @test_throws DomainError PauliStr(typemax(UInt))
+    @test_throws DomainError indexSite(pauli"XZ", typemax(UInt), true)
 end
 
 end

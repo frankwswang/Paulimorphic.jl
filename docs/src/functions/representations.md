@@ -37,5 +37,6 @@ encodeElecHam
 evalPhase
 evalMagnitude
 toMatrix
+toMatrix!
 extendType
 ```

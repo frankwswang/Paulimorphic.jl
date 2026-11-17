@@ -450,7 +450,7 @@ any `g1 == g`, replacing `g` with `g1` does not change the outputs of `genRootGr
       deterministically follow one of the two.
 """
 function genRootGraph(g::StrictGraph{T}, 
-                      cache!Self::Union{AbstractVector{NTuple{2, T}}, Missing}=missing; 
+                      cache!Self::MissingOr{AbstractVector{ NTuple{2, T} }}=missing; 
                       checkConnectivity::Bool=true) where {T<:Integer}
     if checkConnectivity && !isConnected(g)
         throw(ArgumentError("The input graph `g` must be connected."))

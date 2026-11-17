@@ -621,7 +621,7 @@ spatial-orbital modes per spin sector, `nMode1` and `nMode2`, are inferred from
 tensors must match these counts, whereas the total number of spin-orbital modes covered by 
 `enc` can exceed `nMode1 + nMode2`. 
 
-## Deciding the ordering of two-body terms
+# Deciding the ordering of two-body terms
 
 The form of the two-body terms in ``\\hat{H}_{\\mathrm{elec}}`` (as well as in 
 ``\\hat{H}_s``) described above, 
@@ -660,7 +660,7 @@ regardless of the value of `format`.
     returned `PauliSum` is obtained from a single compensated summation over all of its 
     contributions in the Hamiltonian.
 
-## Simplified method
+# Simplified method
 
     encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 
@@ -680,7 +680,7 @@ spatial-orbital tensor pair `orbInte1B2B`, i.e., shorthand for
     encodeElecHam(format, enc, orbInte1B2B, orbInte1B2B, last(orbInte1B2B), 
                   checkEncoding; hermiticity, idxPairSymm)
 
-## Symmetry assertion
+# Symmetry assertion
 In both method signatures of `encodeElecHam`, keyword argument `hermiticity` (`true` by 
 default) asserts the pairwise Hermiticity of all the input integral tensors (from 
 `inte1B2BSpin1`, from `inte1B2BSpin2`, and `inte2BCross`), and each element of 

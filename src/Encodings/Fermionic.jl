@@ -130,15 +130,15 @@ end
 
 
 function checkEncodingCounts(nMode::Integer, nSite::Integer)
-    nModeInt = Int(nMode)
-    nSiteInt = Int(nSite)
+    nModeInt = toBitIntData(nMode, :nMode)
+    nSiteInt = toBitIntData(nSite, :nSite)
 
     if nModeInt < 1
-        throw(DomainError(nModeInt, "`Int(nMode)` must be positive."))
+        throw(DomainError(nModeInt, "`nMode` must be positive."))
     end
 
     if nSiteInt < nModeInt
-        throw(DomainError(nSiteInt, "`Int(nSite)` must be no less than `Int(nMode)`."))
+        throw(DomainError(nSiteInt, "`nSite` must be no less than `nMode`."))
     end
 
     (nModeInt, nSiteInt)
@@ -165,8 +165,8 @@ As a result, the expression of each occupation-number vector state remains uncha
 Pauli-Z basis: 
 
 ```math
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle \\mapsto
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle.
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{mode}} \\mapsto
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{qubit}}.
 ```
 
 The maximum Pauli weight (i.e., the number of non-identity single-qubit Pauli operators) of 
@@ -222,9 +222,9 @@ encoding the prefix-sum dual of the Jordan–Wigner encoding. Each occupation-nu
 state is represented by its prefix-parity counterpart in the Pauli-Z basis:
 
 ```math
-\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle \\mapsto
+\\lvert n_1, n_2, \\ldots, n_p, \\ldots \\rangle_{\\mathrm{mode}} \\mapsto
 \\lvert n_1, n_1 \\veebar n_2, \\ldots, n_1 \\veebar \\cdots 
-\\veebar n_p, \\ldots \\rangle,
+\\veebar n_p, \\ldots \\rangle_{\\mathrm{qubit}},
 ```
 
 where ``\\veebar`` denotes the XOR (exclusive or) operation on the binary occupation 
@@ -378,6 +378,7 @@ method falls back to the first method with `T=Rational{Int}`. The result in both
 does not reference any data in `enc`.
 """
 function toDiracEnc(::Type{T}, enc::PairwiseStrEnc)::PairwiseSumEnc where {T<:SignedReal}
+    checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
     oneHalf = one(T) / 2
     if !(oneHalf isa T) || oneHalf + oneHalf != one(T)
         throw(ArgumentError("`T` must be able to exactly represent one half (`1//2`)."))
@@ -488,11 +489,12 @@ for every mode pair `(p, q)`. The adjoint condition is checked structurally (via
 swapping `enc.first` and `enc.second`, so the annihilation-versus-creation role assignment 
 is a positional convention carried by the `Pair` structure rather than a checkable property.
 
-Additionally, `enc` must be formatted such that
-- All contained `PauliSum` are in the canonical form (see [`PauliSum`](@ref) and 
-  [`canonicalize!`](@ref) for more details)
+Additionally, `enc` must be formatted such that:
+
+- All contained `PauliSum` are in the [canonical form](@ref `PauliSum`) (also see 
+  [`isCanonical`](@ref)).
 - All contained `PauliSum` explicitly act on the same number of sites (i.e., 
-  [`countSites`](@ref) returns the same value)
+  [`countSites`](@ref) returns the same value).
 
 When `strRestricted=true`, `enc` must additionally be convertible to a Pauli-string-based 
 Majorana encoding: for each mode `p`, ``\\hat{a}_p + \\hat{c}_p`` and 

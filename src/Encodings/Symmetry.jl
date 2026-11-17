@@ -80,7 +80,8 @@ function checkInteParticleExchange(inte::AbstractArray{<:RealOrComplex, D},
                                    explicitError::Bool=false)::Bool where {D}
     iseven(D) || throw(ArgumentError("`ndims(inte)` must be even."))
     nParticle = D ÷ 2
-    p, q = minmax(Int(posPair[begin]), Int(posPair[end]))
+    p, q = minmax(toBitIntData(posPair[begin], :posPair, :first), 
+                  toBitIntData(posPair[ end ], :posPair,  :last))
     if !(1 <= p && q <= nParticle)
         throw(DomainError(posPair, "Both elements in `posPair` must be within "*
                                    "`1:$nParticle`."))
@@ -147,10 +148,10 @@ function checkIntePairTransposition(inte::AbstractArray{<:RealOrComplex, D}, pos
                                     explicitError::Bool=false)::Bool where {D}
     iseven(D) || throw(ArgumentError("`ndims(inte)` must be even."))
     nParticle = D ÷ 2
-    if !(1 <= pos <= nParticle)
+    p = toBitIntData(pos, :pos)
+    if !(1 <= p <= nParticle)
         throw(DomainError(pos, "`pos` must be within `1:$nParticle`."))
     end
-    p = Int(pos)
 
     axisPerm = ntuple(d->(d == 2p-1 ? 2p : (d == 2p ? 2p-1 : d)), Val(D))
     idx = findAxisPermViolation(inte, axisPerm, false)

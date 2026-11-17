@@ -1,46 +1,109 @@
 public extendType, evalMagnitude
 
-#> Overflow-check arithmetics for numeric types based on fixed-width signed integers. Every 
-#> other type falls back to `+`, `*`, and `conj` (so floating-point arithmetic remains). 
-#> Different numeric types are first promoted before the operation, where an overflow can 
-#> be automatically detected via type conversion, followed by an `InexactError` throw.
-function checkedAdd(num1::T, num2::T) where {T<:RealOrComplex}
+"""
+    toBitIntData(::Type{T}, val::Integer, objName::Symbol=:val, 
+                 accessorName::Union{Missing, Symbol}=missing
+                 ) where {T<:$BitSInteger} -> 
+    T
+
+    toBitIntData(val::Integer, objName::Symbol=:val, 
+                 accessorName::Union{Missing, Symbol}=missing) -> 
+    Int
+
+Convert `val` to `T` (by default, `Int`), or throw a `DomainError` when `val` is not 
+representable by `T`. The error message refers to `val` as `\$objName` if `accessorName` 
+is `missing` (the default), and as `\$accessorName(\$objName)` otherwise.
+"""
+function toBitIntData(::Type{T}, val::Integer, objName::Symbol=:val, 
+                      accessorName::MissingOr{Symbol}=missing) where {T<:BitSInteger}
+    if !(applicable(T, val) && typemin(T) <= val <= typemax(T))
+        valName = ismissing(accessorName) ? "$objName" : "$accessorName($objName)"
+        throw(DomainError(val, "Aside from being an `Integer`, `$valName` must also "*
+                               "be representable by `$T`."))
+    end
+
+    T(val)
+end
+
+toBitIntData(val::Integer, objName::Symbol=:val, 
+             accessorName::MissingOr{Symbol}=missing) = 
+toBitIntData(Int, val, objName, accessorName)
+
+"""
+    toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, objName::Symbol=:rng
+                 ) where {T<:$BitSInteger} -> 
+    UnitRange{T}
+
+    toBitIntData(rng::UnitRange{<:Integer}, objName::Symbol=:rng) -> UnitRange{Int}
+
+Convert `rng` to `UnitRange{T}`, throwing an individual error message when either the 
+start or the stop index of `rng` (referred to as `first(\$objName)` or 
+`last(\$objName)`, respectively) is not representable by `T`.
+"""
+function toBitIntData(::Type{T}, rng::UnitRange{<:Integer}, objName::Symbol=:rng
+                      ) where {T<:BitSInteger}
+    lo = toBitIntData(T, first(rng), objName, :first)
+    hi = toBitIntData(T, last(rng), objName, :last)
+    lo:hi
+end
+
+toBitIntData(rng::UnitRange{<:Integer}, objName::Symbol=:rng) = 
+toBitIntData(Int, rng, objName)
+
+
+#> Adaptive overflow-check arithmetics for numeric types based on fixed-width signed 
+#> integers. Every other type falls back to `+`, `*`, `conj`, and `-` (so floating-point 
+#> arithmetic remains unchanged). Different numeric types are first promoted before the 
+#> operation, where an overflow can be automatically detected via type conversion, followed 
+#> by an `InexactError` throw.
+function adaptAdd(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
-        Base.checked_add(num1, num2)
-    elseif T <: Complex{<:BitSInteger}
-        x = Base.checked_add(real(num1), real(num2))
-        y = Base.checked_add(imag(num1), imag(num2))
+        Base.Checked.checked_add(num1, num2)
+    elseif T <: ComplexBitSInteger
+        x = adaptAdd(real(num1), real(num2))
+        y = adaptAdd(imag(num1), imag(num2))
         Complex(x, y)
     else
         num1 + num2
     end
 end
 
-checkedAdd(num1::RealOrComplex, num2::RealOrComplex) = checkedAdd(promote(num1, num2)...)
+adaptAdd(num1::RealOrComplex, num2::RealOrComplex) = adaptAdd(promote(num1, num2)...)
 
 
-function checkedMul(num1::T, num2::T) where {T<:RealOrComplex}
+function adaptMul(num1::T, num2::T) where {T<:RealOrComplex}
     if T <: BitSInteger
-        Base.checked_mul(num1, num2)
-    elseif T <: Complex{<:BitSInteger}
+        Base.Checked.checked_mul(num1, num2)
+    elseif T <: ComplexBitSInteger
         x1, y1 = reim(num1)
         x2, y2 = reim(num2)
-        x = Base.checked_sub(Base.checked_mul(x1, x2), Base.checked_mul(y1, y2))
-        y = Base.checked_add(Base.checked_mul(x1, y2), Base.checked_mul(y1, x2))
+        x = Base.Checked.checked_sub(adaptMul(x1, x2), adaptMul(y1, y2))
+        y = adaptAdd(adaptMul(x1, y2), adaptMul(y1, x2))
         Complex(x, y)
     else
         num1 * num2
     end
 end
 
-checkedMul(num1::RealOrComplex, num2::RealOrComplex) = checkedMul(promote(num1, num2)...)
+adaptMul(num1::RealOrComplex, num2::RealOrComplex) = adaptMul(promote(num1, num2)...)
 
 
-function checkedConj(num::T) where {T<:RealOrComplex}
-    if T <: Complex{<:BitSInteger}
-        Complex(real(num), Base.checked_neg( imag(num) ))
+function adaptConj(num::T) where {T<:RealOrComplex}
+    if T <: ComplexBitSInteger
+        Complex(real(num), adaptNeg( imag(num) ))
     else
         conj(num)
+    end
+end
+
+
+function adaptNeg(num::T) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        Base.Checked.checked_neg(num)
+    elseif T <: ComplexBitSInteger
+        Complex(adaptNeg( real(num) ), adaptNeg( imag(num) ))
+    else
+        -num
     end
 end
 
@@ -66,7 +129,7 @@ function neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:FloatOrComp
 end
 
 neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} = 
-(checkedAdd(total, val), residue)
+(adaptAdd(total, val), residue)
 
 
 function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}

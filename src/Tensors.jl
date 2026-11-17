@@ -157,44 +157,51 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                                      coeffs::AbstractVector{C}
                                      ) where {T<:SignedReal, C<:Complex{<:SignedReal}}
     extT = extendType(T, C)
-    accumulator = NeuAccumulator{UInt, extT}()
     nTerm = length(coeffs)
 
     if !(nTerm == length(xMasks) == length(zMasks))
         throw(ArgumentError("`xMasks`, `zMasks`, and `coeffs` must have the same length."))
     end
 
+    #> Permuted indices are stable and zero-based: used for grouping strings of same `xMask`
+    posPerm = (sortperm(xMasks) .-= firstindex(xMasks))
+
     function evaluateEntry(processor::F, zBitStr::UInt, nzCount::Int
                            ) where {F<:AbstractCallable}
         nzCount < 0 && throw(DomainError(nzCount, "`nzCount` must be non-negative."))
-        empty!(accumulator)
+        naiveSum = zero(extT)
+        sResidue = zero(extT)
 
-        @inbounds for iTerm in 0:(nTerm-1)     #> Zero-based term indexer
-            coeff = extT(coeffs[begin+iTerm])  #> `coeff` is represented in the extend type
-            iszero(coeff) && continue          #> Skip the terms with zero coefficients
+        @inbounds for (i, shift) in enumerate(posPerm)
+            coeff = extT(coeffs[begin+shift]) #> `coeff` is represented in the extend type
+            xMask = xMasks[begin+shift]
+            zMask = zMasks[begin+shift]
 
-            xMask = xMasks[begin+iTerm]
-            zMask = zMasks[begin+iTerm]
+            if !iszero(coeff)
+                #> Update the coefficient associated with a Pauli-Z basis state labeled by 
+                #> `zBitStr` when a Pauli  term P(`xMask`, zMask`, `coeff`) acts on it:
+                #> P |zBitStr> = coeff * (-1)^count_ones(zMask & zBitStr) |zBitStr ⊻ xMask>
+                termCoeff = isodd(count_ones(zMask & zBitStr)) ? adaptNeg(coeff) : coeff
 
-            #> Update the coefficient associated with a Pauli-Z basis state labeled by 
-            #> `zBitStr` when a Pauli  term P(`xMask`, zMask`, `coeff`) acts on it:
-            #> P |zBitStr> = coeff * (-1)^count_ones(zMask & zBitStr) |zBitStr ⊻ xMask>
-            termCoeff = isodd(count_ones(zMask & zBitStr)) ? adaptNeg(coeff) : coeff
+                #> Add the coefficient associated with a Pauli term of the same `xMask`
+                naiveSum, sResidue = neumaierAdd(naiveSum, termCoeff, sResidue)
+            end
 
-            #> Sum over coefficients associated with all Pauli terms with the same `xMask`
-            updateNeuAccumulator!(accumulator, xMask=>termCoeff)
-        end
+            #> At the end of current `xMask` group
+            if i == nTerm || xMask != xMasks[begin+posPerm[begin+i]]
+                #>> Process the accumulated coefficient sum from the last group
+                nzRow = reinterpret(Int, xor(xMask, zBitStr)) + 1
+                nzCol = reinterpret(Int, zBitStr) + 1
+                coeffSum = Complex{T}(adaptAdd(naiveSum, sResidue))
+                if !iszero(coeffSum)
+                    #>> `(nzRow, nzCol)` points to `coeffSum` for terms with equal `xMask`
+                    processor((nzRow, nzCol)=>coeffSum, nzCount)
+                    nzCount += 1
+                end
 
-        for pair in accumulator
-            naiveSum, residue = pair.second
-            nzRow = reinterpret(Int, xor(pair.first, zBitStr)) + 1
-            nzCol = reinterpret(Int, zBitStr) + 1
-            coeffSum = Complex{T}(adaptAdd(naiveSum, residue))
-
-            if !iszero(coeffSum)
-                #> Entry at `(nzRow, nzCol)` holds coeff-sum of all terms with equal `xMask`
-                processor((nzRow, nzCol)=>coeffSum, nzCount)
-                nzCount += 1
+                #>> Reset both summation components to zero
+                naiveSum = zero(extT)
+                sResidue = zero(extT)
             end
         end
 

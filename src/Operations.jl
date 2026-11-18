@@ -720,17 +720,17 @@ function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     allFinite = true
 
     for (i, op) in zip((1, 2), (op1, op2))
-        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
+        allFinite *= checkFinitePauliCoeffs(op, Symbol(:op, i), onlyFinite)
     end
     allFinite || (return false)
 
     (op1 === op2 || lazyCanonicalize(op1) == lazyCanonicalize(op2)) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
-    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+    checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
 
     prod2 = mul(op2, op1)::PauliSum
-    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+    checkFinitePauliCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
 
     prod1 == prod2
 end
@@ -763,15 +763,15 @@ function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     allFinite = true
 
     for (i, op) in zip((1, 2), (op1, op2))
-        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
+        allFinite *= checkFinitePauliCoeffs(op, Symbol(:op, i), onlyFinite)
     end
     allFinite || (return false)
 
     prod1 = mul(op1, op2)::PauliSum
-    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+    checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
 
     prod2 = mul(op2, op1)::PauliSum
-    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+    checkFinitePauliCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
 
     prod1.str == prod2.str || (return false)
     all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
@@ -824,7 +824,7 @@ end
 function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
     if onlyFinite
         for (i, op) in zip((1, 2), (op1, op2))
-            checkNonFiniteCoeffs(op, Symbol(:op, i))
+            checkFinitePauliCoeffs(op, Symbol(:op, i))
         end
     end
 
@@ -834,10 +834,10 @@ function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
     end
 
     prod1 = mul(op1, op2)::PauliSum
-    onlyFinite && checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"))
+    onlyFinite && checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"))
 
     prod2 = mul(op2, op1)::PauliSum
-    onlyFinite && checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"))
+    onlyFinite && checkFinitePauliCoeffs(prod2, Symbol("op2 * op1"))
 
     coeffs = MemoryChain(prod1.coeff, map(adaptNeg, prod2.coeff))
     PauliSum(MemoryChain(prod1.str, prod2.str), coeffs)
@@ -888,15 +888,15 @@ end
 function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
     if onlyFinite
         for (i, op) in zip((1, 2), (op1, op2))
-            checkNonFiniteCoeffs(op, Symbol(:op, i))
+            checkFinitePauliCoeffs(op, Symbol(:op, i))
         end
     end
 
     prod1 = mul(op1, op2)::PauliSum
-    onlyFinite && checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"))
+    onlyFinite && checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"))
 
     prod2 = mul(op2, op1)::PauliSum
-    onlyFinite && checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"))
+    onlyFinite && checkFinitePauliCoeffs(prod2, Symbol("op2 * op1"))
 
     PauliSum(MemoryChain(prod1.str, prod2.str), MemoryChain(prod1.coeff, prod2.coeff))
 end

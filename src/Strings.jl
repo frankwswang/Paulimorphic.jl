@@ -2004,6 +2004,18 @@ sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
 sumCoeffs(_->true, h, R; checkForm)
 
 
-hasOnlyFiniteCoeffs(h::PauliSum) = all(isfinite, h.coeff)
+function checkNonFiniteCoeffs(op::T, opName::Symbol, explicitError::Bool=true
+                              ) where {T<:PauliStrOrSum}
+    if T <: PauliSum
+        if !all(isfinite, op.coeff)
+            if explicitError
+                throw(ArgumentError("`$opName::$T` contains at least one term with a "*
+                                    "non-finite coefficient."))
+            else
+                return false
+            end
+        end
+    end
 
-hasOnlyFiniteCoeffs(::PauliStr) = true
+    true
+end

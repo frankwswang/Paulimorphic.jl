@@ -686,13 +686,13 @@ end
 
 
 """
-    checkCommute(op1::PauliStr, op2::PauliStr) -> Bool
+    checkCommute(op1::PauliStr, op2::PauliStr, onlyFinite::Bool=true) -> Bool
 
-    checkCommute(op1::PauliStr, op2::PauliSum) -> Bool
+    checkCommute(op1::PauliStr, op2::PauliSum, onlyFinite::Bool=true) -> Bool
 
-    checkCommute(op1::PauliSum, op2::PauliStr) -> Bool
+    checkCommute(op1::PauliSum, op2::PauliStr, onlyFinite::Bool=true) -> Bool
 
-    checkCommute(op1::PauliSum, op2::PauliSum) -> Bool
+    checkCommute(op1::PauliSum, op2::PauliSum, onlyFinite::Bool=true) -> Bool
 
 Return `true` if `op1` and `op2` commute. For two `PauliStr`, `false` also means they 
 anticommute. In other cases, no such dichotomy exists. When the two operators 
@@ -700,8 +700,12 @@ explicitly act on different numbers of sites, commutation is evaluated under the
 identity-padding convention (see [`PauliStr`](@ref) and [`PauliSum`](@ref)): the sites of 
 the longer Pauli string beyond the shorter one's site count act against identities and 
 never affect the result.
+
+If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2`, 
+`op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). If 
+`onlyFinite=false`, any non-finite coefficient detected leads to `false` being returned.
 """
-function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
+function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
     z2, x2 = op2.z, op2.x
     nWord = min(length(z1), length(z2))   #> Shorter string is complemented with identities
@@ -712,58 +716,80 @@ function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
     iseven(parity)
 end
 
-function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
-    if hasOnlyFiniteCoeffs(op1) && hasOnlyFiniteCoeffs(op2)
-        prod1 = mul(op1, op2)::PauliSum
-        prod2 = mul(op2, op1)::PauliSum
-        prod1 == prod2
-    else
-        false
+function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
+    allFinite = true
+
+    for (i, op) in zip((1, 2), (op1, op2))
+        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
     end
+    allFinite || (return false)
+
+    prod1 = mul(op1, op2)::PauliSum
+    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+
+    prod2 = mul(op2, op1)::PauliSum
+    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+
+    prod1 == prod2
 end
 
 
 """
-    checkAntiCom(op1::PauliStr, op2::PauliStr) -> Bool
+    checkAntiCom(op1::PauliStr, op2::PauliStr, onlyFinite::Bool=true) -> Bool
 
-    checkAntiCom(op1::PauliStr, op2::PauliSum) -> Bool
+    checkAntiCom(op1::PauliStr, op2::PauliSum, onlyFinite::Bool=true) -> Bool
 
-    checkAntiCom(op1::PauliSum, op2::PauliStr) -> Bool
+    checkAntiCom(op1::PauliSum, op2::PauliStr, onlyFinite::Bool=true) -> Bool
 
-    checkAntiCom(op1::PauliSum, op2::PauliSum) -> Bool
+    checkAntiCom(op1::PauliSum, op2::PauliSum, onlyFinite::Bool=true) -> Bool
 
 Return `true` if `op1` and `op2` anticommute; otherwise, return `false`. For two 
 `PauliStr`, this function is the logical negation of [`checkCommute`](@ref). In other 
 cases, no such dichotomy exists. When the operators explicitly act on different numbers of 
 sites, the implicit identity-padding convention applies (see [`PauliStr`](@ref) and 
 [`PauliSum`](@ref)).
+
+If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2`, 
+`op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). If 
+`onlyFinite=false`, any non-finite coefficient detected leads to `false` being returned.
 """
-function checkAntiCom(op1::PauliStr, op2::PauliStr)::Bool
+function checkAntiCom(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     !checkCommute(op1, op2)
 end
 
-function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
-    if hasOnlyFiniteCoeffs(op1) && hasOnlyFiniteCoeffs(op2)
-        prod1 = mul(op1, op2)::PauliSum
-        prod2 = mul(op2, op1)::PauliSum
-        prod1.str == prod2.str || (return false)
-        all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
-            checkNeg(coeff1, coeff2)
-        end
-    else
-        false
+function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
+    allFinite = true
+
+    for (i, op) in zip((1, 2), (op1, op2))
+        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
+    end
+    allFinite || (return false)
+
+    prod1 = mul(op1, op2)::PauliSum
+    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+
+    prod2 = mul(op2, op1)::PauliSum
+    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+
+    prod1.str == prod2.str || (return false)
+    all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
+        checkNeg(coeff1, coeff2)
     end
 end
 
 
 """
-    evalCommute(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
+    evalCommute(op1::PauliStr, op2::PauliStr, onlyFinite::Bool=true) -> PauliSum{Int}
 
-    evalCommute(op1::PauliStr, op2::PauliSum{T}) where {T<:SignedReal} -> PauliSum{T}
+    evalCommute(op1::PauliStr, op2::PauliSum{T}, onlyFinite::Bool=true
+                ) where {T<:SignedReal} -> 
+    PauliSum{T}
 
-    evalCommute(op1::PauliSum{T}, op2::PauliStr) where {T<:SignedReal} -> PauliSum{T}
+    evalCommute(op1::PauliSum{T}, op2::PauliStr, onlyFinite::Bool=true
+                ) where {T<:SignedReal} -> 
+    PauliSum{T}
 
-    evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}
+    evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}, onlyFinite::Bool=true
                 ) where {T1<:SignedReal, T2<:SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
@@ -775,41 +801,55 @@ of [`$(mul|>repr)`](@ref), so when the two operators explicitly act on different
 sites, the returned sum explicitly acts on the larger site count. When the commutator is 
 zero (i.e., when `op1` and `op2` commute), this function returns an empty `PauliSum` as the 
 zero operator.
+
+If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2`, 
+`op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). Whenever 
+a commutator is returned under this setting, it is the zero operator if and only if 
+[`checkCommute(op1, op2, true)`](@ref `checkCommute`) also returns `true`. 
+If `onlyFinite=false`, the commutator is evaluated without these validations, in which case 
+non-finite coefficients propagate through the floating-point arithmetic (e.g., `Inf - Inf` 
+leaves a term with a `NaN` coefficient), and the result may not be consistent with 
+`checkCommute`. In either case, the coefficients of the returned commutator are still 
+subject overflow or floating-point arithmetic errors. `onlyFinite` has no effect in method 
+`evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 """
-function evalCommute(op1::PauliStr, op2::PauliStr)
+function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
     prod2 = mul(op2, op1)
     prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
 end
 
 function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
-    if onlyFinite
-        for (i, op) in zip((1, 2), (op1, op2))
-            if !hasOnlyFiniteCoeffs(op)
-                throw(ArgumentError("`op$i` contains at least one term with a non-finite "*
-                                    "coefficient."))
-            end
-        end
+    allFinite = true
+
+    for (i, op) in zip((1, 2), (op1, op2))
+        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
     end
+    allFinite || (return false)
+
     prod1 = mul(op1, op2)::PauliSum
+    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+
     prod2 = mul(op2, op1)::PauliSum
-    if onlyFinite && hasOnlyFiniteCoeffs(prod1)
-        throw(ArgumentError("`op1 * op2` contains at least one term with a non-finite "*
-                            "coefficient."))
-    end
+    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+
     coeffs = MemoryChain(prod1.coeff, map(adaptNeg, prod2.coeff))
     PauliSum(MemoryChain(prod1.str, prod2.str), coeffs)
 end
 
 
 """
-    evalAntiCom(op1::PauliStr, op2::PauliStr) -> PauliSum{Int}
+    evalAntiCom(op1::PauliStr, op2::PauliStr, onlyFinite::Bool=true) -> PauliSum{Int}
 
-    evalAntiCom(op1::PauliStr, op2::PauliSum{T}) where {T<:SignedReal} -> PauliSum{T}
+    evalAntiCom(op1::PauliStr, op2::PauliSum{T}, onlyFinite::Bool=true
+                ) where {T<:SignedReal} -> 
+    PauliSum{T}
 
-    evalAntiCom(op1::PauliSum{T}, op2::PauliStr) where {T<:SignedReal} -> PauliSum{T}
+    evalAntiCom(op1::PauliSum{T}, op2::PauliStr, onlyFinite::Bool=true
+                ) where {T<:SignedReal} -> 
+    PauliSum{T}
 
-    evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}
+    evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}, onlyFinite::Bool=true
                 ) where {T1<:SignedReal, T2<:SignedReal} -> 
     PauliSum{promote_type(T1, T2)}
 
@@ -821,28 +861,38 @@ convention of [`$(mul|>repr)`](@ref), so when the two operators explicitly act o
 numbers of sites, the returned sum explicitly acts on the larger site count. When the 
 anticommutator is zero (i.e., when `op1` and `op2` anticommute), this function returns an 
 empty `PauliSum` as the zero operator.
+
+If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2`, 
+`op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). Whenever 
+an anticommutator is returned under this setting, it is the zero operator if and only if 
+[`checkAntiCom(op1, op2, true)`](@ref `checkAntiCom`) also returns `true`. 
+If `onlyFinite=false`, the anticommutator is evaluated without these validations, in which 
+case non-finite coefficients propagate through the floating-point arithmetic (e.g., 
+`Inf - Inf` leaves a term with a `NaN` coefficient), and the result may not be consistent 
+with `checkAntiCom`. In either case, the coefficients of the returned anticommutator are 
+still subject overflow or floating-point arithmetic errors. `onlyFinite` has no effect in 
+method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 """
-function evalAntiCom(op1::PauliStr, op2::PauliStr)
+function evalAntiCom(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
     prod2 = mul(op2, op1)
     prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end
 
 function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
-    if onlyFinite
-        for (i, op) in zip((1, 2), (op1, op2))
-            if !hasOnlyFiniteCoeffs(op)
-                throw(ArgumentError("`op$i` contains at least one term with a non-finite "*
-                                    "coefficient."))
-            end
-        end
+    allFinite = true
+
+    for (i, op) in zip((1, 2), (op1, op2))
+        allFinite *= checkNonFiniteCoeffs(op, Symbol(:op, i), onlyFinite)
     end
+    allFinite || (return false)
+
     prod1 = mul(op1, op2)::PauliSum
+    checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
+
     prod2 = mul(op2, op1)::PauliSum
-    if onlyFinite && hasOnlyFiniteCoeffs(prod1)
-        throw(ArgumentError("`op1 * op2` contains at least one term with a non-finite "*
-                            "coefficient."))
-    end
+    checkNonFiniteCoeffs(prod2, Symbol("op2 * op1"), onlyFinite) || (return false)
+
     PauliSum(MemoryChain(prod1.str, prod2.str), MemoryChain(prod1.coeff, prod2.coeff))
 end
 

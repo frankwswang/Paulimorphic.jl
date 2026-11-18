@@ -445,7 +445,7 @@ function toMajoranaPair(opPair::Pair{T1, T2}, checkForDiracPair::Bool=true
                                 "`opPair.second`."))
         end
 
-        if !(isIdentity∘evalAntiCom)(annOp, creOp)
+        if !(isIdentity∘evalAntiCom)(annOp, creOp, false)
             throw(ArgumentError("The anticommutator between `opPair.first` and "*
                                 "`opPair.second` must equal an identity."))
         end
@@ -565,8 +565,10 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
         end
     end
 
+    #> `evalAntiCom` is invoked with `onlyFinite=false`, so the ones that hold non-finite 
+    #>  coefficients will fail the conditions below instead of throwing an early error
     for p in 1:nMode, q in p:nMode
-        if !isempty(evalAntiCom(annOps[begin+p-1], annOps[begin+q-1]).str)
+        if !isempty(evalAntiCom(annOps[begin+p-1], annOps[begin+q-1], false).str)
             if explicitError
                 throw(ArgumentError("Every pair of annihilation operators (including an "*
                                     "operator paired with itself) should anticommute to "*
@@ -580,7 +582,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     idSum = PauliSum(Int, [PauliStr(nSite)])
 
     for p in 1:nMode, q in p:nMode
-        antiCom = evalAntiCom(annOps[begin+p-1], creOps[begin+q-1])
+        antiCom = evalAntiCom(annOps[begin+p-1], creOps[begin+q-1], false)
         valid = (p == q) ? (antiCom == idSum) : isempty(antiCom.str)
         if !valid
             if explicitError

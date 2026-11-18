@@ -663,6 +663,14 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test evalCommute(pauli"X", pauli"X") == PauliSum(Int)           #> zero commutator
     @test evalAntiCom(pauli"X", pauli"X") == PauliSum([pauli"I"], 2) #> {X,X} = 2I, merged
     @test evalAntiCom(pauli"X", pauli"Z") == PauliSum(Int)           #> zero anticommutator
+    #> `onlyFinite` is accepted by every method, and has no effect on two `PauliStr`
+    pX, pZ = pauli"X", pauli"Z"
+    for flag in (true, false)
+        @test evalCommute(pX, pZ, flag) == PauliSum([pauli"Y"], -2im)
+        @test evalAntiCom(pX, pX, flag) == PauliSum([pauli"I"], 2)
+        @test  checkCommute(pX, pX, flag) && !checkCommute(pX, pZ, flag)
+        @test  checkAntiCom(pX, pZ, flag) && !checkAntiCom(pX, pX, flag)
+    end
 
     #> Fixed exact values (matrix-validated): implicit identity-padding across site counts
     hX  = PauliSum(Int, [pauli"X"])  #> 1 explicit site, padded against 2-site operand
@@ -678,6 +686,11 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test evalAntiCom(h1, h2) == PauliSum([pauli"IZ"], Complex{Int}(-2))
     @test evalCommute(h1, h2) == 
           PauliSum([pauli"ZI", pauli"YI", pauli"XZ"], Complex{Int}[2im, -4im, -4im])
+    @test evalCommute(h1, h2, false) == evalCommute(h1, h2)
+    @test evalAntiCom(h1, h2, false) == evalAntiCom(h1, h2)
+    @test evalCommute(pauli"XI", h2, false) == evalCommute(pauli"XI", h2)
+    @test evalAntiCom(h1, pauli"YI", false) == evalAntiCom(h1, pauli"YI")
+    @test !checkCommute(h1, h2, false) && !checkAntiCom(h1, h2, false)
 
     #> Zero-site phased unit is central: commutes with everything, {u, h} == 2h
     u = PauliSum(Int, [PauliStr()])
@@ -698,6 +711,11 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test mul(hXY, hIZ) == PauliSum([pauli"X", pauli"Y"], Complex{Int8}[-128im, -128])
     @test_throws OverflowError evalCommute(hIZ, hXY)
     @test !checkCommute(hIZ, hXY) && !checkAntiCom(hIZ, hXY)
+    #>> A product that is not representable throws in the judgments as well, whichever 
+    #>> value `onlyFinite` takes
+    hOver = PauliSum([pauli"Z"], Int8[100])
+    @test_throws OverflowError checkCommute(hOver, hOver)
+    @test_throws OverflowError checkAntiCom(hOver, hOver, false)
 
     #> Property fuzz: string-level consistency, (anti)symmetry, adjoint interplay, 
     #> the decomposition {h1,h2} + [h1,h2] == 2 h1 h2, the Jacobi identity, and 
@@ -728,6 +746,19 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
         bl &= (toAdjoint(cmAB) == mul(evalCommute(hA', hB'), -1))
         bl &= (PauliSum(vcat(acAB.str, cmAB.str), vcat(acAB.coeff, cmAB.coeff)) == 
                mul(mul(hA, hB), 2))
+
+        #> `onlyFinite` makes no difference to finite operands whose products are finite
+        gA, gB = PauliSum(Float64, hA), PauliSum(Float64, hB)
+        bl &= (evalCommute(gA, gB) == evalCommute(gA, gB, false) == PauliSum(Float64, cmAB))
+        bl &= (evalAntiCom(gA, gB) == evalAntiCom(gA, gB, false) == PauliSum(Float64, acAB))
+        bl &= (checkCommute(gA, gB) == checkCommute(gA, gB, false) == checkCommute(hA, hB))
+        bl &= (checkAntiCom(gA, gB) == checkAntiCom(gA, gB, false) == checkAntiCom(hA, hB))
+        #> Once every product of two nonzero coefficients overflows, the judgments under 
+        #> `onlyFinite=false` are `false` unless either operand is the zero operator
+        fA, fB = mul(hA, 2.0^600), mul(hB, 2.0^500)
+        anyZero = isempty(hA.str) || isempty(hB.str)
+        bl &= (checkCommute(fA, fB, false) == checkAntiCom(fA, fB, false) == anyZero)
+
         bl &= (sumToMat(cmAB, n) ≈ 
                sumToMat(hA, n) * sumToMat(hB, n) - sumToMat(hB, n) * sumToMat(hA, n))
         bl &= (sumToMat(acAB, n) ≈ 
@@ -742,13 +773,86 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     end
     @test bl
 
-    #> Opposite coefficients that overflow in the two products do not cancel out either: 
-    #> `Inf + (-Inf)` leaves a `NaN` term in the evaluation
+    #> By default (`onlyFinite=true`), an operand that holds a non-finite coefficient is 
+    #> rejected by the judgments and the evaluations alike. With `onlyFinite=false`, the 
+    #> judgments return `false`, whereas the evaluations let the non-finite coefficients 
+    #> propagate
+    hTwo = PauliSum([pauli"Z"], [2.0])
+    for hBad in (PauliSum([pauli"Z"], [Inf]), PauliSum([pauli"Z"], [NaN]))
+        @test_throws ArgumentError checkCommute(hBad, hTwo)
+        @test_throws ArgumentError checkCommute(hTwo, hBad)
+        @test_throws ArgumentError checkAntiCom(hBad, pauli"X")
+        @test_throws ArgumentError evalCommute(pauli"Z", hBad)
+        @test_throws ArgumentError evalAntiCom(hBad, hTwo)
+        @test !checkCommute(hBad, hTwo, false) && !checkCommute(hTwo, hBad, false)
+        @test !checkCommute(hBad, hBad, false) && !checkAntiCom(hBad, pauli"X", false)
+        @test isnan(evalCommute(hBad, hTwo, false).coeff[])
+        @test !isfinite(evalAntiCom(hBad, hTwo, false).coeff[])
+    end
+    #>> Hence, an unvalidated evaluation can return the zero operator where the judgment is 
+    #>> `false`
+    hInf = PauliSum([pauli"Z"], [Inf])
+    @test isempty(evalCommute(hInf, PauliSum(Float64), false).str)
+    @test !checkCommute(hInf, PauliSum(Float64), false)
+
+    #> Finite operands whose products overflow are handled in the same way
     hXs = PauliSum([pauli"XI", pauli"XZ"], [1e154, 1e154])
     hZs = PauliSum([pauli"ZI", pauli"ZZ"], [1e154, 1e154])
     @test mul(hXs, hZs) == PauliSum([pauli"YI", pauli"YZ"], fill(Complex(0.0, -Inf), 2))
     @test mul(hZs, hXs) == PauliSum([pauli"YI", pauli"YZ"], fill(Complex(0.0, Inf), 2))
-    @test !checkAntiCom(hXs, hZs) && !isempty(evalAntiCom(hXs, hZs).str)
+    @test_throws ArgumentError checkAntiCom(hXs, hZs)
+    @test_throws ArgumentError checkCommute(hXs, hZs)
+    @test_throws ArgumentError evalAntiCom(hXs, hZs)
+    @test_throws ArgumentError evalCommute(hXs, hZs)
+    @test !checkAntiCom(hXs, hZs, false) && !checkCommute(hXs, hZs, false)
+    acXZ = evalAntiCom(hXs, hZs, false) #>> `Inf + (-Inf)` leaves a `NaN` in each term
+    @test countTerms(acXZ) == 2 && all(isnan, acXZ.coeff)
+    @test evalCommute(hXs, hZs, false) == mul(hXs, hZs)
+    #>> An operator whose square overflows is thus not even judged to commute with itself
+    hBig = PauliSum([pauli"X", pauli"Z"], [1e200, 1e200])
+    @test_throws ArgumentError checkCommute(hBig, hBig)
+    @test !checkCommute(hBig, hBig, false)
+    #>> The same applies to other floating-point types and to mixed coefficient types
+    hBig32 = PauliSum([pauli"X", pauli"Z"], Float32[1f30, 1f30])
+    @test_throws ArgumentError checkCommute(hBig32, hBig32)
+    @test !checkCommute(hBig32, hBig32, false)
+    hHuge = PauliSum([pauli"Z"], [1e300])
+    @test_throws ArgumentError checkCommute(hTop, hHuge)
+    @test !checkCommute(hTop, hHuge, false) && !checkAntiCom(hHuge, hTop, false)
+
+    #> Equal (or opposite) infinite coefficients in the two products are never taken as 
+    #> equal (or opposite) products: [hEq1, hEq2] == 1.35e308 (Z - X), and {hOpp1, hOpp2} 
+    #> is about 1.6e308 (XI + XZ + ZI + ZZ)
+    hEq1 = PauliSum([pauli"I", pauli"Y"], [1.35e154, 0.5e154im])
+    hEq2 = PauliSum([pauli"X", pauli"Z"], [1.35e154, 1.35e154])
+    @test mul(hEq1, hEq2) == mul(hEq2, hEq1) == PauliSum([pauli"X", pauli"Z"], [Inf, Inf])
+    @test_throws ArgumentError checkCommute(hEq1, hEq2)
+    @test !checkCommute(hEq1, hEq2, false)
+    hOpp1 = PauliSum([pauli"II", pauli"YI", pauli"YZ"], [4.70588e153, 1e154im, 1e154im])
+    hOpp2 = PauliSum([pauli"XI", pauli"XZ", pauli"ZI", pauli"ZZ"], fill(1.7e154, 4))
+    @test all(isinf, mul(hOpp1, hOpp2).coeff)
+    @test mul(hOpp1, hOpp2).coeff == map(-, mul(hOpp2, hOpp1).coeff)
+    @test_throws ArgumentError checkAntiCom(hOpp1, hOpp2)
+    @test !checkAntiCom(hOpp1, hOpp2, false)
+
+    #> A product can overflow in one order only (`hP * hQ` is the zero operator), which is 
+    #> caught for either order of the operands
+    hP = PauliSum([pauli"I", pauli"Y"], [1e154, -1e154])
+    hQ = PauliSum([pauli"X", pauli"Z"], [1e154im, 1e154])
+    @test isempty(mul(hP, hQ).str)
+    @test mul(hQ, hP) == 
+          PauliSum([pauli"X", pauli"Z"], [Complex(0.0, Inf), Complex(Inf, 0.0)])
+    @test_throws ArgumentError checkCommute(hP, hQ)
+    @test_throws ArgumentError evalCommute(hQ, hP)
+    @test_throws ArgumentError evalAntiCom(hP, hQ)
+    @test !checkCommute(hP, hQ, false) && !checkAntiCom(hQ, hP, false)
+
+    #> Only the operands and the two products are validated: the difference of two finite 
+    #> products can still overflow in the returned commutator
+    hRootX, hRootZ = PauliSum([pauli"X"], [1e154]), PauliSum([pauli"Z"], [1e154])
+    @test evalCommute(hRootX, hRootZ) == PauliSum([pauli"Y"], [Complex(0.0, -Inf)])
+    @test !checkCommute(hRootX, hRootZ)
+    @test  checkAntiCom(hRootX, hRootZ) && isempty(evalAntiCom(hRootX, hRootZ).str)
 end
 
 

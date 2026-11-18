@@ -277,6 +277,17 @@ end
     @test !checkDiracEnc(enc81)
     @test_throws "identity operator" checkDiracEnc(enc81, true)
 
+    #> Anticommutators that are not finite fail the corresponding condition as well, 
+    #> instead of raising an error from their evaluation: `hugeAnn` holds finite 
+    #> coefficients whose products overflow, and `infAnn` holds infinite ones
+    hugeAnn = mul(a1, 1e160)
+    infAnn = PauliSum([pauli"X", pauli"Y"], [Complex(Inf, 0.0), Complex(0.0, Inf)])
+    for annOp in (hugeAnn, infAnn)
+        encOdd = [annOp] => [adjoint(annOp)]
+        @test !checkDiracEnc(encOdd)
+        @test_throws "annihilation operators" checkDiracEnc(encOdd, true)
+    end
+
     #> Mixed coefficient types across modes: comparisons and products promote exactly
     annMix = PauliSum[ann2[1], mul(ann2[2], 1.0)]
     creMix = PauliSum[cre2[1], adjoint(mul(ann2[2], 1.0))]
@@ -370,6 +381,8 @@ end
     @test_throws "Hermitian adjoint" toMajoranaPair(a1 => a1)
     badNorm = mul(a1, 2) #> Adjoint pairing intact; {2a, (2a)'} == 4I != I
     @test_throws "equal an identity" toMajoranaPair(badNorm => toAdjoint(badNorm))
+    hugeNorm = mul(a1, 1e160) #> Same violation, with an anticommutator that overflows
+    @test_throws "equal an identity" toMajoranaPair(hugeNorm => toAdjoint(hugeNorm))
     #> `op` passes the adjoint and identity checks, but `op^2 == (12//25)I != 0`, so only 
     #> the self-anticommutation branch can reject it
     op = PauliSum([pauli"X", pauli"Y"], 

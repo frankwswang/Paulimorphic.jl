@@ -724,6 +724,8 @@ function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     end
     allFinite || (return false)
 
+    (op1 === op2 || lazyCanonicalize(op1) == lazyCanonicalize(op2)) && (return true)
+
     prod1 = mul(op1, op2)::PauliSum
     checkNonFiniteCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
 
@@ -824,6 +826,11 @@ function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
         for (i, op) in zip((1, 2), (op1, op2))
             checkNonFiniteCoeffs(op, Symbol(:op, i))
         end
+    end
+
+    if op1 === op2 || lazyCanonicalize(op1) == lazyCanonicalize(op2)
+        coreT = extendType((getCoreDataType∘typeof)(op1), (getCoreDataType∘typeof)(op2))
+        return PauliSum(PauliStr[], zero(coreT))
     end
 
     prod1 = mul(op1, op2)::PauliSum

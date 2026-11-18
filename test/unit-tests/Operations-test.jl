@@ -714,7 +714,7 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     #>> A product that is not representable throws in the judgments as well, whichever 
     #>> value `onlyFinite` takes
     hOver = PauliSum([pauli"Z"], Int8[100])
-    @test_throws OverflowError checkCommute(hOver, hOver)
+    @test checkCommute(hOver, hOver) #> Special case: equal terms passing to `checkCommute`
     @test_throws OverflowError checkAntiCom(hOver, hOver, false)
 
     #> Property fuzz: string-level consistency, (anti)symmetry, adjoint interplay, 
@@ -808,14 +808,15 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     acXZ = evalAntiCom(hXs, hZs, false) #>> `Inf + (-Inf)` leaves a `NaN` in each term
     @test countTerms(acXZ) == 2 && all(isnan, acXZ.coeff)
     @test evalCommute(hXs, hZs, false) == mul(hXs, hZs)
-    #>> An operator whose square overflows is thus not even judged to commute with itself
+    #>> self commutator is valid as long as on non-finite coefficients exist initially
     hBig = PauliSum([pauli"X", pauli"Z"], [1e200, 1e200])
-    @test_throws ArgumentError checkCommute(hBig, hBig)
-    @test !checkCommute(hBig, hBig, false)
+    @test checkCommute(hBig, hBig)
+    @test checkCommute(hBig, hBig, false)
     #>> The same applies to other floating-point types and to mixed coefficient types
     hBig32 = PauliSum([pauli"X", pauli"Z"], Float32[1f30, 1f30])
-    @test_throws ArgumentError checkCommute(hBig32, hBig32)
-    @test !checkCommute(hBig32, hBig32, false)
+    @test checkCommute(hBig32, hBig32)
+    @test checkCommute(hBig32, hBig32, false)
+    #>> Different operators will throw by default
     hHuge = PauliSum([pauli"Z"], [1e300])
     @test_throws ArgumentError checkCommute(hTop, hHuge)
     @test !checkCommute(hTop, hHuge, false) && !checkAntiCom(hHuge, hTop, false)

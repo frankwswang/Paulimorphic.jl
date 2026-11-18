@@ -1154,6 +1154,9 @@ function lazyCanonicalize(h::PauliSum, simplification::Bool=false)
     end
 end
 
+lazyCanonicalize(s::PauliStr, ::Bool=false) = 
+PauliSum(genMemory(s), (one∘getCoreDataType)(PauliStr))
+
 
 """
     curtail(h::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 

@@ -2022,3 +2022,16 @@ function checkFinitePauliCoeffs(op::T, opName::Symbol, explicitError::Bool=true
 
     true
 end
+
+
+isZeroOperator(::PauliStr) = false
+
+function isZeroOperator(h::PauliSum)
+    if all(iszero, h.coeff)
+        true
+    elseif isCanonical(h)
+        false
+    else
+        all(iszero, lazyCanonicalize(h, false).coeff)
+    end
+end

@@ -782,9 +782,21 @@ function evalCommute(op1::PauliStr, op2::PauliStr)
     prod1 == prod2 ? PauliSum(Int) : PauliSum(Int, [prod1, scale!(prod2, PhaseFactor(2))])
 end
 
-function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
+function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
+    if onlyFinite
+        for (i, op) in zip((1, 2), (op1, op2))
+            if !hasOnlyFiniteCoeffs(op)
+                throw(ArgumentError("`op$i` contains at least one term with a non-finite "*
+                                    "coefficient."))
+            end
+        end
+    end
     prod1 = mul(op1, op2)::PauliSum
     prod2 = mul(op2, op1)::PauliSum
+    if onlyFinite && hasOnlyFiniteCoeffs(prod1)
+        throw(ArgumentError("`op1 * op2` contains at least one term with a non-finite "*
+                            "coefficient."))
+    end
     coeffs = MemoryChain(prod1.coeff, map(adaptNeg, prod2.coeff))
     PauliSum(MemoryChain(prod1.str, prod2.str), coeffs)
 end
@@ -816,9 +828,21 @@ function evalAntiCom(op1::PauliStr, op2::PauliStr)
     prod1 == prod2 ? PauliSum(Int, [prod1, prod2]) : PauliSum(Int)
 end
 
-function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
+function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
+    if onlyFinite
+        for (i, op) in zip((1, 2), (op1, op2))
+            if !hasOnlyFiniteCoeffs(op)
+                throw(ArgumentError("`op$i` contains at least one term with a non-finite "*
+                                    "coefficient."))
+            end
+        end
+    end
     prod1 = mul(op1, op2)::PauliSum
     prod2 = mul(op2, op1)::PauliSum
+    if onlyFinite && hasOnlyFiniteCoeffs(prod1)
+        throw(ArgumentError("`op1 * op2` contains at least one term with a non-finite "*
+                            "coefficient."))
+    end
     PauliSum(MemoryChain(prod1.str, prod2.str), MemoryChain(prod1.coeff, prod2.coeff))
 end
 

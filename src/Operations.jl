@@ -4,6 +4,27 @@ public add, combine, sub, mul, toAdjoint
 
 const PStrCoeffPair{T<:SignedReal} = Union{Pair{PauliStr, T}, PauliTerm{T}}
 
+
+#> Core data-type promotion of binary operations on `PauliStrOrSum`
+promoteCoreType(::PauliSum{T1}, ::PauliSum{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
+promote_type(T1, T2)
+
+promoteCoreType(::PauliStr, ::PauliSum{T}) where {T<:SignedReal} = T
+
+promoteCoreType(::PauliSum{T}, ::PauliStr) where {T<:SignedReal} = T
+
+promoteCoreType(::PauliSum{T1}, ::PStrCoeffPair{T2}
+                ) where {T1<:SignedReal, T2<:SignedReal} = 
+promote_type(T1, T2)
+
+#> Must match with the implementation of `promoteCoreType` for docstring interpolation:
+#> "`$getCTPromoterStr(symT1, symT2)`", where `symT1` and `symT2` are the `Symbol` for the 
+#> core data type (variable).
+function getCTPromoterStr(symT1::Symbol, symT2::Symbol)
+    string(promote_type, '(', symT1, ", ", symT2, ')')
+end
+
+
 """
     add(::Type{T}, str1::PauliStr, str2::PauliStr, simplification::Bool=true
         ) where {T<:SignedReal} -> 
@@ -35,7 +56,7 @@ add(Int, str1, str2, simplification)
 
     add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
         ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
     h1 + h2 -> PauliSum
 
@@ -47,7 +68,8 @@ result does not reference any data in either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, the precision level at which the coefficients of equal strings are 
-    merged is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+    merged is determined by 
+    `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))`.
 """
 function add(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
              ) where {T<:SignedReal}
@@ -56,9 +78,8 @@ function add(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
              simplification)
 end
 
-add(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
-   {T1<:SignedReal, T2<:SignedReal} = 
-add(promote_type(T1, T2), h1, h2, simplification)
+add(h1::PauliSum, h2::PauliSum, simplification::Bool=true) = 
+add(promoteCoreType(h1, h2), h1, h2, simplification)
 
 """
     add(::Type{T}, h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
@@ -67,7 +88,7 @@ add(promote_type(T1, T2), h1, h2, simplification)
 
     add(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
         simplification::Bool=true) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
 Add a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) to `h`, 
 returning the sum with the coefficient type automatically promoted. The added string is 
@@ -79,7 +100,8 @@ applied to the result. The result does not reference any data in either `h` or `
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, the precision level at which the coefficients of equal strings are 
-    merged is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+    merged is determined by 
+    `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))`.
 """
 function add(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
              ) where {T<:SignedReal}
@@ -89,9 +111,8 @@ function add(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=t
     PauliSum(T, strs, coeffs, simplification)
 end
 
-add(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
-   {T1<:SignedReal, T2<:SignedReal} = 
-add(promote_type(T1, T2), h, term, simplification)
+add(h::PauliSum, term::PStrCoeffPair, simplification::Bool=true) = 
+add(promoteCoreType(h, term), h, term, simplification)
 
 """
     add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
@@ -221,7 +242,7 @@ function combine(terms::AbstractVector{<:PauliStrOrSum}, simplification::Bool=tr
             throw(ArgumentError("`terms` must be non-empty when `eltype(terms)` does not "*
                                 "contain a concrete core type."))
         end
-        T = mapreduce(getCoreDataType∘typeof, promote_type, terms)
+        T = reduce(promoteCoreType, terms)
     end
     combine(T, terms, simplification)
 end
@@ -277,7 +298,7 @@ sub(Int, str1, str2, simplification)
 
     sub(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
         ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
     h1 - h2 -> PauliSum
 
@@ -289,7 +310,8 @@ the result. The result does not reference any data in either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, the precision level at which the coefficients of equal strings are 
-    merged is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+    merged is determined by 
+    `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))`.
 """
 function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
              ) where {T<:SignedReal}
@@ -300,9 +322,8 @@ function sub(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
     PauliSum(T, strs, MemoryChain(h1.coeff, h2.coeff), simplification)
 end
 
-sub(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true) where 
-   {T1<:SignedReal, T2<:SignedReal} = 
-sub(promote_type(T1, T2), h1, h2, simplification)
+sub(h1::PauliSum, h2::PauliSum, simplification::Bool=true) = 
+sub(promoteCoreType(h1, h2), h1, h2, simplification)
 
 
 """
@@ -312,7 +333,7 @@ sub(promote_type(T1, T2), h1, h2, simplification)
 
     sub(h::PauliSum{T1}, term::Pair{PauliStr, <:Union{Complex{T2}, T2}}, 
         simplification::Bool=true) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
 Subtract a coefficient-carrying `term` (e.g., as returned by [`indexTerm`](@ref)) from 
 `h`, returning the difference with the coefficient type automatically promoted. The string 
@@ -325,16 +346,16 @@ either `h` or `term`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, the precision level at which the coefficients of equal strings are 
-    merged is determined by `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))`.
+    merged is determined by 
+    `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))`.
 """
 function sub(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=true
              ) where {T<:SignedReal}
     add(T, h, scale!(PauliStr(term.first), negRea)=>term.second, simplification)
 end
 
-sub(h::PauliSum{T1}, term::PStrCoeffPair{T2}, simplification::Bool=true) where 
-   {T1<:SignedReal, T2<:SignedReal} = 
-sub(promote_type(T1, T2), h, term, simplification)
+sub(h::PauliSum, term::PStrCoeffPair, simplification::Bool=true) = 
+sub(getCTPromoterStr(h, term), h, term, simplification)
 
 """
     sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
@@ -532,7 +553,7 @@ mul(T, h, s, simplification)
 
     mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
         ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
     h1 * h2 -> PauliSum
 
@@ -544,17 +565,17 @@ either `h1` or `h2`.
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (following the overflow 
-    checking policy of `PauliSum`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))` (following the 
+    overflow checking policy of `PauliSum`) and then converted to `Complex{T}`.
 """
-function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
-             ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
+function mul(::Type{T}, h1::PauliSum, h2::PauliSum, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
 
     cL, sL = h1.coeff, h1.str
     cR, sR = h2.coeff, h2.str
     m, n = length(cL), length(cR)
-    tempC = extendType(T, complex( promote_type(T1, T2) ))
+    tempC = extendType(T, complex( promoteCoreType(h1, h2) ))
 
     cs = Memory{Complex{T}}(undef, m * n)
     ss = Memory{PauliStr}(undef, m * n)
@@ -568,9 +589,8 @@ function mul(::Type{T}, h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool
     PauliSum(ss, cs, simplification)
 end
 
-mul(h1::PauliSum{T1}, h2::PauliSum{T2}, simplification::Bool=true
-    ) where {T1<:SignedReal, T2<:SignedReal} = 
-mul(promote_type(T1, T2), h1, h2, simplification)
+mul(h1::PauliSum, h2::PauliSum, simplification::Bool=true) = 
+mul(promoteCoreType(h1, h2), h1, h2, simplification)
 
 """
     mul(::Type{T}, h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, simplification::Bool=true
@@ -579,7 +599,7 @@ mul(promote_type(T1, T2), h1, h2, simplification)
 
     mul(h::PauliSum{T1}, coeff::Union{T2, Complex{T2}}, simplification::Bool=true
         ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
     h * coeff -> PauliSum
     coeff * h -> PauliSum
@@ -595,14 +615,14 @@ promotion, see [`scale!`](@ref).
 !!! info
     For the first method signature where `T` specifies the core type of the returned 
     `PauliSum`, each intermediate coefficient product is evaluated at the precision level 
-    of `$(extendType|>repr)(T, complex( promote_type(T1, T2) ))` (following the overflow 
-    checking policy of `PauliSum`) and then converted to `Complex{T}`.
+    of `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))` (following the 
+    overflow checking policy of `PauliSum`) and then converted to `Complex{T}`.
 """
 function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2}, 
              simplification::Bool=true
              ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
-    tempC = extendType(T, complex( promote_type(T1, T2) ))
+    tempC = extendType(T, complex( promoteCoreType(T1, T2) ))
     tempCoeff = tempC(coeff)
     coeffs = map(x->Complex{T}(adaptMul(tempC(x), tempCoeff)), h.coeff)
     PauliSum(h.str, coeffs, simplification)
@@ -610,7 +630,7 @@ end
 
 mul(h::PauliSum{T}, coeff::C, simplification::Bool=true
     ) where {T<:SignedReal, C<:SRealOrComplex} = 
-mul(promote_type(T, real(C)), h, coeff, simplification)
+mul(promoteCoreType(T, real(C)), h, coeff, simplification)
 
 """
     mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true
@@ -683,16 +703,6 @@ function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
     end
     h
 end
-
-
-#> Core data type of the `PauliSum` returned by `mul(op1, op2)`
-getProductCoreType(::PauliSum{T1}, ::PauliSum{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
-promote_type(T1, T2)
-
-getProductCoreType(::PauliStr, ::PauliSum{T}) where {T<:SignedReal} = T
-
-getProductCoreType(::PauliSum{T}, ::PauliStr) where {T<:SignedReal} = T
-
 
 #> Return `true` if `op1` and `op2` are verified to be the same operator holding no 
 #> non-finite coefficient: either they are the same object, or their canonical forms are 
@@ -830,7 +840,7 @@ end
 
     evalCommute(op1::PauliSum{T1}, op2::PauliSum{T2}, onlyFinite::Bool=true
                 ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
 Return the commutator 
 ``[\\hat{O}_1, \\hat{O}_2] = \\hat{O}_1 \\hat{O}_2 - \\hat{O}_2 \\hat{O}_1``, with 
@@ -874,7 +884,7 @@ function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
     end
 
     if checkEqualFinitePauliOps(op1, op2)
-        return PauliSum(getProductCoreType(op1, op2))
+        return PauliSum(promoteCoreType(op1, op2))
     end
 
     prod1 = mul(op1, op2)::PauliSum
@@ -901,7 +911,7 @@ end
 
     evalAntiCom(op1::PauliSum{T1}, op2::PauliSum{T2}, onlyFinite::Bool=true
                 ) where {T1<:SignedReal, T2<:SignedReal} -> 
-    PauliSum{promote_type(T1, T2)}
+    PauliSum{$(getCTPromoterStr(:T1, :T2))}
 
 Return the anticommutator 
 ``\\{\\hat{O}_1, \\hat{O}_2\\} = \\hat{O}_1 \\hat{O}_2 + \\hat{O}_2 \\hat{O}_1``, with 

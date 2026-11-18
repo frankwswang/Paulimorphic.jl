@@ -652,6 +652,10 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
 @test  checkCommute(hLow, pauli"Z") && !checkAntiCom(hLow, pauli"Z")
 @test  checkCommute(pauli"Z", hTop) && !checkAntiCom(pauli"Z", hTop)
 @test !checkCommute(hTop, pauli"X") &&  checkAntiCom(hTop, pauli"X")
+#>> The evaluations can still throw where the judgments are made: the sum of the two 
+#>> products overflows in `evalAntiCom`, and so does the negation of one in `evalCommute`
+@test_throws OverflowError evalAntiCom(hLow, pauli"Z")
+@test_throws OverflowError evalCommute(hLow, pauli"Z")
 
 @testset "evalCommute/evalAntiCom" begin
     @test evalCommute(pauli"X", pauli"Z") == PauliSum([pauli"Y"], -2im)
@@ -737,6 +741,14 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
                                vcat(j1.coeff, j2.coeff, j3.coeff)).str)
     end
     @test bl
+
+    #> Opposite coefficients that overflow in the two products do not cancel out either: 
+    #> `Inf + (-Inf)` leaves a `NaN` term in the evaluation
+    hXs = PauliSum([pauli"XI", pauli"XZ"], [1e154, 1e154])
+    hZs = PauliSum([pauli"ZI", pauli"ZZ"], [1e154, 1e154])
+    @test mul(hXs, hZs) == PauliSum([pauli"YI", pauli"YZ"], fill(Complex(0.0, -Inf), 2))
+    @test mul(hZs, hXs) == PauliSum([pauli"YI", pauli"YZ"], fill(Complex(0.0, Inf), 2))
+    @test !checkAntiCom(hXs, hZs) && !isempty(evalAntiCom(hXs, hZs).str)
 end
 
 

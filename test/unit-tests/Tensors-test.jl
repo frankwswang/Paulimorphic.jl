@@ -386,6 +386,8 @@ end
     @test_throws OverflowError toMatrix(hNeg)
     @test_throws OverflowError toMatrix(Float64, hNeg) #> `extendType(Float64, Int) == Int`
     @test toMatrix(Int128, hNeg) == [typemin(Int) 0; 0 -Int128(typemin(Int))]
+    #>> A floating-point overflow gives an infinite entry, as plain additions do
+    @test toMatrix(PauliSum([pauli"I", pauli"Z"], [1e308, 1e308])) == [Inf 0; 0 0]
     #>> The phase of a string is folded into its coefficient at the same precision level: 
     #>> the entries `±128` of `-128 * YY` only require a `T` wider than `Int8`
     hYY = PauliSum([pauli"YY"], Int8[-128])

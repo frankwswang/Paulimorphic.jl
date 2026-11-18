@@ -1,7 +1,7 @@
 using Test
 using Paulimorphic: neumaierStep, neumaierAdd, neumaierSum, evalMagnitude, extendType
 using Paulimorphic: adaptAdd, adaptMul, adaptConj, adaptNeg, condNeg, toBitIntData
-using Paulimorphic: checkNeg, checkConj
+using Paulimorphic: checkNeg, checkConj, absorbResidue
 
 @testset "Numerics.jl" begin
     @testset "adaptAdd / adaptMul / adaptConj / adaptNeg" begin
@@ -193,11 +193,35 @@ using Paulimorphic: checkNeg, checkConj
         @test neumaierAdd(big(typemax(Int)), big(1)) == (big(typemax(Int)) + 1, big(0))
     end
 
+    @testset "absorbResidue" begin
+        #> The residue is added unless it is zero (so that a signed zero stays intact) or 
+        #> not finite (which it only is when the naive sum is not finite either)
+        @test absorbResidue(0.0, 1.0) === 1.0
+        @test absorbResidue(1.0, 2.0^-52) === 1.0 + 2.0^-52
+        @test absorbResidue(-0.0, 0.0) === -0.0 && absorbResidue(0.0, -0.0) === 0.0
+        @test absorbResidue(Inf, -Inf) === Inf && absorbResidue(-Inf, NaN) === -Inf
+        @test isnan(absorbResidue(NaN, 1.0)) && isnan(absorbResidue(NaN, NaN))
+        @test absorbResidue(ComplexF64(Inf, -0.0), ComplexF64(-Inf, 0.0)) === 
+              ComplexF64(Inf, -0.0)
+        @test absorbResidue(ComplexF64(0.0, Inf), ComplexF64(1.0, NaN)) === 
+              ComplexF64(1.0, Inf)
+        #> Exact fallback: the residue slot of any other type stays zero
+        @test absorbResidue(5//6, 0//1) === 5//6 && absorbResidue(3, 0) === 3
+        @test absorbResidue(Complex(4, 6), Complex(0, 0)) === Complex(4, 6)
+    end
+
     @testset "neumaierSum" begin
         @test neumaierSum([1e16, 1.0, -1e16]) == 1.0
         @test neumaierSum([1e16, 1.0, -1e16, -1.0]) == 0.0
         @test neumaierSum(ComplexF64[1e16+im, 1.0+im, -1e16-2im]) == ComplexF64(1.0, 0.0)
         @test neumaierSum(Float64[]) == 0.0
+        #> A sum that is not finite is the one that plain additions give, instead of a 
+        #> `NaN` made by a residue that is not finite either
+        @test neumaierSum([1e308, 1e308]) === 1e308 + 1e308 === Inf
+        @test neumaierSum([Inf, 1.0]) === Inf && neumaierSum([1.0, -Inf, 2.0]) === -Inf
+        @test isnan(neumaierSum([Inf, -Inf])) && isnan(neumaierSum([1.0, NaN]))
+        @test neumaierSum(ComplexF64[1e308 + 1.0im, 1e308 + 1e16im, -1e16im]) === 
+              ComplexF64(Inf, 1.0)
         @test_throws ArgumentError neumaierSum(AbstractFloat[1.0, 2.0])
 
         @test neumaierSum(Float64, Iterators.filter(>(1), [0.5, 1.5])) == 1.5

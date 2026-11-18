@@ -190,6 +190,26 @@ neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} =
 (adaptAdd(total, val), residue)
 
 
+#> Conclude a Neumaier summation by adding the accumulated residue to the naive sum. The 
+#> addition is skipped for a residue that is zero (so that a signed zero intact) and for a 
+#> residue that is not finite. The latter only arises when the naive sum is not finite 
+#> either: such a sum has no rounding error to compensate for. As a result, the result of 
+#> a Neumaier summation is consistent with the `Base.:+` for non-finite results. For 
+#> instance: `neumaierSum([1e308, 1e308]) == 1e308 + 1e308 == Inf`
+function absorbResidue(naiveSum::T, sumResidue::T) where {T<:AbstractFloat}
+    isSkipped = iszero(sumResidue) | !isfinite(sumResidue)
+    ifelse(isSkipped, naiveSum, naiveSum + sumResidue)
+end
+
+absorbResidue(naiveSum::C, sumResidue::C) where {C<:Complex{<:AbstractFloat}} = 
+Complex(absorbResidue( real(naiveSum), real(sumResidue) ), 
+        absorbResidue( imag(naiveSum), imag(sumResidue) ))
+
+#> The residue of any other type stays zero (calling the fallback method of `neumaierAdd`)
+absorbResidue(naiveSum::C, sumResidue::C) where {C<:RealOrComplex} = 
+adaptAdd(naiveSum, sumResidue)
+
+
 function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
     eleT = T <: Real ? T : typeintersect(T, Complex)
     if !(isconcretetype(eleT) && (isconcretetype∘real)(eleT))
@@ -208,7 +228,7 @@ function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrCompl
         naiveSum, sumResidue = neumaierAdd(naiveSum, formattedVal, sumResidue)
     end
 
-    naiveSum + sumResidue
+    absorbResidue(naiveSum, sumResidue)
 end
 
 neumaierSum(::Type{T}, iterable) where {T<:RealOrComplex} = 

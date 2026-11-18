@@ -853,7 +853,7 @@ function formatMolecularInteData(::PairedOrder, inteData::MolInteTensor1B2B{T},
             val = eleT(inte2B[begin+i, begin+k, begin+k, begin+j])
             correction, sumResidue = neumaierAdd(correction, val, sumResidue)
         end
-        correction += sumResidue
+        correction = absorbResidue(correction, sumResidue)
         newInte1B[begin+i, begin+j] = inte1B[begin+i, begin+j] - prefactor * correction
     end
 

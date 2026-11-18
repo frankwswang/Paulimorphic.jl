@@ -193,7 +193,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                 #>> Process the accumulated coefficient sum from the current group
                 nzRow = reinterpret(Int, xor(xMask, zBitStr)) + 1
                 nzCol = reinterpret(Int, zBitStr) + 1
-                coeffSum = Complex{T}(adaptAdd(naiveSum, sResidue))
+                coeffSum = Complex{T}(absorbResidue(naiveSum, sResidue))
                 if !iszero(coeffSum)
                     #>> `(nzRow, nzCol)` points to `coeffSum` for terms with equal `xMask`
                     processor((nzRow, nzCol)=>coeffSum, nzCount)

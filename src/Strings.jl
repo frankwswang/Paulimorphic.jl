@@ -690,8 +690,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
                     k += 1
                 end
 
-                #> Skipped addition when no non-zero residue to keep signed zero intact
-                coeff = iszero(accResidue) ? acc : (acc + accResidue)
+                coeff = absorbResidue(acc, accResidue)
 
                 #> Terms with zero coefficients are dropped only when `simplification=true`
                 if !(simplification && iszero(coeff |> Complex{T}))
@@ -758,7 +757,7 @@ end
 function combinePauliTerms!(termDict::PauliTermDict)
     filter!(pair->!(iszero∘sum)(pair.second), termDict)
     coeffs = map((collect∘values)(termDict)) do (coeffSum, sumResidue)
-        adaptAdd(coeffSum, sumResidue)
+        absorbResidue(coeffSum, sumResidue)
     end
     pStrs = (collect∘keys)(termDict)
     res = PauliSum(pStrs, coeffs) #> Keys that differ only by their phases are merged here

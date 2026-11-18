@@ -302,6 +302,23 @@ end
     @test isCanonical(res4) && !isCanonical(res4, true)
     @test res4 == PauliSum(res4, false) && PauliSum(res4) == res2
 
+    #> A merged coefficient that is not finite is the one that `+` gives, instead of a 
+    #> `NaN` made by a residue that is not finite either
+    @test PauliSum(fill(pauli"X", 2), [1e308, 1e308]).coeff == [Inf]
+    @test PauliSum(fill(pauli"X", 2), [1.0, -Inf]).coeff == [-Inf]
+    @test PauliSum(fill(pauli"X", 3), [1e308, 2.0im, 1e308]).coeff == [Inf + 2.0im]
+    @test isnan(first(PauliSum(fill(pauli"X", 2), [Inf, -Inf]).coeff))
+    #> Merging two coefficients is the same as adding them, down to the sign of a zero
+    for (c1, c2) in ((1e308, 1e308), (Inf, 1.0), (Inf, -Inf), (0.1, 0.2), (1e16, 1.0), 
+                     (Complex(-0.0, 0.1), Complex(-0.0, 0.2)), (-0.0, -0.0), (1.0, -1.0))
+        merged = first(PauliSum(fill(pauli"X", 2), [c1, c2], false).coeff)
+        @test isequal(merged, Complex{Float64}(c1) + Complex{Float64}(c2))
+    end
+    #> The accumulator of Pauli terms concludes its sums in the same way
+    termDict = Paulimorphic.PauliTermDict{Float64}()
+    foreach(c->Paulimorphic.updateNeuAccumulator!(termDict, pauli"X"=>c), (1e308, 1e308))
+    @test Paulimorphic.combinePauliTerms!(termDict).coeff == [Inf]
+
     #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
     @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
           Complex{Float32}[1.4901161f-8]
@@ -593,6 +610,8 @@ end
     @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
     @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
     @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
+    #> A floating-point overflow gives an infinite sum, as plain additions do
+    @test sumCoeffs(PauliSum([pauli"X", pauli"Z"], [1e308, 1e308])) == Inf
     #> A fixed-width integer overflow throws instead of wrapping around; a wider `R` 
     #> accumulates the same terms safely
     hBig = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])

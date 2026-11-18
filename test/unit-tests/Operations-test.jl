@@ -645,6 +645,14 @@ for a in twoSite, b in twoSite
 end
 @test bl2
 
+#>> For `PauliSum` operands, both judgments are made at the value level: they depend on 
+#>> the two products only, even when the difference or the sum of them is not representable
+hLow = PauliSum([pauli"Z"], [typemin(Int)])
+hTop = PauliSum([pauli"Z"], [typemax(Int)])
+@test  checkCommute(hLow, pauli"Z") && !checkAntiCom(hLow, pauli"Z")
+@test  checkCommute(pauli"Z", hTop) && !checkAntiCom(pauli"Z", hTop)
+@test !checkCommute(hTop, pauli"X") &&  checkAntiCom(hTop, pauli"X")
+
 @testset "evalCommute/evalAntiCom" begin
     @test evalCommute(pauli"X", pauli"Z") == PauliSum([pauli"Y"], -2im)
     @test evalCommute(pauli"X", pauli"Z") isa PauliSum{Int}
@@ -678,6 +686,15 @@ end
     hRat = PauliSum([pauli"XI"], Complex{Rational{Int}}(1//2, 0))
     @test evalAntiCom(hRat, mul(h2, 1.0)) isa PauliSum{Float64}
 
+    #> A commutator that is not representable throws instead of wrapping around, whereas 
+    #> whether the operands commute can still be judged
+    hIZ = PauliSum([pauli"I", pauli"Z"], Int8[1, 1])
+    hXY = PauliSum([pauli"X", pauli"Y"], Complex{Int8}[-64im, -64])
+    @test isempty(mul(hIZ, hXY).str)
+    @test mul(hXY, hIZ) == PauliSum([pauli"X", pauli"Y"], Complex{Int8}[-128im, -128])
+    @test_throws OverflowError evalCommute(hIZ, hXY)
+    @test !checkCommute(hIZ, hXY) && !checkAntiCom(hIZ, hXY)
+
     #> Property fuzz: string-level consistency, (anti)symmetry, adjoint interplay, 
     #> the decomposition {h1,h2} + [h1,h2] == 2 h1 h2, the Jacobi identity, and 
     #> matrix ground truth; all comparisons exact except the matrix references
@@ -688,12 +705,17 @@ end
         s1, s2 = randStr(rng, n), randStr(rng, n)
         bl &= (evalCommute(PauliSum(Int, [s1]), PauliSum(Int, [s2])) == evalCommute(s1, s2))
         bl &= (evalAntiCom(PauliSum(Int, [s1]), PauliSum(Int, [s2])) == evalAntiCom(s1, s2))
+        hS1, hS2 = PauliSum(Int, [s1]), PauliSum(Int, [s2])
+        bl &= (checkCommute(hS1, hS2) == checkCommute(s1, hS2) == checkCommute(s1, s2))
+        bl &= (checkAntiCom(hS1, hS2) == checkAntiCom(hS1, s2) == checkAntiCom(s1, s2))
 
         hA = randSum(rng, n, rand(rng, 0:4))
         hB = randSum(rng, n, rand(rng, 0:4))
         hC = randSum(rng, n, rand(rng, 0:4))
         cmAB = evalCommute(hA, hB)
         acAB = evalAntiCom(hA, hB)
+        bl &= (checkCommute(hA, hB) == isempty(cmAB.str))
+        bl &= (checkAntiCom(hA, hB) == isempty(acAB.str))
         bl &= (acAB == evalAntiCom(hB, hA))
         bl &= (cmAB == mul(evalCommute(hB, hA), -1))
         bl &= (isempty(evalCommute(hA, hA).str))

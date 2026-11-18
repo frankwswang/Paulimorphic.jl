@@ -664,10 +664,10 @@ end
                           conjugated::Bool) where {T<:Real, C<:Union{Complex{T}, T}, D} -> 
     Union{Nothing, NTuple{D, Int}}
 
-Return the first index `idx` (in column-major order) of `tensor` at which the symmetry 
-`tensor[idx...] == tensor[permIdx...]` (or `tensor[idx...] == tensor[permIdx...]'` if 
-`conjugated` is `true`) fails, where the "position" of `permIdx` along axis `d` (i.e., the 
-index difference to the first index of that axis) equals the position of `idx` along axis 
+Return the first index `idx` (in column-major order) of `tensor` at which `tensor[idx...]` 
+is not equal to `tensor[permIdx...]` (or to its complex conjugate if `conjugated` is 
+`true`), where the "position" of `permIdx` along axis `d` (i.e., the index difference to 
+the first index of that axis) equals the position of `idx` along axis 
 `axisPerm[begin+d-1]`. If no such `idx` is found (i.e., the symmetry holds everywhere), 
 `findAxisPermViolation` returns `nothing`. `axisPerm` must be a permutation of `1:D` such 
 that `Base.isperm(axisPerm) == true` and only maps between axes of equal extent.
@@ -690,8 +690,10 @@ function findAxisPermViolation(tensor::AbstractArray{<:RealOrComplex, D},
         idx = Tuple(carteIdx)
         pos = idx .- iFirstAxial #> It's necessary as axes may have different first indices
         permIdx = ntuple(d->pos[begin + axisPerm[begin+d-1] - 1], Val(D)) .+ iFirstAxial
-        partner = conjugated ? tensor[permIdx...]' : tensor[permIdx...]
-        tensor[carteIdx] != partner && (return idx)
+        val = tensor[carteIdx]
+        partner = tensor[permIdx...]
+        matched = conjugated ? checkConj(val, partner) : (val == partner)
+        matched || (return idx)
     end
 
     nothing

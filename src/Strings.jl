@@ -1796,7 +1796,7 @@ function isHermitian(op::PauliSum)
         true
     elseif (isone∘countTerms)(op) #> This branch assumes a nonzero coefficient
         c = first(op.coeff)
-        iszero(c + c') ? !isHermitian(op.str|>first) : false
+        iszero(real(c)) ? !isHermitian(op.str|>first) : false
     else
         hLocal = PauliSum(op)
         for c in hLocal.coeff
@@ -1826,11 +1826,12 @@ function isIdentity(op::PauliStr)
 end
 
 function isIdentity(op::PauliSum)
-    if countTerms(op) == 0
+    nTerm = countTerms(op)
+    if nTerm == 0
         false
-    elseif all(isIdentity, op.str) && (isone∘sum)(op.coeff)
-        true
-    else
+    elseif nTerm == 1 && isIdentity(first(op.str))
+        isone(first(op.coeff))
+    else #> The canonical-form rebuild via `PauliSum` can throw
         op2 = PauliSum(op)
         (isone∘countTerms)(op2) && isIdentity(first(op2.str)) && isone(first(op2.coeff))
     end

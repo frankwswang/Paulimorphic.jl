@@ -712,7 +712,11 @@ function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
     iseven(parity)
 end
 
-checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalCommute(op1, op2).str)
+function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    prod1 = mul(op1, op2)::PauliSum
+    prod2 = mul(op2, op1)::PauliSum
+    prod1 == prod2
+end
 
 
 """
@@ -734,7 +738,14 @@ function checkAntiCom(op1::PauliStr, op2::PauliStr)::Bool
     !checkCommute(op1, op2)
 end
 
-checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum) = isempty(evalAntiCom(op1, op2).str)
+function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    prod1 = mul(op1, op2)::PauliSum
+    prod2 = mul(op2, op1)::PauliSum
+    prod1.str == prod2.str || (return false)
+    all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
+        checkNeg(coeff1, coeff2)
+    end
+end
 
 
 """
@@ -766,7 +777,7 @@ end
 function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
     prod1 = mul(op1, op2)::PauliSum
     prod2 = mul(op2, op1)::PauliSum
-    coeffs = MemoryChain(prod1.coeff, map(-, prod2.coeff))
+    coeffs = MemoryChain(prod1.coeff, map(adaptNeg, prod2.coeff))
     PauliSum(MemoryChain(prod1.str, prod2.str), coeffs)
 end
 

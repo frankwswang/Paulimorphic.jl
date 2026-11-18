@@ -525,6 +525,12 @@ end
 @test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(0, 2)))
 @test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(1, 1)))
 @test  isHermitian(PauliSum(Int))
+#>> A term whose string still carries a phase is judged by the value it represents
+hStr = PauliSum([pauli"Z"], [typemin(Int)])
+indexTerm(hStr, 1, false).first.phase = posImg #> `hStr` represents `typemin(Int)*im*Z`
+@test !isHermitian(hStr)
+setCoeff!(hStr, 2im, 1)                        #> `hStr` represents `-2*Z`
+@test  isHermitian(hStr)
 
 #> `isIdentity`
 @test  isIdentity(PauliStr())
@@ -532,6 +538,17 @@ end
 @test  isIdentity(mul(PauliSum([mul(pauli"II", Paulimorphic.negRea)], Complex{Int}(-1)), 1))
 @test !isIdentity(PauliSum(Int))
 @test !isIdentity(PauliStr(0, symI, posImg))
+#>> Several identity strings are judged through the canonical rebuild, whose merge of 
+#>> their coefficients is overflow-checked (so a sum that wraps around to 1 does not count)
+hIds = PauliSum([pauli"X", pauli"Y", pauli"Z"], [typemax(Int), typemax(Int), 3])
+foreach(i->stamp!(indexTerm(hIds, i, false).first, 1, symI), 1:3)
+@test sum(hIds.coeff) == 1 #> `sum` wraps around: the coefficients are 3 and two `typemax`
+@test_throws OverflowError isIdentity(hIds)
+setCoeff!(hIds, 2, 2)
+setCoeff!(hIds, -4, 3)
+@test  isIdentity(hIds)    #> 3 + 2 - 4 == 1
+setCoeff!(hIds, -3, 3)
+@test !isIdentity(hIds)    #> 3 + 2 - 3 == 2
 
 @testset "toPauliStr" begin
     #> Single term with a coefficient expressible as a phase

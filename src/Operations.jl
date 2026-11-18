@@ -720,19 +720,24 @@ function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
     h
 end
 
-#> Return `true` if `op1` and `op2` are verified to be the same operator holding no 
-#> non-finite coefficient: either they are the same object, or their canonical forms are 
-#> equal and neither form is built by merging terms. A canonical form that merges terms is 
-#> not an exact image of its operand: adding the coefficients of equal strings can round or 
-#> overflow, so two different operators can share one canonical form.
-function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum)
-    checkFinitePauliCoeffs(op1, :op1, false) || (return false)
+
+#> Check if `op1` and `op2` are equal, under the premise that they both are operators with 
+#> only finite term coefficients. The equality is determined by whether they are identical 
+#> or form equal canonical forms without merging any terms. The non-merging constraint 
+#> comes from the fact that floating-point rounding or overflow errors during the merging 
+#> of equal strings may cause different operators to share one canonical form. If any  
+#> operator has at least one non-finite coefficient, the function exits with `missing`.
+function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum, 
+                                  explicitError::Bool=false)::MissingOr{Bool}
+    #> Early exit as soon as one operator has non-finite coefficients
+    checkFinitePauliCoeffs(op1, :op1, explicitError) || (return missing)
+    checkFinitePauliCoeffs(op2, :op2, explicitError) || (return missing)
+    
     op1 === op2 && (return true)
 
+    #> Only merging reduces the term count (a `PauliStr` always forms a single term)
     h1 = lazyCanonicalize(op1, false)
     h2 = lazyCanonicalize(op2, false)
-    #> With no term dropped, only a merge reduces the term count (a `PauliStr` always forms 
-    #> a single term)
     isExact1 = op1 isa PauliStr || countTerms(h1) == countTerms(op1)
     isExact2 = op2 isa PauliStr || countTerms(h2) == countTerms(op2)
 
@@ -760,13 +765,11 @@ If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2
 `op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). If 
 `onlyFinite=false`, any non-finite coefficient detected leads to `false` being returned.
 
-# Self commutator
-As a special case, for `op1` and `op2` holding no non-finite coefficient, `true` is 
-returned without evaluating `op1 * op2` or `op2 * op1` when they are the same object, or 
-when their [canonical forms](@ref `PauliSum`) are equal and neither form is built by 
-merging terms of the corresponding operand. Such operands are thus never rejected on 
-account of their products, whether a product would hold a non-finite coefficient or, for 
-exact coefficient types (e.g., `Int8`), would not be representable.
+# Self-commutator
+In the cases where both `op1` and `op2` hold no non-finite coefficient, their commutativity 
+may be estimated without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
+`op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
+equal [canonical forms](@ref `PauliSum`) without merging terms, `true` is returned.
 """
 function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
@@ -780,14 +783,8 @@ function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
 end
 
 function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
-    allFinite = true
-
-    for (i, op) in zip((1, 2), (op1, op2))
-        allFinite *= checkFinitePauliCoeffs(op, Symbol(:op, i), onlyFinite)
-    end
-    allFinite || (return false)
-
-    checkEqualFinitePauliOps(op1, op2) && (return true)
+    res = checkEqualFinitePauliOps(op1, op2, onlyFinite)
+    ismissing(res) ? (return false) : (res && (return true))
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
@@ -878,13 +875,12 @@ leaves a term with a `NaN` coefficient), and the result may not be consistent wi
 subject to overflow or floating-point arithmetic errors. `onlyFinite` has no effect in 
 method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 
-# Self commutator
-As a special case, for `op1` and `op2` holding no non-finite coefficient, the zero operator 
-is returned without evaluating `op1 * op2` or `op2 * op1` (whichever value `onlyFinite` 
-takes) when they are the same object, or when their [canonical forms](@ref `PauliSum`) are 
-equal and neither form is built by merging terms of the corresponding operand. Such 
-operands are thus never rejected on account of their products (see also 
-[`checkCommute`](@ref)).
+# Self-commutator
+In the cases where both `op1` and `op2` hold no non-finite coefficient, their commutativity 
+may be estimated without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
+`op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
+equal [canonical forms](@ref `PauliSum`) without merging terms, an zero-term `PauliSum` is 
+returned.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
@@ -893,13 +889,7 @@ function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
 end
 
 function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=true)
-    if onlyFinite
-        for (i, op) in zip((1, 2), (op1, op2))
-            checkFinitePauliCoeffs(op, Symbol(:op, i))
-        end
-    end
-
-    if checkEqualFinitePauliOps(op1, op2)
+    if isequal(checkEqualFinitePauliOps(op1, op2, onlyFinite), true)
         return PauliSum(promoteCoreType(op1, op2))
     end
 

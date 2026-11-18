@@ -2003,3 +2003,8 @@ end
 sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
           ) where {T<:SignedReal, R<:SignedReal} = 
 sumCoeffs(_->true, h, R; checkForm)
+
+
+hasOnlyFiniteCoeffs(h::PauliSum) = all(isfinite, h.coeff)
+
+hasOnlyFiniteCoeffs(::PauliStr) = true

@@ -713,9 +713,13 @@ function checkCommute(op1::PauliStr, op2::PauliStr)::Bool
 end
 
 function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum)
-    prod1 = mul(op1, op2)::PauliSum
-    prod2 = mul(op2, op1)::PauliSum
-    prod1 == prod2
+    if hasOnlyFiniteCoeffs(op1) && hasOnlyFiniteCoeffs(op2)
+        prod1 = mul(op1, op2)::PauliSum
+        prod2 = mul(op2, op1)::PauliSum
+        prod1 == prod2
+    else
+        false
+    end
 end
 
 
@@ -739,11 +743,15 @@ function checkAntiCom(op1::PauliStr, op2::PauliStr)::Bool
 end
 
 function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum)
-    prod1 = mul(op1, op2)::PauliSum
-    prod2 = mul(op2, op1)::PauliSum
-    prod1.str == prod2.str || (return false)
-    all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
-        checkNeg(coeff1, coeff2)
+    if hasOnlyFiniteCoeffs(op1) && hasOnlyFiniteCoeffs(op2)
+        prod1 = mul(op1, op2)::PauliSum
+        prod2 = mul(op2, op1)::PauliSum
+        prod1.str == prod2.str || (return false)
+        all(zip(prod1.coeff, prod2.coeff)) do (coeff1, coeff2)
+            checkNeg(coeff1, coeff2)
+        end
+    else
+        false
     end
 end
 

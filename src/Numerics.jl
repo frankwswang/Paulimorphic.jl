@@ -127,8 +127,8 @@ end
 
 
 #> Value-based check of `num1 == -num2` where negation `-(x)` operation is avoided when 
-#> possible to avoid edges cases like `-0xff === 0x01` (where the latter is not the 
-#> additive inverse of the former under `Base.:+`). 
+#> possible to avoid edge cases like `-0xff === 0x01` (where the latter is the additive 
+#> inverse of the former only when they are passed to `Base.:+`).
 function checkNeg(num1::T, num2::T) where {T<:Real}
     if T <: Union{BitSInteger, BitUInteger}
         #> Two integers are opposite numbers iff they add up to zero without an overflow
@@ -147,7 +147,7 @@ checkNeg(num1::T, num2::T) where {T<:Complex} =
 checkNeg(real(num1), real(num2)) && checkNeg(imag(num1), imag(num2))
 
 #> Numbers of different types are first promoted (potentially leading to rounding for 
-#> floating-point types), which can throws an `InexactError` if either cannot be converted.
+#> floating-point types), which can throw an `InexactError` if either cannot be converted.
 function checkNeg(num1::RealOrComplex, num2::RealOrComplex)
     pNum1, pNum2 = promote(num1, num2)
     pNum1 == num1 && pNum2 == num2 && checkNeg(pNum1, pNum2)
@@ -155,8 +155,8 @@ end
 
 
 #> Value-based check of `num1 == conj(num2)` where component-wise negation `-(x)` operation 
-#> is avoided when possible to avoid edges cases like `-0xff === 0x01` (where the latter is 
-#> not the additive inverse of the former under `Base.:+`). 
+#> is avoided when possible to avoid edge cases like `-0xff === 0x01` (where the latter is 
+#> the additive inverse of the former only when they are passed to `Base.:+`).
 checkConj(num1::Real, num2::Real) = (num1 == num2)
 
 function checkConj(num1::RealOrComplex, num2::RealOrComplex)

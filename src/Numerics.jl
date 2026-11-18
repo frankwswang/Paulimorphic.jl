@@ -191,7 +191,7 @@ neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} =
 
 
 #> Conclude a Neumaier summation by adding the accumulated residue to the naive sum. The 
-#> addition is skipped for a residue that is zero (so that a signed zero intact) and for a 
+#> addition is skipped for a residue that is zero (keeping a signed zero intact) and for a 
 #> residue that is not finite. The latter only arises when the naive sum is not finite 
 #> either: such a sum has no rounding error to compensate for. As a result, the result of 
 #> a Neumaier summation is consistent with the `Base.:+` for non-finite results. For 

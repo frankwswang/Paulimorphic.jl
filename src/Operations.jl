@@ -810,8 +810,8 @@ If `onlyFinite=false`, the commutator is evaluated without these validations, in
 non-finite coefficients propagate through the floating-point arithmetic (e.g., `Inf - Inf` 
 leaves a term with a `NaN` coefficient), and the result may not be consistent with 
 `checkCommute`. In either case, the coefficients of the returned commutator are still 
-subject overflow or floating-point arithmetic errors. `onlyFinite` has no effect in method 
-`evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
+subject to overflow or floating-point arithmetic errors. `onlyFinite` has no effect in 
+method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
@@ -869,8 +869,8 @@ If `onlyFinite=false`, the anticommutator is evaluated without these validations
 case non-finite coefficients propagate through the floating-point arithmetic (e.g., 
 `Inf - Inf` leaves a term with a `NaN` coefficient), and the result may not be consistent 
 with `checkAntiCom`. In either case, the coefficients of the returned anticommutator are 
-still subject overflow or floating-point arithmetic errors. `onlyFinite` has no effect in 
-method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
+still subject to overflow or floating-point arithmetic errors. `onlyFinite` has no effect 
+in method `evalAntiCom(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 """
 function evalAntiCom(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)

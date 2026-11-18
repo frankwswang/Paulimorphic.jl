@@ -714,8 +714,20 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     #>> A product that is not representable throws in the judgments as well, whichever 
     #>> value `onlyFinite` takes
     hOver = PauliSum([pauli"Z"], Int8[100])
-    @test checkCommute(hOver, hOver) #> Special case: equal terms passing to `checkCommute`
+    @test_throws OverflowError checkCommute(hOver, PauliSum([pauli"Z"], Int8[2]))
     @test_throws OverflowError checkAntiCom(hOver, hOver, false)
+    @test checkCommute(hOver, hOver) #> Special case: equal terms passing to `checkCommute`
+    @test checkCommute(hOver, PauliSum(hOver), false)
+    #>> In this case, `evalCommute` returns the zero operator, which has the same core type 
+    #>> as any other result of the same method
+    @test evalCommute(hOver, hOver) == evalCommute(PauliSum(hOver), hOver) == PauliSum(Int8)
+    @test evalCommute(hOver, hOver) isa PauliSum{Int8}
+    hZf, hZi = PauliSum([pauli"Z"], [2.0]), PauliSum([pauli"Z"], [2])
+    @test checkCommute(hZf, hZi) && checkCommute(pauli"Z", PauliSum([pauli"Z"], Int8[1]))
+    @test evalCommute(hZf, hZi) isa PauliSum{Float64}
+    @test evalCommute(hZi, hZf) isa PauliSum{Float64}
+    @test evalCommute(PauliSum([pauli"Z"], [1.0]), pauli"Z") isa PauliSum{Float64}
+    @test evalCommute(pauli"Z", PauliSum([pauli"Z"], Int8[1])) isa PauliSum{Int8}
 
     #> Property fuzz: string-level consistency, (anti)symmetry, adjoint interplay, 
     #> the decomposition {h1,h2} + [h1,h2] == 2 h1 h2, the Jacobi identity, and 
@@ -758,6 +770,8 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
         fA, fB = mul(hA, 2.0^600), mul(hB, 2.0^500)
         anyZero = isempty(hA.str) || isempty(hB.str)
         bl &= (checkCommute(fA, fB, false) == checkAntiCom(fA, fB, false) == anyZero)
+        #> A finite operator commutes with itself whether or not its square overflows
+        bl &= (checkCommute(fA, fA) && evalCommute(fA, fA) == PauliSum(Float64))
 
         bl &= (sumToMat(cmAB, n) ≈ 
                sumToMat(hA, n) * sumToMat(hB, n) - sumToMat(hB, n) * sumToMat(hA, n))
@@ -788,6 +802,9 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
         @test !checkCommute(hBad, hBad, false) && !checkAntiCom(hBad, pauli"X", false)
         @test isnan(evalCommute(hBad, hTwo, false).coeff[])
         @test !isfinite(evalAntiCom(hBad, hTwo, false).coeff[])
+        #>> Nor does such an operand take the special case of equal operands
+        @test isnan(evalCommute(hBad, hBad, false).coeff[])
+        @test isnan(evalCommute(hBad, PauliSum(hBad), false).coeff[])
     end
     #>> Hence, an unvalidated evaluation can return the zero operator where the judgment is 
     #>> `false`
@@ -808,18 +825,52 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     acXZ = evalAntiCom(hXs, hZs, false) #>> `Inf + (-Inf)` leaves a `NaN` in each term
     @test countTerms(acXZ) == 2 && all(isnan, acXZ.coeff)
     @test evalCommute(hXs, hZs, false) == mul(hXs, hZs)
-    #>> self commutator is valid as long as on non-finite coefficients exist initially
+    #>> The self-commutator is valid as long as no non-finite coefficients exist initially
     hBig = PauliSum([pauli"X", pauli"Z"], [1e200, 1e200])
     @test checkCommute(hBig, hBig)
     @test checkCommute(hBig, hBig, false)
+    @test evalCommute(hBig, hBig) == evalCommute(hBig, hBig, false) == PauliSum(Float64)
+    @test_throws ArgumentError checkAntiCom(hBig, hBig)
+    @test_throws ArgumentError evalAntiCom(hBig, hBig)
     #>> The same applies to other floating-point types and to mixed coefficient types
     hBig32 = PauliSum([pauli"X", pauli"Z"], Float32[1f30, 1f30])
     @test checkCommute(hBig32, hBig32)
     @test checkCommute(hBig32, hBig32, false)
+    @test checkCommute(hBig32, PauliSum(Float64, hBig32))
     #>> Different operators will throw by default
     hHuge = PauliSum([pauli"Z"], [1e300])
     @test_throws ArgumentError checkCommute(hTop, hHuge)
     @test !checkCommute(hTop, hHuge, false) && !checkAntiCom(hHuge, hTop, false)
+    #>> Two objects holding the same operator count as equal operands, whether or not they 
+    #>> store it in the canonical form
+    hPerm = PauliSum(hBig)
+    @test checkCommute(hBig, hPerm) && checkCommute(hPerm, hBig, false)
+    #>> Both coefficients are equal, so swapping the strings only changes the term order
+    hPerm.str[begin], hPerm.str[end] = hPerm.str[end], hPerm.str[begin]
+    @test !isCanonical(hPerm)
+    @test checkCommute(hBig, hPerm) && checkCommute(hPerm, hBig, false)
+    @test evalCommute(hPerm, hBig) == evalCommute(hBig, hPerm, false) == PauliSum(Float64)
+    #>> A canonical form that merges terms is not an exact image of its operand, since the 
+    #>> merge can round (`hRnd`) or overflow (`hDup1` and `hDup2`). Operands that are equal 
+    #>> only in such forms are left to their products, unless they are the same object
+    hRnd = PauliSum([pauli"Z", pauli"X", pauli"Y"], [1.0, 1.0, 2.0^-60])
+    stamp!(indexTerm(hRnd, 3, false).first, 1, symX) #> The third stored term is `Y`
+    hMerged = PauliSum([pauli"Z", pauli"X"], [1.0, 1.0])
+    @test PauliSum(hRnd, false) == hMerged
+    @test !checkCommute(hRnd, hMerged) && !checkCommute(hMerged, hRnd, false)
+    @test  checkCommute(hRnd, hRnd) && evalCommute(hRnd, hRnd) == PauliSum(Float64)
+    @test evalCommute(hRnd, hMerged) == PauliSum([pauli"Y"], [Complex(0.0, -2.0^-59)])
+    hDup1 = PauliSum([pauli"X", pauli"Y", pauli"Z"], [1e308, 1.0, 1e308])
+    hDup2 = PauliSum([pauli"X", pauli"Y", pauli"Z"], [1e308, 1.0, 1.5e308])
+    for hDup in (hDup1, hDup2)
+        stamp!(indexTerm(hDup, 1, false).first, 1, symX) #> The first stored term is `Z`
+    end
+    @test PauliSum(hDup1, false) == PauliSum(hDup2, false) == 
+          PauliSum([pauli"X", pauli"Y"], [Inf, 1.0])
+    @test_throws ArgumentError checkCommute(hDup1, hDup2)
+    @test_throws ArgumentError evalCommute(hDup1, hDup2)
+    @test !checkCommute(hDup1, hDup2, false)
+    @test  checkCommute(hDup1, hDup1) && evalCommute(hDup1, hDup1) == PauliSum(Float64)
 
     #> Equal (or opposite) infinite coefficients in the two products are never taken as 
     #> equal (or opposite) products: [hEq1, hEq2] == 1.35e308 (Z - X), and {hOpp1, hOpp2} 

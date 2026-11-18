@@ -685,6 +685,35 @@ function scale!(h::PauliSum{T}, c::SRealOrComplex) where {T<:SignedReal}
 end
 
 
+#> Core data type of the `PauliSum` returned by `mul(op1, op2)`
+getProductCoreType(::PauliSum{T1}, ::PauliSum{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
+promote_type(T1, T2)
+
+getProductCoreType(::PauliStr, ::PauliSum{T}) where {T<:SignedReal} = T
+
+getProductCoreType(::PauliSum{T}, ::PauliStr) where {T<:SignedReal} = T
+
+
+#> Return `true` if `op1` and `op2` are verified to be the same operator holding no 
+#> non-finite coefficient: either they are the same object, or their canonical forms are 
+#> equal and neither form is built by merging terms. A canonical form that merges terms is 
+#> not an exact image of its operand: adding the coefficients of equal strings can round or 
+#> overflow, so two different operators can share one canonical form.
+function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    checkFinitePauliCoeffs(op1, :op1, false) || (return false)
+    op1 === op2 && (return true)
+
+    h1 = lazyCanonicalize(op1, false)
+    h2 = lazyCanonicalize(op2, false)
+    #> With no term dropped, only a merge reduces the term count (a `PauliStr` always forms 
+    #> a single term)
+    isExact1 = op1 isa PauliStr || countTerms(h1) == countTerms(op1)
+    isExact2 = op2 isa PauliStr || countTerms(h2) == countTerms(op2)
+
+    isExact1 && isExact2 && h1 == h2
+end
+
+
 """
     checkCommute(op1::PauliStr, op2::PauliStr, onlyFinite::Bool=true) -> Bool
 
@@ -704,6 +733,14 @@ never affect the result.
 If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2`, 
 `op1 * op2`, or `op2 * op1` holds a non-finite coefficient (e.g., `Inf` or `NaN`). If 
 `onlyFinite=false`, any non-finite coefficient detected leads to `false` being returned.
+
+# Self commutator
+As a special case, for `op1` and `op2` holding no non-finite coefficient, `true` is 
+returned without evaluating `op1 * op2` or `op2 * op1` when they are the same object, or 
+when their [canonical forms](@ref `PauliSum`) are equal and neither form is built by 
+merging terms of the corresponding operand. Such operands are thus never rejected on 
+account of their products, whether a product would hold a non-finite coefficient or, for 
+exact coefficient types (e.g., `Int8`), would not be representable.
 """
 function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
@@ -724,7 +761,7 @@ function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     end
     allFinite || (return false)
 
-    (op1 === op2 || lazyCanonicalize(op1) == lazyCanonicalize(op2)) && (return true)
+    checkEqualFinitePauliOps(op1, op2) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
@@ -814,6 +851,14 @@ leaves a term with a `NaN` coefficient), and the result may not be consistent wi
 `checkCommute`. In either case, the coefficients of the returned commutator are still 
 subject to overflow or floating-point arithmetic errors. `onlyFinite` has no effect in 
 method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
+
+# Self commutator
+As a special case, for `op1` and `op2` holding no non-finite coefficient, the zero operator 
+is returned without evaluating `op1 * op2` or `op2 * op1` (whichever value `onlyFinite` 
+takes) when they are the same object, or when their [canonical forms](@ref `PauliSum`) are 
+equal and neither form is built by merging terms of the corresponding operand. Such 
+operands are thus never rejected on account of their products (see also 
+[`checkCommute`](@ref)).
 """
 function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
@@ -828,9 +873,8 @@ function evalCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
         end
     end
 
-    if op1 === op2 || lazyCanonicalize(op1) == lazyCanonicalize(op2)
-        coreT = extendType((getCoreDataType∘typeof)(op1), (getCoreDataType∘typeof)(op2))
-        return PauliSum(PauliStr[], zero(coreT))
+    if checkEqualFinitePauliOps(op1, op2)
+        return PauliSum(getProductCoreType(op1, op2))
     end
 
     prod1 = mul(op1, op2)::PauliSum

@@ -5,7 +5,21 @@ public add, combine, sub, mul, toAdjoint
 const PStrCoeffPair{T<:SignedReal} = Union{Pair{PauliStr, T}, PauliTerm{T}}
 
 
-#> Core data-type promotion of binary operations on `PauliStrOrSum`
+#> Core data-type promotion of binary operations on `PauliStrOrSum` and `PStrCoeffPair`.
+#>> Only right-associative signatures for value/type involved methods are defined
+promoteCoreType(::PauliStr, ::Type{T}) where {T<:SignedReal} = T
+
+promoteCoreType(::PauliSum{T1}, ::Type{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
+promote_type(T1, T2)
+
+promoteCoreType(op::PauliStrOrSum, val::SRealOrComplex) = 
+promoteCoreType(op, (real∘typeof)(val))
+
+promoteCoreType(op::PauliStrOrSum, pair::PStrCoeffPair) = promoteCoreType(op, pair.second)
+
+#>> `promoteCoreType(::PauliStr, ::PauliStr)` is left out to avoid inconsistency between 
+#>> `promoteCoreType(::PauliSum, promoteCoreType(::PauliStr, ::PauliStr))` and
+#>> `promoteCoreType(::PauliStr, promoteCoreType(::PauliSum, ::PauliStr))`.
 promoteCoreType(::PauliSum{T1}, ::PauliSum{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
 promote_type(T1, T2)
 
@@ -13,13 +27,9 @@ promoteCoreType(::PauliStr, ::PauliSum{T}) where {T<:SignedReal} = T
 
 promoteCoreType(::PauliSum{T}, ::PauliStr) where {T<:SignedReal} = T
 
-promoteCoreType(::PauliSum{T1}, ::PStrCoeffPair{T2}
-                ) where {T1<:SignedReal, T2<:SignedReal} = 
-promote_type(T1, T2)
-
 #> Must match with the implementation of `promoteCoreType` for docstring interpolation:
 #> "`$getCTPromoterStr(symT1, symT2)`", where `symT1` and `symT2` are the `Symbol` for the 
-#> core data type (variable).
+#> core data type (variable) which must subtype `SignedReal`.
 function getCTPromoterStr(symT1::Symbol, symT2::Symbol)
     string(promote_type, '(', symT1, ", ", symT2, ')')
 end
@@ -237,14 +247,22 @@ end
 
 function combine(terms::AbstractVector{<:PauliStrOrSum}, simplification::Bool=true)
     T = getCoreDataType(eltype(terms))
-    if !isconcretetype(T)
+    finalT = if !isconcretetype(T)
         if isempty(terms)
             throw(ArgumentError("`terms` must be non-empty when `eltype(terms)` does not "*
                                 "contain a concrete core type."))
         end
-        T = reduce(promoteCoreType, terms)
+
+        if all(x->(x isa PauliStr), terms)
+            getCoreDataType(PauliStr)
+        else
+            foldr(promoteCoreType, terms, init=Union{})
+        end
+    else
+        T
     end
-    combine(T, terms, simplification)
+
+    combine(finalT, terms, simplification)
 end
 
 Base.:+(t1::T, t2::T, t3::T, ts::T...) where {T<:PauliStrOrSum} = 
@@ -355,7 +373,7 @@ function sub(::Type{T}, h::PauliSum, term::PStrCoeffPair, simplification::Bool=t
 end
 
 sub(h::PauliSum, term::PStrCoeffPair, simplification::Bool=true) = 
-sub(getCTPromoterStr(h, term), h, term, simplification)
+sub(promoteCoreType(h, term), h, term, simplification)
 
 """
     sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
@@ -618,19 +636,17 @@ promotion, see [`scale!`](@ref).
     of `$(extendType|>repr)(T, complex( $(getCTPromoterStr(:T1, :T2)) ))` (following the 
     overflow checking policy of `PauliSum`) and then converted to `Complex{T}`.
 """
-function mul(::Type{T}, h::PauliSum{T1}, coeff::SRealOrComplex{T2}, 
-             simplification::Bool=true
-             ) where {T<:SignedReal, T1<:SignedReal, T2<:SignedReal}
+function mul(::Type{T}, h::PauliSum, coeff::SRealOrComplex, simplification::Bool=true
+             ) where {T<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
-    tempC = extendType(T, complex( promoteCoreType(T1, T2) ))
+    tempC = extendType(T, complex( promoteCoreType(h, coeff) ))
     tempCoeff = tempC(coeff)
     coeffs = map(x->Complex{T}(adaptMul(tempC(x), tempCoeff)), h.coeff)
     PauliSum(h.str, coeffs, simplification)
 end
 
-mul(h::PauliSum{T}, coeff::C, simplification::Bool=true
-    ) where {T<:SignedReal, C<:SRealOrComplex} = 
-mul(promoteCoreType(T, real(C)), h, coeff, simplification)
+mul(h::PauliSum, coeff::SRealOrComplex, simplification::Bool=true) = 
+mul(promoteCoreType(h, coeff), h, coeff, simplification)
 
 """
     mul(::Type{T}, h::PauliSum, phase::PhaseFactor, simplification::Bool=true

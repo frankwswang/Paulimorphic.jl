@@ -119,6 +119,10 @@ end
     new1B, _ = formatMolecularInteData(PairedOrder(), (zeros(3, 3), g))
     @test new1B[1, 1] == -0.5
     @test new1B[2, 2] == -0.5 #> Control entry: independent of the accumulation order
+    #> A floating-point overflow gives an infinite sum, as plain additions do
+    gInf = fill(1e308, 2, 2, 2, 2)
+    newInf, _ = formatMolecularInteData(PairedOrder(), (zeros(2, 2), gInf))
+    @test all(==(-Inf), newInf)
 end
 
 @testset "encodeElecHam" begin

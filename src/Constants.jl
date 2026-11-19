@@ -2,7 +2,7 @@ export PauliSym, symI, symX, symY, symZ, PhaseFactor, toString, toPhase, evalPha
 
 public mul
 
-const CONSTVAR!!QubitIMatEles = (1,   0,    0,  1) #> (m11, m21, m12, m22)
+const CONSTVAR!!qubitIMatEles = (1,   0,    0,  1) #> (m11, m21, m12, m22)
 const CONSTVAR!!pauliXMatEles = (0,   1,    1,  0)
 const CONSTVAR!!pauliYMatEles = (0, 1im, -1im,  0)
 const CONSTVAR!!pauliZMatEles = (1,   0,    0, -1)
@@ -112,18 +112,11 @@ $(join(("`\"$s\"`" for s in CONSTVAR!!phaseMarkers), ", ")); otherwise, `input` 
 valid, and an `ArgumentError` is thrown.
 """
 function toPhase(input::RealOrComplex)
-    if isone(input)
-        posRea
-    elseif isone(-im * input)
-        posImg
-    elseif isone(-input)
-        negRea
-    elseif isone(im * input)
-        negImg
-    else
-        throw(ArgumentError("`input=$input` is not a numerical value representable by "*
-                            "`PhaseFactor`."))
+    for p in instances(PhaseFactor)
+        input == evalPhase(p) && (return p)
     end
+    throw(ArgumentError("`input=$input` is not a numerical value representable by "*
+                        "`PhaseFactor`."))
 end
 
 function toPhase(input::AbstractString)

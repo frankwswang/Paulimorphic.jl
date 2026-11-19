@@ -588,7 +588,7 @@ function genRootGraph(g::StrictGraph{T},
         lRootEdgeNum += d * (d - 1) ÷ 2
     end
     if length(gEdges) == lRootEdgeNum
-        saveEdgeNodeRelation && (cache!Self .= edgeLabels)
+        saveEdgeNodeRelation && dumpTo!(cache!Self, edgeLabels) #> Axes need not match
         true => rootGraph
     else
         false => g
@@ -758,9 +758,9 @@ end
 
 
 """
-    breadthFirstSearch(f, graph::StrictGraph{T}, startingPoint::Union{Missing, T}, 
+    breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::Union{Missing, T}, 
                        cache!Self::AbstractVector{T}=zeros(T, graph.order)
-                       ) where {T<:Integer} -> 
+                       ) where {F<:$AbstractCallable, T<:Integer} -> 
     Tuple{T, Int}
 
 Perform a breadth-first search (BFS) on `graph`, starting from `startingPoint`. 
@@ -782,7 +782,7 @@ have length at least `graph.order`. The elements of `cache!Self` up to the retur
 """
 function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingOr{T}, 
                             cache!Self::AbstractVector{T}=zeros(T, graph.order)
-                            ) where {T<:Integer, F}
+                            ) where {T<:Integer, F<:AbstractCallable}
     order = graph.order
     register = Memory{Bool}(undef, order)
     register .= false

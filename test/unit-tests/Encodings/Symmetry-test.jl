@@ -37,6 +37,37 @@ gF[2, 1, 1, 1] = 1.0
     @test  checkNBodyInteTensor(Symmetric(h1s), (2,), (1,), (true,))
 end
 
+@testset "Value-level conjugation" begin
+    #> When the complex conjugate of an element is not representable by its type, `'` 
+    #> wraps around (or throws for a `Rational`), whereas the symmetry is judged by values
+    mInt = Complex{Int8}[0 -128im; -128im 0]
+    @test mInt == mInt' && !checkInteHermiticity(mInt)
+    @test_throws ArgumentError checkInteHermiticity(mInt, true)
+    @test Paulimorphic.findAxisPermViolation(mInt, (2, 1), true) == (2, 1)
+    @test Paulimorphic.findAxisPermViolation(mInt, (2, 1), false) === nothing
+    @test checkInteHermiticity(Complex{Int8}[0 -127im; 127im 0])
+    @test checkInteHermiticity(Complex{Int8}[-128 5+3im; 5-3im 127])
+
+    mUInt = Complex{UInt8}[0 1im; 255im 0]
+    @test mUInt == mUInt' && !checkInteHermiticity(mUInt)
+    @test checkInteHermiticity(Complex{UInt8}[1 2; 2 255])
+    @test checkInteHermiticity(UInt8[1 2; 2 255]) && !checkInteHermiticity(UInt8[1 2; 3 4])
+
+    ratLow = typemin(Int8) // Int8(1)
+    zRat = Complex(zero(ratLow), ratLow)
+    @test_throws OverflowError conj(zRat)
+    @test !checkInteHermiticity([zero(zRat) zRat; zRat zero(zRat)])
+
+    #> A complex `Hermitian` mirrors its stored elements through `'`, so it is examined too
+    mHerm = Hermitian(Complex{Int8}[0 -128im; 0 0])
+    @test mHerm[2, 1] === mHerm[1, 2]
+    @test !checkNBodyInteTensor(mHerm, (2,), (1,), (false,))
+    mHerm = Hermitian(Complex{Int8}[1 2-3im; 0 4])
+    @test  checkNBodyInteTensor(mHerm, (2,), (1,), (false,))
+    @test  checkNBodyInteTensor(Hermitian(Int8[1 2; 0 4]), (2,), (1,), (true,))
+    @test  checkNBodyInteTensor(Symmetric(Int8[1 2; 0 4]), (2,), (1,), (true,))
+end
+
 @testset "Particle positions" begin
     #> Both checkers convert the positions to `Int` before examining their ranges. Hence, 
     #> a position that is not representable by `Int` is reported as such by either of them.

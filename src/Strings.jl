@@ -613,7 +613,8 @@ construction. Thus, narrowing floating-point `T` may round a coefficient to exac
 which is dropped when `simplification=true`. Again, `T` is subject to the same restriction 
 as in the first initialization method.
 
-    PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true) where {F, T<:SignedReal} -> 
+    PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true
+             ) where {F<:$AbstractCallable, T<:SignedReal} -> 
     PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `h`'s terms picked out 
@@ -621,6 +622,7 @@ by a callable object `selector`, which must have the following method signature:
 
     selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
 
+where `term.first` directly refers to a `PauliStr` stored in `h` (i.e., no data copying). 
 By iterating through all the terms in `PauliSum`, `selector` is used to retain all the 
 terms (when input as a `Pair`) for which it returns `true`. This constructor respects the 
 term order of `h` and performs no phase absorption, merging, or re-sorting. Consequently, 
@@ -641,7 +643,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
     coeff::Memory{Complex{T}}
 
     function PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true
-                      ) where {F, T<:SignedReal}
+                      ) where {F<:AbstractCallable, T<:SignedReal}
         checkPauliOpForm(h, checkForm)
         s = h.str
         c = h.coeff
@@ -690,8 +692,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
                     k += 1
                 end
 
-                #> Skipped addition when no non-zero residue to keep signed zero intact
-                coeff = iszero(accResidue) ? acc : (acc + accResidue)
+                coeff = absorbResidue(acc, accResidue)
 
                 #> Terms with zero coefficients are dropped only when `simplification=true`
                 if !(simplification && iszero(coeff |> Complex{T}))
@@ -758,7 +759,7 @@ end
 function combinePauliTerms!(termDict::PauliTermDict)
     filter!(pair->!(iszero∘sum)(pair.second), termDict)
     coeffs = map((collect∘values)(termDict)) do (coeffSum, sumResidue)
-        adaptAdd(coeffSum, sumResidue)
+        absorbResidue(coeffSum, sumResidue)
     end
     pStrs = (collect∘keys)(termDict)
     res = PauliSum(pStrs, coeffs) #> Keys that differ only by their phases are merged here
@@ -772,8 +773,8 @@ const PauliStrOrSum = Union{PauliStr, PauliSum}
 getCoreDataType(::Type{PauliSum{T}}) where {T<:SignedReal} = T
 getCoreDataType(::Type{<:PauliSum}) = SignedReal
 getCoreDataType(::Type{PauliStr}) = Int
-getCoreDataType(type::Type{<:PauliStrOrSum}) = 
-promote_type(getCoreDataType(typeintersect(type, PauliSum)), getCoreDataType(PauliStr))
+#> `PauliStr` does not affect the promotion of core data types on the path of `PauliSum`
+getCoreDataType(T::Type{<:PauliStrOrSum}) = getCoreDataType(typeintersect(T, PauliSum))
 
 
 """
@@ -934,7 +935,7 @@ end
 
 
 #> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
-function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, Complex{<:SignedReal}})
+function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, SRealOrComplex})
     (str, evalMagnitude(strCoeff), real(strCoeff), imag(strCoeff))
 end
 
@@ -977,12 +978,13 @@ function sortStrings!(strs::AbstractVector{PauliStr},
 
         #> Update elements in `coeffs` and `strs` using sorted `scope`
         #> `scope` is shifted when `coeffs` & `strs` are not one-based indexed
+        #> `dumpTo!` is used since the permuted copies are always one-based indexed
         iFirst1 = firstindex(strs)
         iFirst2 = firstindex(coeffs)
         iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
-        strs .= strs[scope]
+        dumpTo!(strs, strs[scope])
         iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
-        coeffs .= coeffs[scope]
+        dumpTo!(coeffs, coeffs[scope])
     end
 
     nothing
@@ -1154,6 +1156,33 @@ function lazyCanonicalize(h::PauliSum, simplification::Bool=false)
         end
     end
 end
+
+lazyCanonicalize(s::PauliStr, ::Bool=false) = 
+PauliSum(genMemory(s), (one∘getCoreDataType)(PauliStr))
+
+
+#> A modest formatter that only performs a lazy canonicalization on `h` when the 
+#> mathematical expression of `PauliSum(h)` is equivalent to that of `h`. In other words, 
+#> for `T<:AbstractFloat` the canonicalization proceeded cannot contain term merging, which 
+#> is subject to rounding errors. When such canonicalization cannot be done, the function 
+#> returns `false=>h`; otherwise, it returns `true=>lazyCanonicalize(h, simplification)`.
+function toExactCanonicalForm(h::PauliSum{T}, simplification::Bool=false
+                              )::Pair{Bool, PauliSum{T}} where {T<:SignedReal}
+    if T <: AbstractFloat
+        hLocal = lazyCanonicalize(h, false) #> zero-coeff terms have to be kept
+        if countTerms(hLocal) < countTerms(h) #> Term count is only affected by merging
+            false => h
+        elseif simplification && any(iszero, hLocal.coeff)
+            true => PauliSum(pair->!iszero(pair.second), hLocal, false)
+        else
+            true => hLocal
+        end
+    else
+        true => lazyCanonicalize(h, simplification)
+    end
+end
+
+toExactCanonicalForm(s::PauliStr, ::Bool=false) = (true => lazyCanonicalize(s))
 
 
 """
@@ -1782,10 +1811,17 @@ end
     isHermitian(op::PauliSum) -> Bool
 
 Return `true` if the operator represented by `op` is Hermitian, i.e., `op == op'` (see 
-[`$(toAdjoint|>repr)`](@ref)). The judgment is at the value level: it does not depend on 
-the specific representation of `op`. The judgment is exact, so an operator that is 
-Hermitian in exact arithmetic can fail the test if its coefficients carry floating-point 
-rounding residues.
+[`$(toAdjoint|>repr)`](@ref)). The judgment is exact, so an operator that is Hermitian in 
+exact arithmetic can fail the test if its coefficients carry floating-point rounding 
+residues.
+
+# Verification of mergeable terms
+When `op::PauliSum{T}` has mergeable terms (hence it's not in the canonical form) and 
+`T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
+`op` is constructed for verification (following the overflow checking policy of 
+`PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
+the verification; to have such an `op` verified with its terms merged, canonicalize it 
+first (e.g., via `PauliSum(op)`).
 """
 function isHermitian(op::PauliStr)
     (op.phase != posImg) && (op.phase != negImg)
@@ -1794,15 +1830,12 @@ end
 function isHermitian(op::PauliSum)
     if (all(isHermitian, op.str) && all(isreal, op.coeff)) || all(iszero, op.coeff)
         true
-    elseif (isone∘countTerms)(op) #> This branch assumes a nonzero coefficient
+    elseif (isone∘countTerms)(op) #> This branch assumes a single nonzero coefficient
         c = first(op.coeff)
-        iszero(c + c') ? !isHermitian(op.str|>first) : false
-    else
-        hLocal = PauliSum(op)
-        for c in hLocal.coeff
-            isreal(c) || (return false)
-        end
-        true
+        iszero(real(c)) ? !isHermitian(op.str|>first) : false
+    else #> The canonical form is only relied on when it represents `op` exactly
+        isCan, opLocal = toExactCanonicalForm(op)
+        isCan && all(isreal(c) for c in opLocal.coeff)
     end
 end
 
@@ -1813,12 +1846,19 @@ end
     isIdentity(op::PauliSum) -> Bool
 
 Return `true` if the operator represented by `op` is the identity operator (on its 
-explicit site count). The judgment is at the value level: it does not depend on the 
-specific representation of `op`. In particular, the zero operator (e.g., an empty 
-`PauliSum`) is not considered an identity operator, while the zero-site `PauliStr` (i.e., 
-`PauliStr()`), as the multiplicative unit, is considered an identity operator. The judgment 
-is exact, so an operator that is an identity in exact arithmetic can fail the test if its 
+explicit site count). In particular, the zero operator (e.g., an empty `PauliSum`) is not 
+considered an identity operator, while the zero-site `PauliStr` (i.e., `PauliStr()`), as 
+the multiplicative unit, is considered an identity operator. The judgment is exact, so an 
+operator that is an identity in exact arithmetic can fail the test if its 
 coefficients carry floating-point rounding residues.
+
+# Verification of mergeable terms
+When `op::PauliSum{T}` has mergeable terms (hence it's not in the canonical form) and 
+`T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
+`op` is constructed for verification (following the overflow checking policy of 
+`PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
+the verification; to have such an `op` verified with its terms merged, canonicalize it 
+first (e.g., via `PauliSum(op)`).
 """
 function isIdentity(op::PauliStr)
     #> `all` returns `true` for empty collections
@@ -1826,13 +1866,15 @@ function isIdentity(op::PauliStr)
 end
 
 function isIdentity(op::PauliSum)
-    if countTerms(op) == 0
+    nTerm = countTerms(op)
+    if nTerm == 0
         false
-    elseif all(isIdentity, op.str) && (isone∘sum)(op.coeff)
-        true
-    else
-        op2 = PauliSum(op)
-        (isone∘countTerms)(op2) && isIdentity(first(op2.str)) && isone(first(op2.coeff))
+    elseif nTerm == 1 && isIdentity(first(op.str))
+        isone(first(op.coeff))
+    else #> The canonical-form rebuild can throw, and is only relied on when it is exact
+        isCan, opLocal = toExactCanonicalForm(op, true)
+        isCan && (isone∘countTerms)(opLocal) && isIdentity(first(opLocal.str)) && 
+        isone(first(opLocal.coeff))
     end
 end
 
@@ -1953,20 +1995,25 @@ end
 
 
 """
-    sumCoeffs(selector, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
-              ) where {T<:SignedReal, R<:SignedReal} -> 
+    sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
+              ) where {F<:$AbstractCallable, T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
     sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
               ) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
-Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
-string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
-a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
-selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned. `R` is 
-subject to the same restriction as the core data type of any [`PauliSum`](@ref) instance 
-and defaults to that of `h`.
+Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` that satisfies 
+`selector(term) == true`. `selector` is a callable that `sumCoeffs` invokes while scanning 
+through all terms in `h`; it must have the following method signature:
+
+    selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
+
+where `term.first` directly refers to a [`PauliStr`](@ref) stored in `h` (i.e., no data 
+copying) with `term.second` being its associated coefficient. Omitting `selector` (i.e., 
+the second method signature) automatically selects every term of `h`. If no term is 
+selected, `zero(Complex{R})` is returned. `R` is subject to the same restriction as the 
+core data type of any [`PauliSum`](@ref) instance and defaults to that of `h`.
 
 The accumulation is performed at the precision level of 
 `complex($(extendType|>repr)(R, T))` and converted to `Complex{R}` only once at the end. 
@@ -1985,20 +2032,52 @@ julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.
 julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
 6.0 + 0.0im
 
-julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
+julia> sumCoeffs(term->countWeight(term.first) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
 1.0 + 0.0im
 ```
 """
-function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
-                   checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
+                   ) where {F<:AbstractCallable, T<:SignedReal, R<:SignedReal}
     checkCoreDataTypeForPauliSum(R, :R) #> First ensure that `R` is a valid core data type
     accuT = (complex∘extendType)(R, T)
     checkPauliOpForm(h, checkForm)
     nTerm = countTerms(h)
-    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
+    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1] => h.coeff[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
 end
 
 sumCoeffs(h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
           ) where {T<:SignedReal, R<:SignedReal} = 
 sumCoeffs(_->true, h, R; checkForm)
+
+
+function checkFinitePauliCoeffs(op::T, opName::Symbol, explicitError::Bool=true
+                                ) where {T<:PauliStrOrSum}
+    if T <: PauliSum
+        if !all(isfinite, op.coeff)
+            if explicitError
+                throw(ArgumentError("`($opName)::$T` contains at least one term with a "*
+                                    "non-finite coefficient."))
+            else
+                return false
+            end
+        end
+    end
+
+    true
+end
+
+
+#> Return `true` if `op` is a zero operator. Same as for `isHermitian` and `isIdentity`, 
+#> term merging is only performed for `PauliSum{T}` where `T` is an exact core data type.
+isZeroOperator(::PauliStr) = false
+
+function isZeroOperator(h::PauliSum{T}) where {T<:SignedReal}
+    if all(iszero, h.coeff)
+        true
+    elseif T <: AbstractFloat || isCanonical(h)
+        false
+    else
+        all(iszero, lazyCanonicalize(h, false).coeff)
+    end
+end

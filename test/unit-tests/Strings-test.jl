@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isZeroOperator
 using Random
 
 @testset "Strings.jl" begin
@@ -302,6 +302,23 @@ end
     @test isCanonical(res4) && !isCanonical(res4, true)
     @test res4 == PauliSum(res4, false) && PauliSum(res4) == res2
 
+    #> A merged coefficient that is not finite is the one that `+` gives, instead of a 
+    #> `NaN` made by a residue that is not finite either
+    @test PauliSum(fill(pauli"X", 2), [1e308, 1e308]).coeff == [Inf]
+    @test PauliSum(fill(pauli"X", 2), [1.0, -Inf]).coeff == [-Inf]
+    @test PauliSum(fill(pauli"X", 3), [1e308, 2.0im, 1e308]).coeff == [Inf + 2.0im]
+    @test isnan(first(PauliSum(fill(pauli"X", 2), [Inf, -Inf]).coeff))
+    #> Merging two coefficients is the same as adding them, down to the sign of a zero
+    for (c1, c2) in ((1e308, 1e308), (Inf, 1.0), (Inf, -Inf), (0.1, 0.2), (1e16, 1.0), 
+                     (Complex(-0.0, 0.1), Complex(-0.0, 0.2)), (-0.0, -0.0), (1.0, -1.0))
+        merged = first(PauliSum(fill(pauli"X", 2), [c1, c2], false).coeff)
+        @test isequal(merged, Complex{Float64}(c1) + Complex{Float64}(c2))
+    end
+    #> The accumulator of Pauli terms concludes its sums in the same way
+    termDict = Paulimorphic.PauliTermDict{Float64}()
+    foreach(c->Paulimorphic.updateNeuAccumulator!(termDict, pauli"X"=>c), (1e308, 1e308))
+    @test Paulimorphic.combinePauliTerms!(termDict).coeff == [Inf]
+
     #> Sub-`T` cancellation survives the extended-precision merge (accuracy-contract pin)
     @test PauliSum(Float32, fill(pauli"X", 2), [1.0 + 2.0^-26, -1.0]).coeff == 
           Complex{Float32}[1.4901161f-8]
@@ -515,6 +532,25 @@ end
           PauliSum([pauli"X", pauli"Z"], [-Int128(typemin(Int)), Int128(1)])
 end
 
+@testset "sortStrings!" begin
+    #> Real coefficients are accepted as well as complex ones. Among equal strings, ties 
+    #> are broken by `(evalMagnitude(c), real(c), imag(c))` (`Z` precedes `X` on one site)
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    coeffs = [2.0, -1.0, 3.0]
+    @test Paulimorphic.sortStrings!(strs, coeffs) === nothing
+    @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, -1.0, 2.0]
+    #> `considerCoeff=false`: the sort is stable, so equal strings keep their input order
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    coeffs = [2.0, -1.0, 3.0]
+    Paulimorphic.sortStrings!(strs, coeffs, false)
+    @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, 2.0, -1.0]
+    #> Real and complex coefficients of equal values are ordered alike
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    cplx = ComplexF64[2.0, -1.0, 3.0]
+    Paulimorphic.sortStrings!(strs, cplx)
+    @test cplx == [3.0, -1.0, 2.0]
+end
+
 #> `countWeight`
 @test countWeight(PauliStr(0)) == countWeight(pauli"III") == 0
 @test countWeight(pauli"XIZ") == 2
@@ -525,6 +561,12 @@ end
 @test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(0, 2)))
 @test !isHermitian(PauliSum([pauli"Y"], Complex{Int}(1, 1)))
 @test  isHermitian(PauliSum(Int))
+#>> A term whose string still carries a phase is judged by the value it represents
+hStr = PauliSum([pauli"Z"], [typemin(Int)])
+indexTerm(hStr, 1, false).first.phase = posImg #> `hStr` represents `typemin(Int)*im*Z`
+@test !isHermitian(hStr)
+setCoeff!(hStr, 2im, 1)                        #> `hStr` represents `-2*Z`
+@test  isHermitian(hStr)
 
 #> `isIdentity`
 @test  isIdentity(PauliStr())
@@ -532,6 +574,61 @@ end
 @test  isIdentity(mul(PauliSum([mul(pauli"II", Paulimorphic.negRea)], Complex{Int}(-1)), 1))
 @test !isIdentity(PauliSum(Int))
 @test !isIdentity(PauliStr(0, symI, posImg))
+#>> Several identity strings are judged through the canonical rebuild, whose merge of 
+#>> their coefficients is overflow-checked (so a sum that wraps around to 1 does not count)
+hIds = PauliSum([pauli"X", pauli"Y", pauli"Z"], [typemax(Int), typemax(Int), 3])
+foreach(i->stamp!(indexTerm(hIds, i, false).first, 1, symI), 1:3)
+@test sum(hIds.coeff) == 1 #> `sum` wraps around: the coefficients are 3 and two `typemax`
+@test_throws OverflowError isIdentity(hIds)
+setCoeff!(hIds, 2, 2)
+setCoeff!(hIds, -4, 3)
+@test  isIdentity(hIds)    #> 3 + 2 - 4 == 1
+setCoeff!(hIds, -3, 3)
+@test !isIdentity(hIds)    #> 3 + 2 - 3 == 2
+
+#> `isHermitian`, `isIdentity`, and the internal `isZeroOperator` only rely on the 
+#> canonical form of a `PauliSum` when it represents the operator exactly. The terms that 
+#> the constructor would merge are merged for the judgment when the core data type is an 
+#> exact numeric type, whereas a floating-point `PauliSum` that stores such terms is judged 
+#> from its stored terms alone
+for T in (Int, Rational{Int}, Float64)
+    isExact = !(T <: AbstractFloat)
+    #>> `hSelf` stores `X` three times: `-im*X + X + im*X == X`
+    hSelf = PauliSum([pauli"X", pauli"Y", pauli"Z"], Complex{T}[1, im, -im])
+    fill!(hSelf.str, pauli"X")
+    @test isHermitian(hSelf) == isExact && isHermitian(PauliSum(hSelf))
+    #>> `hUnit` stores `I` twice: `2*I - I == I`
+    hUnit = PauliSum([pauli"I", pauli"Z"], T[2, -1])
+    stamp!(indexTerm(hUnit, 2, false).first, 1, symI)
+    @test isIdentity(hUnit) == isExact && isIdentity(PauliSum(hUnit))
+    #>> `hNone` stores `X` three times: `-3*X + X + 2*X == 0`
+    hNone = PauliSum([pauli"X", pauli"Y", pauli"Z"], T[1, 2, -3])
+    fill!(hNone.str, pauli"X")
+    @test isZeroOperator(hNone) == isExact && isZeroOperator(PauliSum(hNone))
+    @test isHermitian(hNone) && !isIdentity(hNone)
+end
+#>> A floating-point `PauliSum` that restores its canonical form without merging terms is 
+#>> still judged by the operator it represents, and so is one that retains zero-coefficient 
+#>> terms
+hTurn = PauliSum([pauli"Z", pauli"X"], [2.0im, 1.0])
+indexTerm(hTurn, 1, false).first.phase = posImg #> `hTurn` represents `-2*Z + X`
+@test !isCanonical(hTurn) && isHermitian(hTurn)
+hSpare = PauliSum([pauli"I", pauli"X"], [1.0, 0.0], false)
+@test  isIdentity(hSpare) && countTerms(hSpare) == 2
+setCoeff!(hSpare, 1e-300, 2)
+@test !isIdentity(hSpare)
+#>> The stored terms settle the Hermiticity of `hReal` (real coefficients of Hermitian 
+#>> strings), although it stores `X` twice
+hReal = PauliSum([pauli"X", pauli"Z"], [0.1, 0.2])
+stamp!(indexTerm(hReal, 1, false).first, 1, symX) #> The first stored term is `Z`
+@test isHermitian(hReal) && !isZeroOperator(hReal) && !isIdentity(hReal)
+#>> For exact core data types, the merge follows the overflow checking policy of `PauliSum`
+hTwice = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
+stamp!(indexTerm(hTwice, 1, false).first, 1, symX) #> `hTwice` stores `X` twice
+@test_throws OverflowError isZeroOperator(hTwice)
+@test_throws OverflowError isIdentity(hTwice)
+@test isHermitian(hTwice) #> Settled by the stored terms, without merging them
+@test isZeroOperator(PauliSum(Int8)) && !isZeroOperator(pauli"I")
 
 @testset "toPauliStr" begin
     #> Single term with a coefficient expressible as a phase
@@ -572,10 +669,19 @@ end
 
 @testset "sumCoeffs" begin
     h = PauliSum([pauli"XI", pauli"YI", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
-    @test sumCoeffs(h) == Complex(6.0)                      #> Naive accumulation gives 4.0
-    @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
+    @test sumCoeffs(h) == Complex(6.0) #> Naive accumulation gives 4.0
+    #> `selector` receives each term as a `Pair` of its string and its coefficient (at the 
+    #> core data type of `h`, whatever `R` is), same as in the term-filtering construction 
+    #> of `PauliSum`; hence one `selector` picks the same terms in both
+    notYI = term->(term.first != pauli"YI")
+    @test sumCoeffs(notYI, h) == Complex(1.0) #> Naive accumulation gives 0.0
+    isPos = term->(real(term.second) > 0)
+    @test sumCoeffs(isPos, h) === sumCoeffs(PauliSum(isPos, h)) === Complex(1e16 + 6.0)
+    @test sumCoeffs(term->(term isa Pair{PauliStr, ComplexF64}), h, Float32) == 6.0f0
     @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
     @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
+    #> A floating-point overflow gives an infinite sum, as plain additions do
+    @test sumCoeffs(PauliSum([pauli"X", pauli"Z"], [1e308, 1e308])) == Inf
     #> A fixed-width integer overflow throws instead of wrapping around; a wider `R` 
     #> accumulates the same terms safely
     hBig = PauliSum([pauli"X", pauli"Z"], [typemax(Int), 1])
@@ -605,7 +711,7 @@ end
     stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
     @test !isCanonical(hd)
     @test_throws ArgumentError sumCoeffs(hd)
-    @test_throws ArgumentError sumCoeffs(s -> true, hd, Float32)
+    @test_throws ArgumentError sumCoeffs(term->true, hd, Float32)
     @test sumCoeffs(hd; checkForm=false) == Complex(3.0)
     @test sumCoeffs(PauliSum(hd)) == Complex(3.0) #> The merged rebuild
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)

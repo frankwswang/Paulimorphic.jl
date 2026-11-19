@@ -265,14 +265,11 @@ function checkNBodyInteTensor(inte::AbstractArray{<:RealOrComplex, D},
         end
     end
 
-    #> Type-aware fast path for one-body integral tensors that cannot contain `NaN`
-    coreT = eltype(inte)
-    if iszero(M) && (real(coreT) <: Union{Integer, Rational})
-        if coreT <: Real
-            inte isa Union{Symmetric, Hermitian}
-        else
-            (inte isa Hermitian) && !idxPairSymm[begin]
-        end && (return true)
+    #> Type-aware fast path for real integral tensors that cannot contain `NaN`. Complex 
+    #> `Hermitian` tensors cannot go this path because illegal instances can be constructed 
+    #> in edge cases (as of Julia 1.13): `Hermitian(Complex{Int8}[0 -128im; -128im 0])`.
+    if iszero(M) && (eltype(inte) <: Union{Integer, Rational})
+        (inte isa Union{Symmetric, Hermitian}) && (return true)
     end
 
     if hermiticity

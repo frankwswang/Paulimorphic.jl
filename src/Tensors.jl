@@ -182,7 +182,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                 #> Update the coefficient associated with a Pauli-Z basis state labeled by 
                 #> `zBitStr` when a Pauli term P(`xMask`, `zMask`, `coeff`) acts on it:
                 #> P |zBitStr> = coeff * (-1)^count_ones(zMask & zBitStr) |zBitStr ⊻ xMask>
-                termCoeff = isodd(count_ones(zMask & zBitStr)) ? adaptNeg(coeff) : coeff
+                termCoeff = condNeg(coeff, isodd(count_ones(zMask & zBitStr)))
 
                 #> Add the coefficient associated with a Pauli term of the same `xMask`
                 naiveSum, sResidue = neumaierAdd(naiveSum, termCoeff, sResidue)
@@ -193,7 +193,7 @@ function genPauliOpMatEntryEvaluator(::Type{T},
                 #>> Process the accumulated coefficient sum from the current group
                 nzRow = reinterpret(Int, xor(xMask, zBitStr)) + 1
                 nzCol = reinterpret(Int, zBitStr) + 1
-                coeffSum = Complex{T}(adaptAdd(naiveSum, sResidue))
+                coeffSum = Complex{T}(absorbResidue(naiveSum, sResidue))
                 if !iszero(coeffSum)
                     #>> `(nzRow, nzCol)` points to `coeffSum` for terms with equal `xMask`
                     processor((nzRow, nzCol)=>coeffSum, nzCount)
@@ -573,7 +573,7 @@ function toMatrix!(dst::AbstractMatrix{C}, sym::PauliSym) where {C<:SRealOrCompl
     dstVec = vec(dst)
 
     if sym == symI
-        dstVec .= CONSTVAR!!QubitIMatEles
+        dstVec .= CONSTVAR!!qubitIMatEles
     elseif sym == symX
         dstVec .= CONSTVAR!!pauliXMatEles
     elseif sym == symY
@@ -664,10 +664,10 @@ end
                           conjugated::Bool) where {T<:Real, C<:Union{Complex{T}, T}, D} -> 
     Union{Nothing, NTuple{D, Int}}
 
-Return the first index `idx` (in column-major order) of `tensor` at which the symmetry 
-`tensor[idx...] == tensor[permIdx...]` (or `tensor[idx...] == tensor[permIdx...]'` if 
-`conjugated` is `true`) fails, where the "position" of `permIdx` along axis `d` (i.e., the 
-index difference to the first index of that axis) equals the position of `idx` along axis 
+Return the first index `idx` (in column-major order) of `tensor` at which `tensor[idx...]` 
+is not equal to `tensor[permIdx...]` (or to its complex conjugate if `conjugated` is 
+`true`), where the "position" of `permIdx` along axis `d` (i.e., the index difference to 
+the first index of that axis) equals the position of `idx` along axis 
 `axisPerm[begin+d-1]`. If no such `idx` is found (i.e., the symmetry holds everywhere), 
 `findAxisPermViolation` returns `nothing`. `axisPerm` must be a permutation of `1:D` such 
 that `Base.isperm(axisPerm) == true` and only maps between axes of equal extent.
@@ -690,8 +690,10 @@ function findAxisPermViolation(tensor::AbstractArray{<:RealOrComplex, D},
         idx = Tuple(carteIdx)
         pos = idx .- iFirstAxial #> It's necessary as axes may have different first indices
         permIdx = ntuple(d->pos[begin + axisPerm[begin+d-1] - 1], Val(D)) .+ iFirstAxial
-        partner = conjugated ? tensor[permIdx...]' : tensor[permIdx...]
-        tensor[carteIdx] != partner && (return idx)
+        val = tensor[carteIdx]
+        partner = tensor[permIdx...]
+        matched = conjugated ? checkConj(val, partner) : (val == partner)
+        matched || (return idx)
     end
 
     nothing

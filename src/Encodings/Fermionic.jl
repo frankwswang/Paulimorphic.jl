@@ -412,10 +412,13 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
     Pair{<:PauliSum, <:PauliSum}
 
 Convert a single-mode Dirac-operator pair `opPair`, in which `opPair.first` and 
-`opPair.second` respectively represent the annihilation operator ``\\hat{a}`` and the 
-creation operator ``\\hat{c}`` of the same fermionic mode, into the corresponding pair of 
-Majorana operators returned as `res`, where `res.first` holds ``\\hat{a} + \\hat{c}`` and 
-`res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``.
+`opPair.second` are both in the canonical form (verified via [`isCanonical`](@ref)), into 
+the corresponding pair of Majorana operators returned as `res`, where `res.first` holds 
+``\\hat{a} + \\hat{c}`` and `res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``. 
+Specifically, `opPair.first` and `opPair.second` should respectively represent the 
+annihilation operator ``\\hat{a}`` and the creation operator ``\\hat{c}`` of the same 
+fermionic mode. An `ArgumentError` is thrown if either of them is not in the canonical 
+form, regardless of `checkForDiracPair`.
 
 When `checkForDiracPair=true`, `opPair` is first verified to form a valid single-mode 
 Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
@@ -436,16 +439,21 @@ true
 """
 function toMajoranaPair(opPair::Pair{T1, T2}, checkForDiracPair::Bool=true
                         ) where {T1<:PauliSum, T2<:PauliSum}
+    for (str, op) in zip((:first, :second), opPair)
+        if !isCanonical(op, false)
+            throw(ArgumentError("`opPair.$str` should be in the canonical form."))
+        end
+    end
     annOp, creOp = opPair
     unit = (one∘promote_type)(getCoreDataType(T1), getCoreDataType(T2))
 
     if checkForDiracPair
-        if PauliSum(creOp) != toAdjoint(annOp)
+        if !checkAdjoint(annOp, creOp)
             throw(ArgumentError("`opPair.first` must be the Hermitian adjoint of "*
                                 "`opPair.second`."))
         end
 
-        if !(isIdentity∘evalAntiCom)(annOp, creOp)
+        if !(isIdentity∘evalAntiCom)(annOp, creOp, false)
             throw(ArgumentError("The anticommutator between `opPair.first` and "*
                                 "`opPair.second` must equal an identity."))
         end
@@ -485,7 +493,7 @@ adjoint condition and anticommutation relations:
 ```
 
 for every mode pair `(p, q)`. The adjoint condition is checked structurally (via 
-[`$(toAdjoint|>repr)`](@ref)). The verified anticommutation relations are invariant under 
+[`checkAdjoint`](@ref)). The verified anticommutation relations are invariant under 
 swapping `enc.first` and `enc.second`, so the annihilation-versus-creation role assignment 
 is a positional convention carried by the `Pair` structure rather than a checkable property.
 
@@ -516,6 +524,19 @@ instead.
 """
 function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false; 
                        strRestricted::Bool=false)::Bool
+    for (str, sec) in zip((:first, :second), enc)
+        for (i, op) in enumerate(sec)
+            if !isCanonical(op, false)
+                if explicitError
+                    throw(ArgumentError("The $i-th operator in `enc.$str` is not in the "*
+                                        "canonical form."))
+                else
+                    return false
+                end
+            end
+        end
+    end
+
     nMode = length(enc.first)
 
     if iszero(nMode)
@@ -553,7 +574,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     end
 
     for p in 1:nMode
-        if adjoint(annOps[begin+p-1]) != PauliSum(creOps[begin+p-1])
+        if !checkAdjoint(annOps[begin+p-1], creOps[begin+p-1])
             if explicitError
                 throw(ArgumentError("Each creation operator should be the adjoint of the "*
                                     "annihilation operator of the same mode (i.e., "*
@@ -565,8 +586,10 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
         end
     end
 
+    #> `evalAntiCom` is invoked with `onlyFinite=false`, so the ones that hold non-finite 
+    #>  coefficients will fail the conditions below instead of throwing an early error
     for p in 1:nMode, q in p:nMode
-        if !isempty(evalAntiCom(annOps[begin+p-1], annOps[begin+q-1]).str)
+        if !isempty(evalAntiCom(annOps[begin+p-1], annOps[begin+q-1], false).str)
             if explicitError
                 throw(ArgumentError("Every pair of annihilation operators (including an "*
                                     "operator paired with itself) should anticommute to "*
@@ -580,7 +603,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     idSum = PauliSum(Int, [PauliStr(nSite)])
 
     for p in 1:nMode, q in p:nMode
-        antiCom = evalAntiCom(annOps[begin+p-1], creOps[begin+q-1])
+        antiCom = evalAntiCom(annOps[begin+p-1], creOps[begin+q-1], false)
         valid = (p == q) ? (antiCom == idSum) : isempty(antiCom.str)
         if !valid
             if explicitError

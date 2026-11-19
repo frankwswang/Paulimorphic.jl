@@ -277,6 +277,17 @@ end
     @test !checkDiracEnc(enc81)
     @test_throws "identity operator" checkDiracEnc(enc81, true)
 
+    #> Anticommutators that are not finite fail the corresponding condition as well, 
+    #> instead of raising an error from their evaluation: `hugeAnn` holds finite 
+    #> coefficients whose products overflow, and `infAnn` holds infinite ones
+    hugeAnn = mul(a1, 1e160)
+    infAnn = PauliSum([pauli"X", pauli"Y"], [Complex(Inf, 0.0), Complex(0.0, Inf)])
+    for annOp in (hugeAnn, infAnn)
+        encOdd = [annOp] => [adjoint(annOp)]
+        @test !checkDiracEnc(encOdd)
+        @test_throws "annihilation operators" checkDiracEnc(encOdd, true)
+    end
+
     #> Mixed coefficient types across modes: comparisons and products promote exactly
     annMix = PauliSum[ann2[1], mul(ann2[2], 1.0)]
     creMix = PauliSum[cre2[1], adjoint(mul(ann2[2], 1.0))]
@@ -287,6 +298,27 @@ end
     cpy = PauliSum(collect(a1.str), collect(a1.coeff))
     cpy.str[begin].phase = negImg
     @test !checkDiracEnc([cpy] => [adjoint(a1)])
+    @test_throws "canonical form" checkDiracEnc([cpy] => [adjoint(a1)], true)
+
+    #> The same format condition rejects an operator that stores terms the `PauliSum` 
+    #> constructor would merge, whatever its core data type is (how such terms bear on the 
+    #> adjoint condition itself is pinned by the tests of `checkAdjoint`)
+    for T in (Rational{Int}, Float64)
+        aT, cT = PauliSum(T, a1), PauliSum(T, adjoint(a1))
+        #>> `aSplit` and `cSplit` hold the operators of `aT` and `cT`, storing `X` twice
+        aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, 1//2), 1//4])
+        cSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, -1//2), 1//4])
+        for op in (aSplit, cSplit)
+            stamp!(indexTerm(op, 1, false).first, 1, symX) #> The first stored term is `Z`
+        end
+        @test PauliSum(aSplit) == aT && PauliSum(cSplit) == cT
+        @test !checkDiracEnc([aSplit] => [cT]) && !checkDiracEnc([aT] => [cSplit])
+        @test_throws "canonical form" checkDiracEnc([aSplit] => [cT], true)
+        @test_throws "canonical form" checkDiracEnc([aT] => [cSplit], true)
+        @test checkDiracEnc([PauliSum(aSplit)] => [PauliSum(cSplit)])
+    end
 end
 
 @testset "toMajoranaEnc" begin
@@ -370,6 +402,8 @@ end
     @test_throws "Hermitian adjoint" toMajoranaPair(a1 => a1)
     badNorm = mul(a1, 2) #> Adjoint pairing intact; {2a, (2a)'} == 4I != I
     @test_throws "equal an identity" toMajoranaPair(badNorm => toAdjoint(badNorm))
+    hugeNorm = mul(a1, 1e160) #> Same violation, with an anticommutator that overflows
+    @test_throws "equal an identity" toMajoranaPair(hugeNorm => toAdjoint(hugeNorm))
     #> `op` passes the adjoint and identity checks, but `op^2 == (12//25)I != 0`, so only 
     #> the self-anticommutation branch can reject it
     op = PauliSum([pauli"X", pauli"Y"], 
@@ -379,11 +413,27 @@ end
     #> `checkForDiracPair=false` skips the verification entirely
     @test toMajoranaPair(a1 => a1, false) isa Pair
 
-    #> A phase mutation still verifies, and (canonicalized) output is unchanged
+    #> An operator that is not in the canonical form is rejected with or without the 
+    #> verification: `aMut` represents the operator of `a1` through a phase mutation
     aMut = PauliSum(a1)
     aMut.str[begin].phase = Paulimorphic.negImg
     aMut.coeff[begin] *= evalPhase(Paulimorphic.posImg)
-    @test toMajoranaPair(aMut => c1) == mPair
+    @test !isCanonical(aMut) && PauliSum(aMut) == a1
+    @test_throws "canonical form" toMajoranaPair(aMut => c1)
+    @test_throws "canonical form" toMajoranaPair(c1 => aMut, false)
+    @test toMajoranaPair(PauliSum(aMut) => c1) == mPair
+
+    #> The same holds for an operator that stores terms the `PauliSum` constructor would 
+    #> merge, whatever its core data type is
+    for T in (Rational{Int}, Float64)
+        cT = PauliSum(T, c1)
+        aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, 1//2), 1//4])
+        stamp!(indexTerm(aSplit, 1, false).first, 1, symX) #> `aSplit` stores `X` twice
+        @test_throws "canonical form" toMajoranaPair(aSplit => cT)
+        @test_throws "canonical form" toMajoranaPair(aSplit => cT, false)
+        @test toMajoranaPair(PauliSum(aSplit) => cT) == mPair
+    end
 end
 
 @testset "buildMajoranaFrame" begin

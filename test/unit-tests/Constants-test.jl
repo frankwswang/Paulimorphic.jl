@@ -22,5 +22,11 @@ end
 @test toPhase(-1.0) == negRea && toPhase(Complex{Float64}(0, -1)) == negImg
 @test_throws ArgumentError toPhase(2)
 @test_throws ArgumentError toPhase(1 + 1im)
+#>> `Unsigned`-based inputs are compared by value: their negation (or multiplication by 
+#>> `im`) wraps around (e.g., `-0xff === 0x01`), which should not be used to decide a match
+@test toPhase(0x01) == posRea && toPhase(Complex{UInt8}(0, 1)) == posImg
+@test_throws ArgumentError toPhase(0xff)
+@test_throws ArgumentError toPhase(typemax(UInt))
+@test_throws ArgumentError toPhase(Complex{UInt8}(0, 0xff))
 
 end

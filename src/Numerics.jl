@@ -108,6 +108,64 @@ function adaptNeg(num::T) where {T<:RealOrComplex}
 end
 
 
+#> A conditional caller of `adaptNeg`. It returns `adaptNeg(num)` if `flag` is `true`, and 
+#> `num` otherwise. For numeric types based on fixed-width signed integers (e.g., `Int64`), 
+#> the result is computed without a branch on `flag`; as a result, this function is often 
+#> faster than branch-based execution of `adaptNeg` when the branch predictions fail.
+function condNeg(num::T, flag::Bool) where {T<:RealOrComplex}
+    if T <: BitSInteger
+        mask = -T(flag) #> `0` (no bits) if `flag` is `false`, and `-1` (all bits) otherwise
+        res, hasOverflow = Base.Checked.sub_with_overflow(xor(num, mask), mask)
+        #> The subtraction overflows only when the negation does (under `num=typemin(T)`)
+        hasOverflow ? adaptNeg(num) : res #> `adaptNeg` reports the `OverflowError`
+    elseif T <: ComplexBitSInteger
+        Complex(condNeg( real(num), flag ), condNeg( imag(num), flag ))
+    else
+        flag ? adaptNeg(num) : num
+    end
+end
+
+
+#> Value-based check of `num1 == -num2` where negation `-(x)` operation is avoided when 
+#> possible to avoid edge cases like `-0xff === 0x01` (where the latter is the additive 
+#> inverse of the former only when they are passed to `Base.:+`).
+function checkNeg(num1::T, num2::T) where {T<:Real}
+    if T <: Union{BitSInteger, BitUInteger}
+        #> Two integers are opposite numbers iff they add up to zero without an overflow
+        total, hasOverflow = Base.Checked.add_with_overflow(num1, num2)
+        !hasOverflow & iszero(total)
+    elseif T <: Rational
+        #> A `Rational` is stored in lowest terms with a non-negative denominator
+        denominator(num1) == denominator(num2) && 
+        checkNeg(numerator(num1), numerator(num2))
+    else
+        num1 == -num2
+    end
+end
+
+checkNeg(num1::T, num2::T) where {T<:Complex} = 
+checkNeg(real(num1), real(num2)) && checkNeg(imag(num1), imag(num2))
+
+#> Numbers of different types are first promoted (potentially leading to rounding for 
+#> floating-point types), which can throw an `InexactError` if either cannot be converted.
+function checkNeg(num1::RealOrComplex, num2::RealOrComplex)
+    pNum1, pNum2 = promote(num1, num2)
+    pNum1 == num1 && pNum2 == num2 && checkNeg(pNum1, pNum2)
+end
+
+
+#> Value-based check of `num1 == conj(num2)` where component-wise negation `-(x)` operation 
+#> is avoided when possible to avoid edge cases like `-0xff === 0x01` (where the latter is 
+#> the additive inverse of the former only when they are passed to `Base.:+`).
+checkConj(num1::Real, num2::Real) = (num1 == num2)
+
+function checkConj(num1::RealOrComplex, num2::RealOrComplex)
+    re1, im1 = reim(num1)
+    re2, im2 = reim(num2)
+    re1 == re2 && checkNeg(im1, im2)
+end
+
+
 #>-- Reference(s) --<#
 #> [DOI] 10.1002/zamm.19740540106 (Improved Kahan--Babuska algorithm proposed by Neumaier)
 @inline function neumaierStep(x1::T, x2::T) where {T<:AbstractFloat}
@@ -132,7 +190,28 @@ neumaierAdd(total::C, val::C, residue::C=zero(C)) where {C<:RealOrComplex} =
 (adaptAdd(total, val), residue)
 
 
-function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
+#> Conclude a Neumaier summation by adding the accumulated residue to the naive sum. The 
+#> addition is skipped for a residue that is zero (keeping a signed zero intact) and for a 
+#> residue that is not finite. The latter only arises when the naive sum is not finite 
+#> either: such a sum has no rounding error to compensate for. As a result, the result of 
+#> a Neumaier summation is consistent with the `Base.:+` for non-finite results. For 
+#> instance: `neumaierSum([1e308, 1e308]) == 1e308 + 1e308 == Inf`
+function absorbResidue(naiveSum::T, sumResidue::T) where {T<:AbstractFloat}
+    isSkipped = iszero(sumResidue) | !isfinite(sumResidue)
+    ifelse(isSkipped, naiveSum, naiveSum + sumResidue)
+end
+
+absorbResidue(naiveSum::C, sumResidue::C) where {C<:Complex{<:AbstractFloat}} = 
+Complex(absorbResidue( real(naiveSum), real(sumResidue) ), 
+        absorbResidue( imag(naiveSum), imag(sumResidue) ))
+
+#> The residue of any other type stays zero (calling the fallback method of `neumaierAdd`)
+absorbResidue(naiveSum::C, sumResidue::C) where {C<:RealOrComplex} = 
+adaptAdd(naiveSum, sumResidue)
+
+
+function neumaierSum(mapper::F, ::Type{T}, iterable::S
+                     ) where {F<:AbstractCallable, T<:RealOrComplex, S}
     eleT = T <: Real ? T : typeintersect(T, Complex)
     if !(isconcretetype(eleT) && (isconcretetype∘real)(eleT))
         throw(ArgumentError("The Neumaier sum based on `T = $T` is not well-defined."))
@@ -150,7 +229,7 @@ function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrCompl
         naiveSum, sumResidue = neumaierAdd(naiveSum, formattedVal, sumResidue)
     end
 
-    naiveSum + sumResidue
+    absorbResidue(naiveSum, sumResidue)
 end
 
 neumaierSum(::Type{T}, iterable) where {T<:RealOrComplex} = 

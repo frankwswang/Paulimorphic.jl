@@ -228,8 +228,19 @@ end
     @test_throws OverflowError add(Float64, hMax, hMax)
     @test combine(Int16, [hMax, hMax]) == add(Int16, hMax, hMax) == 
           PauliSum([sX], Int16[200])
-    #>> A `PauliStr` in `terms` carries the coefficient `one(Complex{T})`
+    #>> A `PauliStr` among `PauliSum` takes no part in the promotion: its unit coefficient 
+    #>> is merged at the precision level set by those `PauliSum`
     @test combine(Int, Union{PauliStr, PauliSum}[sX, hHalf, hHalf]) == PauliSum([sX], [2])
+    hThird = PauliSum([sX], [-1//3])
+    @test combine(Float64, Union{PauliStr, PauliSum}[sX, hThird]) == 
+          PauliSum([sX], [Float64(2//3)]) #> Unlike `1.0 - Float64(1//3)`
+    #>> `PauliStr` alone are merged at the precision level of `Complex{T}`, in the same way 
+    #>> as by `PauliSum(T, strs)`
+    strs200 = fill(sX, 200)
+    @test combine(Float64, Union{PauliStr, PauliSum}[sX, sX]) == PauliSum(Float64, [sX, sX])
+    @test_throws OverflowError PauliSum(Int8, strs200)
+    @test_throws OverflowError combine(Int8, strs200)
+    @test_throws OverflowError combine(Int8, Vector{Union{PauliStr, PauliSum}}(strs200))
     #>> In contrast, the coefficients returned by a callable first argument are converted 
     #>> to `Complex{T}` before the merge
     @test_throws InexactError combine(pair->pair.second, Int, [hHalf, hHalf])

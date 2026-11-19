@@ -179,7 +179,8 @@ falls back to calling the second method with all the terms encapsulated into the
     already admit a single concrete type `PauliSum{C}` (e.g., when `terms` is a 
     `Vector{Union{PauliStr, PauliSum{Float64}}}`). In particular, no `PauliStr` takes part 
     in the runtime promotion, unless `terms` only contains `PauliStr`, in which case, `C` 
-    is set to `$(getCoreDataType(PauliStr))`.
+    is set to `T`. The second method falls back to calling the first one with `T` set to 
+    `C`, or to `$(getCoreDataType(PauliStr))` when `terms` only contains `PauliStr`.
 
 This function also provides a third method signature:
 
@@ -999,9 +1000,9 @@ end
 
 Return `true` if `op1` and `op2` are the Hermitian adjoints of each other. The judgment is 
 exact, so two operators that are the adjoints of each other in exact arithmetic can fail 
-the test if their coefficients carry floating-point rounding residues.  When `op1` and 
+the test if their coefficients carry floating-point rounding residues. When `op1` and 
 `op2` are identical objects (verified via `Base.:===`), this function falls back to 
-`isHermitian(op1)` is returned (see [`isHermitian`](@ref)).
+`isHermitian(op1)` (see [`isHermitian`](@ref)).
 
 Unlike [`checkCommute`](@ref), this function does not follow the implicit identity-padding 
 convention (see [`PauliStr`](@ref) and [`PauliSum`](@ref)). Unless both of them are zero 
@@ -1011,9 +1012,11 @@ operators, `op1` and `op2` explicitly acting on different numbers of sites (indi
 # Verification of mergeable terms
 When `op1` and `op2` are not identical and either of them has mergeable terms, the function 
 will return `false` if the core data type of that operator is not an exact numeric type 
-(e.g., `AbstractFloat`) to avoid potential false positive resulted from rounding errors 
+(e.g., `AbstractFloat`) to avoid potential false positives resulting from rounding errors 
 during the merging. To have such an operator verified with its terms merged, canonicalize 
-it first (e.g., via `PauliSum(op1)`).
+it first (e.g., via `PauliSum(op1)`). For an exact core data type (e.g., `Int` or 
+`Rational{Int}`), the terms are merged for the verification, following the overflow 
+checking policy of `PauliSum`.
 """
 function checkAdjoint(op1::PauliStr, op2::PauliStr)::Bool
     #> Two phase factors are the complex conjugates of each other iff their product is 1

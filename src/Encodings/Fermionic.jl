@@ -414,10 +414,11 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
 Convert a single-mode Dirac-operator pair `opPair`, in which `opPair.first` and 
 `opPair.second` are both in the canonical form (verified via [`isCanonical`](@ref)), into 
 the corresponding pair of Majorana operators returned as `res`, where `res.first` holds 
-``\\hat{a} + \\hat{c}`` and `res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``.
+``\\hat{a} + \\hat{c}`` and `res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``. 
 Specifically, `opPair.first` and `opPair.second` should respectively represent the 
 annihilation operator ``\\hat{a}`` and the creation operator ``\\hat{c}`` of the same 
-fermionic mode.
+fermionic mode. An `ArgumentError` is thrown if either of them is not in the canonical 
+form, regardless of `checkForDiracPair`.
 
 When `checkForDiracPair=true`, `opPair` is first verified to form a valid single-mode 
 Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
@@ -492,7 +493,7 @@ adjoint condition and anticommutation relations:
 ```
 
 for every mode pair `(p, q)`. The adjoint condition is checked structurally (via 
-[`$(toAdjoint|>repr)`](@ref)). The verified anticommutation relations are invariant under 
+[`checkAdjoint`](@ref)). The verified anticommutation relations are invariant under 
 swapping `enc.first` and `enc.second`, so the annihilation-versus-creation role assignment 
 is a positional convention carried by the `Pair` structure rather than a checkable property.
 
@@ -526,8 +527,12 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     for (str, sec) in zip((:first, :second), enc)
         for (i, op) in enumerate(sec)
             if !isCanonical(op, false)
-                throw(ArgumentError("The $i-th operator in `enc.$str` is not in the "*
-                                    "canonical form."))
+                if explicitError
+                    throw(ArgumentError("The $i-th operator in `enc.$str` is not in the "*
+                                        "canonical form."))
+                else
+                    return false
+                end
             end
         end
     end

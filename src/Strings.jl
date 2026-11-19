@@ -1159,7 +1159,7 @@ PauliSum(genMemory(s), (one∘getCoreDataType)(PauliStr))
 
 
 #> A modest formatter that only performs a lazy canonicalization on `h` when the 
-#> mathematical expression of `PauliSum(h)` is equivalent to that of `h`. In other word, 
+#> mathematical expression of `PauliSum(h)` is equivalent to that of `h`. In other words, 
 #> for `T<:AbstractFloat` the canonicalization proceeded cannot contain term merging, which 
 #> is subject to rounding errors. When such canonicalization cannot be done, the function 
 #> returns `false=>h`; otherwise, it returns `true=>lazyCanonicalize(h, simplification)`.
@@ -1813,12 +1813,12 @@ exact arithmetic can fail the test if its coefficients carry floating-point roun
 residues.
 
 # Verification of mergeable terms
-When `op::PauliSum{T}` has mergeable terms (i.e, it's not in the canonical form) and 
+When `op::PauliSum{T}` has mergeable terms (hence it's not in the canonical form) and 
 `T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
 `op` is constructed for verification (following the overflow checking policy of 
 `PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
-the verification; to have such an `op` verified with its terms merged, rebuild it first 
-(e.g., via `PauliSum(op)`).
+the verification; to have such an `op` verified with its terms merged, canonicalize it 
+first (e.g., via `PauliSum(op)`).
 """
 function isHermitian(op::PauliStr)
     (op.phase != posImg) && (op.phase != negImg)
@@ -1850,12 +1850,12 @@ operator that is an identity in exact arithmetic can fail the test if its
 coefficients carry floating-point rounding residues.
 
 # Verification of mergeable terms
-When `op::PauliSum{T}` has mergeable terms (i.e, it's not in the canonical form) and 
+When `op::PauliSum{T}` has mergeable terms (hence it's not in the canonical form) and 
 `T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
 `op` is constructed for verification (following the overflow checking policy of 
 `PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
-the verification; to have such an `op` verified with its terms merged, rebuild it first 
-(e.g., via `PauliSum(op)`).
+the verification; to have such an `op` verified with its terms merged, canonicalize it 
+first (e.g., via `PauliSum(op)`).
 """
 function isIdentity(op::PauliStr)
     #> `all` returns `true` for empty collections

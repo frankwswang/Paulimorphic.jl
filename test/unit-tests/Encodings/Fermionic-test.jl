@@ -298,13 +298,12 @@ end
     cpy = PauliSum(collect(a1.str), collect(a1.coeff))
     cpy.str[begin].phase = negImg
     @test !checkDiracEnc([cpy] => [adjoint(a1)])
+    @test_throws "canonical form" checkDiracEnc([cpy] => [adjoint(a1)], true)
 
-    #> The adjoint condition is judged from canonical forms that represent the operators 
-    #> exactly: the terms that the `PauliSum` constructor would merge are merged for exact 
-    #> core data types, whereas a floating-point operator that stores such terms fails the 
-    #> condition
+    #> The same format condition rejects an operator that stores terms the `PauliSum` 
+    #> constructor would merge, whatever its core data type is (how such terms bear on the 
+    #> adjoint condition itself is pinned by the tests of `checkAdjoint`)
     for T in (Rational{Int}, Float64)
-        isExact = !(T <: AbstractFloat)
         aT, cT = PauliSum(T, a1), PauliSum(T, adjoint(a1))
         #>> `aSplit` and `cSplit` hold the operators of `aT` and `cT`, storing `X` twice
         aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
@@ -315,8 +314,9 @@ end
             stamp!(indexTerm(op, 1, false).first, 1, symX) #> The first stored term is `Z`
         end
         @test PauliSum(aSplit) == aT && PauliSum(cSplit) == cT
-        @test checkDiracEnc([aSplit] => [cT]) == isExact
-        @test checkDiracEnc([aT] => [cSplit]) == isExact
+        @test !checkDiracEnc([aSplit] => [cT]) && !checkDiracEnc([aT] => [cSplit])
+        @test_throws "canonical form" checkDiracEnc([aSplit] => [cT], true)
+        @test_throws "canonical form" checkDiracEnc([aT] => [cSplit], true)
         @test checkDiracEnc([PauliSum(aSplit)] => [PauliSum(cSplit)])
     end
 end
@@ -413,27 +413,26 @@ end
     #> `checkForDiracPair=false` skips the verification entirely
     @test toMajoranaPair(a1 => a1, false) isa Pair
 
-    #> A phase mutation still verifies, and (canonicalized) output is unchanged
+    #> An operator that is not in the canonical form is rejected with or without the 
+    #> verification: `aMut` represents the operator of `a1` through a phase mutation
     aMut = PauliSum(a1)
     aMut.str[begin].phase = Paulimorphic.negImg
     aMut.coeff[begin] *= evalPhase(Paulimorphic.posImg)
-    @test toMajoranaPair(aMut => c1) == mPair
+    @test !isCanonical(aMut) && PauliSum(aMut) == a1
+    @test_throws "canonical form" toMajoranaPair(aMut => c1)
+    @test_throws "canonical form" toMajoranaPair(c1 => aMut, false)
+    @test toMajoranaPair(PauliSum(aMut) => c1) == mPair
 
-    #> The verification judges the adjoint condition in the same way as `checkDiracEnc`: a 
-    #> floating-point operator that stores terms the `PauliSum` constructor would merge 
-    #> fails it, whereas the unverified conversion merges them all the same
+    #> The same holds for an operator that stores terms the `PauliSum` constructor would 
+    #> merge, whatever its core data type is
     for T in (Rational{Int}, Float64)
         cT = PauliSum(T, c1)
         aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
                           Complex{T}[1//4, Complex(0, 1//2), 1//4])
         stamp!(indexTerm(aSplit, 1, false).first, 1, symX) #> `aSplit` stores `X` twice
-        if T <: AbstractFloat
-            @test_throws "Hermitian adjoint" toMajoranaPair(aSplit => cT)
-        else
-            @test toMajoranaPair(aSplit => cT) == mPair
-        end
+        @test_throws "canonical form" toMajoranaPair(aSplit => cT)
+        @test_throws "canonical form" toMajoranaPair(aSplit => cT, false)
         @test toMajoranaPair(PauliSum(aSplit) => cT) == mPair
-        @test toMajoranaPair(aSplit => cT, false) == mPair
     end
 end
 

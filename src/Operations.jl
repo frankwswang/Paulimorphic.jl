@@ -199,8 +199,9 @@ where `f` is a callable object that transforms the coefficient associated with e
 where `T1` is convertible to `Complex{T}` through `Base.convert`; and for any `term` as an 
 element in `terms`, if `term isa PauliStr`, `strCoeffPair = (term => one(Complex{T}))`, 
 else (i.e., `term isa PauliSum`) `strCoeffPair = (term.str[i] => term.coeff[i])` for all 
-possible values of `i`. Correspondingly, the level of precision at which the terms are 
-merged is also `Complex{T}`, and the returned type is `PauliSum{T}`.
+possible values of `i`. In other words, `strCoeffPair.first` directly references a 
+`PauliStr` stored in `terms` (i.e., no data copying). Furthermore, the level of precision 
+at which the terms are merged is also `Complex{T}`, and the returned type is `PauliSum{T}`.
 
 # Examples
 ```jldoctest

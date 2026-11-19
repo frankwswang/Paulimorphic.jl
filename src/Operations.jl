@@ -182,7 +182,8 @@ falls back to calling the second method with all the terms encapsulated into the
     `Vector{Union{PauliStr, PauliSum{Float64}}}`). In particular, no `PauliStr` takes part 
     in the runtime promotion, unless `terms` only contains `PauliStr`, in which case, `C` 
     is set to `T`. The second method falls back to calling the first one with `T` set to 
-    `C`, or to `$(getCoreDataType(PauliStr))` when `terms` only contains `PauliStr`.
+    `C`, or to `$(getCoreDataType(PauliStr))` when the runtime promotion only finds 
+    `PauliStr` in `terms`.
 
 This function also provides a third method signature:
 

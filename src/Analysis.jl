@@ -12,11 +12,11 @@ structural information:
 
     vertices => edges
 
-where `vertices::Vector{PauliStr}` are the Pauli strings stored inside `h` and 
-`edges::Vector{NTuple{2, Int}}` lists the anticommuting pairs as one-based index pairs
-`(i, j)`, `i < j`, indexing into `vertices`. Such a graph records which terms in a 
-target Hamiltonian fail to commute — e.g., as a basis for partitioning it into mutually 
-commuting groups.
+where `vertices::Vector{PauliStr}` are copies of the Pauli strings stored inside `h` (i.e., 
+no underlying data sharing) and `edges::Vector{NTuple{2, Int}}` lists the anticommuting 
+pairs as one-based index pairs `(i, j)`, `i < j`, indexing into `vertices`. Such a graph 
+records which terms in a target Hamiltonian fail to commute — e.g., as a basis for 
+partitioning it into mutually commuting groups.
 
 # Approximate frustration information
 This method also supports returning an approximate frustration graph through the optional 
@@ -38,7 +38,7 @@ function getFrustrationInfo(h::PauliSum, edgeThreshold::Real=0; inclusive::Bool=
     edgeThreshold < 0 && throw(ArgumentError("`edgeThreshold` must be non-negative."))
 
     magnitudes = map(evalMagnitude, h.coeff)
-    validNodes = copy(h.str)
+    validNodes = [PauliStr(str) for str in h.str]
     nodeNum = length(validNodes)
     validEdges = NTuple{2, Int}[]
 

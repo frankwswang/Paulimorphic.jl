@@ -143,6 +143,17 @@ end
     h2 = PauliSum([pauli"Z"], [0.5])
     @test add(Float32, h1, h2) isa PauliSum{Float32}
     @test add(Float32, h2, pauli"X") == add(PauliSum(Float32, h2), pauli"X")
+    #>> A `PauliStr` takes no part in the precision level at which the terms are merged, 
+    #>> which makes `add(T, h, s)` agree with `combine(T, [h, s])`
+    hThird = PauliSum([pauli"I"], [-1//3])
+    @test add(Float64, hThird, pauli"I") == PauliSum([pauli"I"], [Float64(2//3)])
+    @test add(Float64, hThird, pauli"I") == 
+          combine(Float64, Union{PauliStr, PauliSum}[hThird, pauli"I"])
+    #>> `extendType(Float64, Int8) == Int8` for both of them, as for `add(Float64, h, h)`
+    hEdge = PauliSum([pauli"X"], Int8[127])
+    @test_throws OverflowError add(Float64, hEdge, pauli"X")
+    @test_throws OverflowError add(Float64, hEdge, hEdge)
+    @test_throws OverflowError combine(Float64, Union{PauliStr, PauliSum}[hEdge, pauli"X"])
 end
 
 @testset "combine" begin
@@ -380,6 +391,10 @@ end
     @test sub(Float32, h2, pauli"X") == sub(PauliSum(Float32, h2), pauli"X")
     @test sub(Float32, pauli"X", h2) == pauli"X" - PauliSum(Float32, h2)
     @test sub(Float32, h2, pauli"X"=>1) == sub(PauliSum(Float32, h2), pauli"X"=>1)
+    #>> A `PauliStr` takes no part in the precision level at which the terms are merged
+    hThird = PauliSum([pauli"I"], [1//3])
+    @test sub(Float64, pauli"I", hThird) == PauliSum([pauli"I"], [ Float64(2//3)])
+    @test sub(Float64, hThird, pauli"I") == PauliSum([pauli"I"], [-Float64(2//3)])
     @test_throws MethodError sub(Bool, pauli"X", pauli"Z")
     @test_throws MethodError sub(UInt8, h1, h2)
     @test_throws MethodError sub(h1, pauli"X"=>im) #> `im` is a `Complex{Bool}`

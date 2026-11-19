@@ -125,26 +125,28 @@ add(h::PauliSum, term::PStrCoeffPair, simplification::Bool=true) =
 add(promoteCoreType(h, term), h, term, simplification)
 
 """
-    add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
-        ) where {T<:SignedReal} -> 
+    add(::Type{T}, h::PauliSum{T1}, s::PauliStr, simplification::Bool=true
+        ) where {T<:SignedReal, T1<:SignedReal} -> 
     PauliSum{T}
 
-    add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} -> 
-    PauliSum{T}
+    add(h::PauliSum{T1}, s::PauliStr, simplification::Bool=true) where {T1<:SignedReal} -> 
+    PauliSum{T1}
 
     h + s -> PauliSum
     s + h -> PauliSum
 
-Add a single `PauliStr` to `h`, i.e., shorthand for `add(h, s=>one(T), simplification)`: 
-`s` is appended as a new term with its phase folded into the associated coefficient. If 
-`simplification=true`, the same simplification procedure used by the `PauliSum` 
+Add a single `PauliStr` to `h`, i.e., shorthand for 
+`add(T, h, s=>one(T1), simplification)` (with `T` set to `T1` in the second signature): 
+`s` is appended as a new term with its phase folded into the associated coefficient, and 
+takes no part in the precision level at which the coefficients of equal strings are 
+merged. If `simplification=true`, the same simplification procedure used by the `PauliSum` 
 constructor (when the same-named argument is set to `true`) is applied to the result. The 
 result does not reference any data in either `h` or `s`.
 """
-function add(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
-             ) where {T<:SignedReal}
+function add(::Type{T}, h::PauliSum{T1}, s::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal, T1<:SignedReal}
     checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
-    add(T, h, s=>one(T), simplification)
+    add(T, h, s=>one(T1), simplification)
 end
 
 add(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 
@@ -419,20 +421,26 @@ effectively as a term whose associated coefficient is the phase value of `s`
 simplification procedure used by the `PauliSum` constructor (when the same-named argument 
 is set to `true`) is applied to the result. The result does not reference any data in 
 either `h` or `s`.
+
+!!! info
+    For the method signatures where `T` specifies the core type of the returned 
+    `PauliSum`, the precision level at which the coefficients of equal strings are 
+    merged is determined by `$(extendType|>repr)(T, complex(T1))`, where `T1` is the core 
+    data type of `h::PauliSum{T1}`.
 """
-function sub(::Type{T}, h::PauliSum, s::PauliStr, simplification::Bool=true
-             ) where {T<:SignedReal}
+function sub(::Type{T}, h::PauliSum{T1}, s::PauliStr, simplification::Bool=true
+             ) where {T<:SignedReal, T1<:SignedReal}
     checkCoreDataTypeForPauliSum(T) #> First ensure that `T` is a valid core data type
-    sub(T, h, s=>one(T), simplification)
+    sub(T, h, s=>one(T1), simplification)
 end
 
-function sub(::Type{T}, s::PauliStr, h::PauliSum, simplification::Bool=true
-             ) where {T<:SignedReal}
+function sub(::Type{T}, s::PauliStr, h::PauliSum{T1}, simplification::Bool=true
+             ) where {T<:SignedReal, T1<:SignedReal}
     checkCoreDataTypeForPauliSum(T)
     strs = vcat(s, h.str)
     body = @view strs[begin+1:end]
     map!(x->scale!(PauliStr(x), negRea), body)
-    PauliSum(T, strs, MemoryChain((genMemory∘one)(T), h.coeff), simplification)
+    PauliSum(T, strs, MemoryChain((genMemory∘one)(T1), h.coeff), simplification)
 end
 
 sub(h::PauliSum{T}, s::PauliStr, simplification::Bool=true) where {T<:SignedReal} = 

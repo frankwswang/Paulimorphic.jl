@@ -573,7 +573,7 @@ function toMatrix!(dst::AbstractMatrix{C}, sym::PauliSym) where {C<:SRealOrCompl
     dstVec = vec(dst)
 
     if sym == symI
-        dstVec .= CONSTVAR!!QubitIMatEles
+        dstVec .= CONSTVAR!!qubitIMatEles
     elseif sym == symX
         dstVec .= CONSTVAR!!pauliXMatEles
     elseif sym == symY

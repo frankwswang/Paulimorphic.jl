@@ -2,7 +2,7 @@ export PauliSym, symI, symX, symY, symZ, PhaseFactor, toString, toPhase, evalPha
 
 public mul
 
-const CONSTVAR!!QubitIMatEles = (1,   0,    0,  1) #> (m11, m21, m12, m22)
+const CONSTVAR!!qubitIMatEles = (1,   0,    0,  1) #> (m11, m21, m12, m22)
 const CONSTVAR!!pauliXMatEles = (0,   1,    1,  0)
 const CONSTVAR!!pauliYMatEles = (0, 1im, -1im,  0)
 const CONSTVAR!!pauliZMatEles = (1,   0,    0, -1)

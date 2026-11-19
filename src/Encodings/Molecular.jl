@@ -465,7 +465,7 @@ function growNBodyOperators!(termCache::PauliTermDict{T},
 
         #> After the shape of `orbInte` is verified to be consistent with `orbSecExtents`
         for (n, isSec2, idx) in zip(1:N, spinSecConfig, eachindex(iModeStart))
-            iStart = Int(iModeStart[idx])
+            iStart = toBitIntData(Int, iModeStart[idx])
             modeCount = length(enc[begin+isSec2].first)
             windowSize = modeCount - iStart + 1
             nOrb = orbSecExtents[begin+n-1]
@@ -548,7 +548,7 @@ function gen1BodyOperatorSum(oneSecEnc::PairwiseSumEnc, orbInte::AbstractMatrix{
         checkNBodyInteTensor(orbInte, (nOrb,), (1,), idxPairSymm, true; hermiticity)
 
         modeCount = length(oneSecEnc.first)
-        windowSize = modeCount - Int(iModeStart) + 1
+        windowSize = modeCount - toBitIntData(Int, iModeStart, :iModeStart) + 1
         if windowSize < 1
             throw(ArgumentError("`iModeStart` should not exceed the mode count of "*
                                 "`oneSecEnc`: $modeCount."))

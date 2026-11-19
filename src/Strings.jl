@@ -613,7 +613,8 @@ construction. Thus, narrowing floating-point `T` may round a coefficient to exac
 which is dropped when `simplification=true`. Again, `T` is subject to the same restriction 
 as in the first initialization method.
 
-    PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true) where {F, T<:SignedReal} -> 
+    PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true
+             ) where {F<:$AbstractCallable, T<:SignedReal} -> 
     PauliSum{T}
 
 Low-level constructor that builds a `PauliSum` from the subset of `h`'s terms picked out 
@@ -641,7 +642,7 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
     coeff::Memory{Complex{T}}
 
     function PauliSum(selector::F, h::PauliSum{T}, checkForm::Bool=true
-                      ) where {F, T<:SignedReal}
+                      ) where {F<:AbstractCallable, T<:SignedReal}
         checkPauliOpForm(h, checkForm)
         s = h.str
         c = h.coeff
@@ -2029,8 +2030,8 @@ julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e1
 1.0 + 0.0im
 ```
 """
-function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; 
-                   checkForm::Bool=true) where {F, T<:SignedReal, R<:SignedReal}
+function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=true
+                   ) where {F<:AbstractCallable, T<:SignedReal, R<:SignedReal}
     checkCoreDataTypeForPauliSum(R, :R) #> First ensure that `R` is a valid core data type
     accuT = (complex∘extendType)(R, T)
     checkPauliOpForm(h, checkForm)

@@ -210,7 +210,8 @@ absorbResidue(naiveSum::C, sumResidue::C) where {C<:RealOrComplex} =
 adaptAdd(naiveSum, sumResidue)
 
 
-function neumaierSum(mapper::F, ::Type{T}, iterable::S) where {F, T<:RealOrComplex, S}
+function neumaierSum(mapper::F, ::Type{T}, iterable::S
+                     ) where {F<:AbstractCallable, T<:RealOrComplex, S}
     eleT = T <: Real ? T : typeintersect(T, Complex)
     if !(isconcretetype(eleT) && (isconcretetype∘real)(eleT))
         throw(ArgumentError("The Neumaier sum based on `T = $T` is not well-defined."))

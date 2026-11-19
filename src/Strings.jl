@@ -1158,6 +1158,30 @@ lazyCanonicalize(s::PauliStr, ::Bool=false) =
 PauliSum(genMemory(s), (one∘getCoreDataType)(PauliStr))
 
 
+#> A modest formatter that only performs a lazy canonicalization on `h` when the 
+#> mathematical expression of `PauliSum(h)` is equivalent to that of `h`. In other word, 
+#> for `T<:AbstractFloat` the canonicalization proceeded cannot contain term merging, which 
+#> is subject to rounding errors. When such canonicalization cannot be done, the function 
+#> returns `false=>h`; otherwise, it returns `true=>lazyCanonicalize(h, simplification)`.
+function toExactCanonicalForm(h::PauliSum{T}, simplification::Bool=false
+                              )::Pair{Bool, PauliSum{T}} where {T<:SignedReal}
+    if T <: AbstractFloat
+        hLocal = lazyCanonicalize(h, false) #> zero-coeff terms have to be kept
+        if countTerms(hLocal) < countTerms(h) #> Term count is only affected by merging
+            false => h
+        elseif simplification && any(iszero, hLocal.coeff)
+            true => PauliSum(pair->!iszero(pair.second), hLocal, false)
+        else
+            true => hLocal
+        end
+    else
+        true => lazyCanonicalize(h, simplification)
+    end
+end
+
+toExactCanonicalForm(s::PauliStr, ::Bool=false) = (true => lazyCanonicalize(s))
+
+
 """
     curtail(h::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
             relative::Bool=false, inclusive::Bool=false, checkForm::Bool=true
@@ -1784,10 +1808,17 @@ end
     isHermitian(op::PauliSum) -> Bool
 
 Return `true` if the operator represented by `op` is Hermitian, i.e., `op == op'` (see 
-[`$(toAdjoint|>repr)`](@ref)). The judgment is at the value level: it does not depend on 
-the specific representation of `op`. The judgment is exact, so an operator that is 
-Hermitian in exact arithmetic can fail the test if its coefficients carry floating-point 
-rounding residues.
+[`$(toAdjoint|>repr)`](@ref)). The judgment is exact, so an operator that is Hermitian in 
+exact arithmetic can fail the test if its coefficients carry floating-point rounding 
+residues.
+
+# Verification of mergeable terms
+When `op::PauliSum{T}` has mergeable terms (i.e, it's not in the canonical form) and 
+`T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
+`op` is constructed for verification (following the overflow checking policy of 
+`PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
+the verification; to have such an `op` verified with its terms merged, rebuild it first 
+(e.g., via `PauliSum(op)`).
 """
 function isHermitian(op::PauliStr)
     (op.phase != posImg) && (op.phase != negImg)
@@ -1796,15 +1827,12 @@ end
 function isHermitian(op::PauliSum)
     if (all(isHermitian, op.str) && all(isreal, op.coeff)) || all(iszero, op.coeff)
         true
-    elseif (isone∘countTerms)(op) #> This branch assumes a nonzero coefficient
+    elseif (isone∘countTerms)(op) #> This branch assumes a single nonzero coefficient
         c = first(op.coeff)
         iszero(real(c)) ? !isHermitian(op.str|>first) : false
-    else
-        hLocal = PauliSum(op)
-        for c in hLocal.coeff
-            isreal(c) || (return false)
-        end
-        true
+    else #> The canonical form is only relied on when it represents `op` exactly
+        isCan, opLocal = toExactCanonicalForm(op)
+        isCan && all(isreal(c) for c in opLocal.coeff)
     end
 end
 
@@ -1815,12 +1843,19 @@ end
     isIdentity(op::PauliSum) -> Bool
 
 Return `true` if the operator represented by `op` is the identity operator (on its 
-explicit site count). The judgment is at the value level: it does not depend on the 
-specific representation of `op`. In particular, the zero operator (e.g., an empty 
-`PauliSum`) is not considered an identity operator, while the zero-site `PauliStr` (i.e., 
-`PauliStr()`), as the multiplicative unit, is considered an identity operator. The judgment 
-is exact, so an operator that is an identity in exact arithmetic can fail the test if its 
+explicit site count). In particular, the zero operator (e.g., an empty `PauliSum`) is not 
+considered an identity operator, while the zero-site `PauliStr` (i.e., `PauliStr()`), as 
+the multiplicative unit, is considered an identity operator. The judgment is exact, so an 
+operator that is an identity in exact arithmetic can fail the test if its 
 coefficients carry floating-point rounding residues.
+
+# Verification of mergeable terms
+When `op::PauliSum{T}` has mergeable terms (i.e, it's not in the canonical form) and 
+`T` is an exact core data type (e.g., `Int` or `Rational{Int}`), a canonical-form copy of 
+`op` is constructed for verification (following the overflow checking policy of 
+`PauliSum`). In contrast, the terms in `op::PauliSum{<:AbstractFloat}` are never merged for 
+the verification; to have such an `op` verified with its terms merged, rebuild it first 
+(e.g., via `PauliSum(op)`).
 """
 function isIdentity(op::PauliStr)
     #> `all` returns `true` for empty collections
@@ -1833,9 +1868,10 @@ function isIdentity(op::PauliSum)
         false
     elseif nTerm == 1 && isIdentity(first(op.str))
         isone(first(op.coeff))
-    else #> The canonical-form rebuild via `PauliSum` can throw
-        op2 = PauliSum(op)
-        (isone∘countTerms)(op2) && isIdentity(first(op2.str)) && isone(first(op2.coeff))
+    else #> The canonical-form rebuild can throw, and is only relied on when it is exact
+        isCan, opLocal = toExactCanonicalForm(op, true)
+        isCan && (isone∘countTerms)(opLocal) && isIdentity(first(opLocal.str)) && 
+        isone(first(opLocal.coeff))
     end
 end
 
@@ -2024,12 +2060,14 @@ function checkFinitePauliCoeffs(op::T, opName::Symbol, explicitError::Bool=true
 end
 
 
+#> Return `true` if `op` is a zero operator. Same as for `isHermitian` and `isIdentity`, 
+#> term merging is only performed for `PauliSum{T}` where `T` is an exact core data type.
 isZeroOperator(::PauliStr) = false
 
-function isZeroOperator(h::PauliSum)
+function isZeroOperator(h::PauliSum{T}) where {T<:SignedReal}
     if all(iszero, h.coeff)
         true
-    elseif isCanonical(h)
+    elseif T <: AbstractFloat || isCanonical(h)
         false
     else
         all(iszero, lazyCanonicalize(h, false).coeff)

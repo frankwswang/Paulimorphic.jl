@@ -2004,8 +2004,8 @@ end
     Complex{R}
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` that satisfies 
-`selector(term) == true`. `selector` must be a callable that `sumCoeff` invokes while 
-scanning through all terms in `h` and has the following method signature:
+`selector(term) == true`. `selector` is a callable that `sumCoeffs` invokes while scanning 
+through all terms in `h`, which must has the following method signature:
 
     selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
 

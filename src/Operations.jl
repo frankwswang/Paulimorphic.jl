@@ -730,25 +730,23 @@ end
 
 #> Check if `op1` and `op2` are equal, under the premise that they both are operators with 
 #> only finite term coefficients. The equality is determined by whether they are identical 
-#> or form equal canonical forms without merging any terms. The non-merging constraint 
-#> comes from the fact that floating-point rounding or overflow errors during the merging 
-#> of equal strings may cause different operators to share one canonical form. If any  
-#> operator has at least one non-finite coefficient, the function exits with `missing`.
+#> or form equal forms. An exact canonical form is potentially restored via 
+#> `toExactCanonicalForm`. If any operator has at least one non-finite coefficient, the 
+#> function exits with `missing`, or throws an `ArgumentError` when `explicitError=true`.
 function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum, 
                                   explicitError::Bool=false)::MissingOr{Bool}
     #> Early exit as soon as one operator has non-finite coefficients
     checkFinitePauliCoeffs(op1, :op1, explicitError) || (return missing)
     checkFinitePauliCoeffs(op2, :op2, explicitError) || (return missing)
-    
+
     op1 === op2 && (return true)
 
-    #> Only merging reduces the term count (a `PauliStr` always forms a single term)
-    h1 = lazyCanonicalize(op1, false)
-    h2 = lazyCanonicalize(op2, false)
-    isExact1 = op1 isa PauliStr || countTerms(h1) == countTerms(op1)
-    isExact2 = op2 isa PauliStr || countTerms(h2) == countTerms(op2)
+    isCan, op1Local = toExactCanonicalForm(op1)
+    isCan || (return false)
+    isCan, op2Local = toExactCanonicalForm(op2)
+    isCan || (return false)
 
-    isExact1 && isExact2 && h1 == h2
+    op1Local == op2Local
 end
 
 
@@ -774,9 +772,11 @@ If `onlyFinite=true` (by default), an `ArgumentError` is thrown when `op1`, `op2
 
 # Self-commutator
 In the cases where both `op1` and `op2` hold no non-finite coefficient, their commutativity 
-may be estimated without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
+may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
-equal [canonical forms](@ref `PauliSum`) without merging terms, `true` is returned.
+exact [canonical forms](@ref `PauliSum`) that are also equal to each other, `true` is 
+returned. Specifically, a `PauliSum` with a non-exact core data type (e.g., 
+`AbstractFloat`) cannot form an exact canonical form when it has mergeable terms.
 """
 function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
@@ -890,10 +890,11 @@ method `evalCommute(::PauliStr, ::PauliStr, onlyFinite::Bool)`.
 
 # Self-commutator
 In the cases where both `op1` and `op2` hold no non-finite coefficient, their commutativity 
-may be estimated without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
+may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
-equal [canonical forms](@ref `PauliSum`) without merging terms, an zero-term `PauliSum` is 
-returned.
+exact [canonical forms](@ref `PauliSum`) that are also equal to each other, a zero-term 
+`PauliSum` is returned. Specifically, a `PauliSum` with a non-exact core data type (e.g., 
+`AbstractFloat`) cannot form an exact canonical form when it has mergeable terms.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)

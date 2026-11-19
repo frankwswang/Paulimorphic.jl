@@ -2068,16 +2068,8 @@ function checkFinitePauliCoeffs(op::T, opName::Symbol, explicitError::Bool=true
 end
 
 
-#> Return `true` if `op` is a zero operator. Same as for `isHermitian` and `isIdentity`, 
-#> term merging is only performed for `PauliSum{T}` where `T` is an exact core data type.
-isZeroOperator(::PauliStr) = false
+#> An internal quick check of if `op` is an explicit zero operator. Thus, it does not 
+#> perform any canonicalization and should be used only in assistive fast-path checking.
+isExplicitZeroOp(::PauliStr) = false
 
-function isZeroOperator(h::PauliSum{T}) where {T<:SignedReal}
-    if all(iszero, h.coeff)
-        true
-    elseif T <: AbstractFloat || isCanonical(h)
-        false
-    else
-        all(iszero, lazyCanonicalize(h, false).coeff)
-    end
-end
+isExplicitZeroOp(op::PauliSum) = all(iszero, op.coeff)

@@ -816,7 +816,7 @@ function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     ismissing(res) ? (return false) : (res && (return true))
 
     #> Zero operators commute with any operators
-    (isZeroOperator(op1) || isZeroOperator(op2)) && (return true)
+    (isExplicitZeroOp(op1) || isExplicitZeroOp(op2)) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
@@ -860,7 +860,7 @@ function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     allFinite || (return false)
 
     #> Zero operators anticommute with any operators
-    (isZeroOperator(op1) || isZeroOperator(op2)) && (return true)
+    (isExplicitZeroOp(op1) || isExplicitZeroOp(op2)) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)

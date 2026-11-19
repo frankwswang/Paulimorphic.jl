@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isZeroOperator
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isExplicitZeroOp
 using Random
 
 @testset "Strings.jl" begin
@@ -586,11 +586,10 @@ setCoeff!(hIds, -4, 3)
 setCoeff!(hIds, -3, 3)
 @test !isIdentity(hIds)    #> 3 + 2 - 3 == 2
 
-#> `isHermitian`, `isIdentity`, and the internal `isZeroOperator` only rely on the 
-#> canonical form of a `PauliSum` when it represents the operator exactly. The terms that 
-#> the constructor would merge are merged for the judgment when the core data type is an 
-#> exact numeric type, whereas a floating-point `PauliSum` that stores such terms is judged 
-#> from its stored terms alone
+#> `isHermitian`, `isIdentity` only rely on the canonical form of a `PauliSum` when it 
+#> represents the operator exactly. The terms that the constructor would merge are merged 
+#> for the judgment when the core data type is an exact numeric type, whereas a 
+#> floating-point `PauliSum` that stores such terms is judged from its stored terms alone.
 for T in (Int, Rational{Int}, Float64)
     isExact = !(T <: AbstractFloat)
     #>> `hSelf` stores `X` three times: `-im*X + X + im*X == X`
@@ -604,8 +603,9 @@ for T in (Int, Rational{Int}, Float64)
     #>> `hNone` stores `X` three times: `-3*X + X + 2*X == 0`
     hNone = PauliSum([pauli"X", pauli"Y", pauli"Z"], T[1, 2, -3])
     fill!(hNone.str, pauli"X")
-    @test isZeroOperator(hNone) == isExact && isZeroOperator(PauliSum(hNone))
     @test isHermitian(hNone) && !isIdentity(hNone)
+    #>> `isExplicitZeroOp` does not rely on canonicalization at all
+    @test !isExplicitZeroOp(hNone) && isExplicitZeroOp(PauliSum(hNone))
 end
 #>> A floating-point `PauliSum` that restores its canonical form without merging terms is 
 #>> still judged by the operator it represents, and so is one that retains zero-coefficient 
@@ -621,14 +621,14 @@ setCoeff!(hSpare, 1e-300, 2)
 #>> strings), although it stores `X` twice
 hReal = PauliSum([pauli"X", pauli"Z"], [0.1, 0.2])
 stamp!(indexTerm(hReal, 1, false).first, 1, symX) #> The first stored term is `Z`
-@test isHermitian(hReal) && !isZeroOperator(hReal) && !isIdentity(hReal)
+@test isHermitian(hReal) && !isExplicitZeroOp(hReal) && !isIdentity(hReal)
 #>> For exact core data types, the merge follows the overflow checking policy of `PauliSum`
 hTwice = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
 stamp!(indexTerm(hTwice, 1, false).first, 1, symX) #> `hTwice` stores `X` twice
-@test_throws OverflowError isZeroOperator(hTwice)
+@test !isExplicitZeroOp(hTwice) #> `isExplicitZeroOp` simply fails instead of throwing
 @test_throws OverflowError isIdentity(hTwice)
 @test isHermitian(hTwice) #> Settled by the stored terms, without merging them
-@test isZeroOperator(PauliSum(Int8)) && !isZeroOperator(pauli"I")
+@test isExplicitZeroOp(PauliSum(Int8)) && !isExplicitZeroOp(pauli"I")
 
 @testset "toPauliStr" begin
     #> Single term with a coefficient expressible as a phase

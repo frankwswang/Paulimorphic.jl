@@ -532,6 +532,25 @@ end
           PauliSum([pauli"X", pauli"Z"], [-Int128(typemin(Int)), Int128(1)])
 end
 
+@testset "sortStrings!" begin
+    #> Real coefficients are accepted as well as complex ones. Among equal strings, ties 
+    #> are broken by `(evalMagnitude(c), real(c), imag(c))` (`Z` precedes `X` on one site)
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    coeffs = [2.0, -1.0, 3.0]
+    @test Paulimorphic.sortStrings!(strs, coeffs) === nothing
+    @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, -1.0, 2.0]
+    #> `considerCoeff=false`: the sort is stable, so equal strings keep their input order
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    coeffs = [2.0, -1.0, 3.0]
+    Paulimorphic.sortStrings!(strs, coeffs, false)
+    @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, 2.0, -1.0]
+    #> Real and complex coefficients of equal values are ordered alike
+    strs = [pauli"X", pauli"X", pauli"Z"]
+    cplx = ComplexF64[2.0, -1.0, 3.0]
+    Paulimorphic.sortStrings!(strs, cplx)
+    @test cplx == [3.0, -1.0, 2.0]
+end
+
 #> `countWeight`
 @test countWeight(PauliStr(0)) == countWeight(pauli"III") == 0
 @test countWeight(pauli"XIZ") == 2

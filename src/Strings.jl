@@ -933,7 +933,7 @@ end
 
 
 #> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
-function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, Complex{<:SignedReal}})
+function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, SRealOrComplex})
     (str, evalMagnitude(strCoeff), real(strCoeff), imag(strCoeff))
 end
 
@@ -976,12 +976,13 @@ function sortStrings!(strs::AbstractVector{PauliStr},
 
         #> Update elements in `coeffs` and `strs` using sorted `scope`
         #> `scope` is shifted when `coeffs` & `strs` are not one-based indexed
+        #> `dumpTo!` is used since the permuted copies are always one-based indexed
         iFirst1 = firstindex(strs)
         iFirst2 = firstindex(coeffs)
         iFirst1 == 1 || (scope .+= iFirst1 - 1) #> Elements of `scope` are one-based indices
-        strs .= strs[scope]
+        dumpTo!(strs, strs[scope])
         iFirst2 == iFirst1 || (scope .+= iFirst2 - iFirst1)
-        coeffs .= coeffs[scope]
+        dumpTo!(coeffs, coeffs[scope])
     end
 
     nothing

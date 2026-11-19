@@ -588,7 +588,7 @@ function genRootGraph(g::StrictGraph{T},
         lRootEdgeNum += d * (d - 1) ÷ 2
     end
     if length(gEdges) == lRootEdgeNum
-        saveEdgeNodeRelation && (cache!Self .= edgeLabels)
+        saveEdgeNodeRelation && dumpTo!(cache!Self, edgeLabels) #> Axes need not match
         true => rootGraph
     else
         false => g

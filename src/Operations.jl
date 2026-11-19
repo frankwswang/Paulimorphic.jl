@@ -164,8 +164,6 @@ Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
     t1 + t2 + t3 + ts... -> PauliSum
 
 Sum over all the `PauliStr` or `PauliSum` in `terms` and return the result as a `PauliSum`. 
-In the second method signature, the core data type of returned `PauliSum` (mirroring `T` in 
-the first method) is the promotion of the core data types of all the `PauliSum` in `terms`. 
 All the `PauliStr` (paired with their associated coefficients) extracted from `terms` are 
 concatenated and then merged once by the `PauliSum` constructor, to which `simplification` 
 is forwarded as the same-named argument. A chained summation of three or more terms 
@@ -174,11 +172,14 @@ falls back to calling the second method with all the terms encapsulated into the
 `terms` and `simplification=true`.
 
 !!! info
-    No `PauliStr` takes part in the above promotion of core data types, and `Int` is only 
-    resorted to as the final core data type when `terms` holds no `PauliSum`. As an 
-    exception, when `eltype(terms)` admits a concrete `PauliSum{T}`, its core data type `T` 
-    is used regardless of the elements of `terms` (e.g., when `terms` is a 
-    `Vector{Union{PauliStr, PauliSum{Float64}}}`).
+    In the first method, `T` specifies the core type of the returned `PauliSum`. The 
+    precision level at which the coefficients of equal strings are merged is determined by 
+    `$(extendType|>repr)(T, complex(C))`, where `C` is obtained from a runtime promotion 
+    from the core data types of the elements in `terms`, if `eltype(terms)` does not 
+    already admit a single concrete type `PauliSum{C}` (e.g., when `terms` is a 
+    `Vector{Union{PauliStr, PauliSum{Float64}}}`). In particular, no `PauliStr` takes part 
+    in the runtime promotion, unless `terms` only contains `PauliStr`, in which case, `C` 
+    is set to `$(getCoreDataType(PauliStr))`.
 
 This function also provides a third method signature:
 
@@ -194,8 +195,8 @@ where `f` is a callable object that transforms the coefficient associated with e
 where `T1` is convertible to `Complex{T}` through `Base.convert`; and for any `term` as an 
 element in `terms`, if `term isa PauliStr`, `strCoeffPair = (term => one(Complex{T}))`, 
 else (i.e., `term isa PauliSum`) `strCoeffPair = (term.str[i] => term.coeff[i])` for all 
-possible values of `i`. Technically, the first method falls back to calling the third 
-method with `f=(scPair->scPair.second)`.
+possible values of `i`. Correspondingly, the level of precision at which the terms are 
+merged is also `Complex{T}`, and the returned type is `PauliSum{T}`.
 
 # Examples
 ```jldoctest
@@ -206,12 +207,8 @@ true
 ```
 
 !!! info
-    For the methods that require `T` as a type argument, `T` specifies the core type of 
-    the returned `PauliSum`, and the precision level at which the coefficients of equal 
-    strings are merged is determined by `$(extendType|>repr)(T, complex(C))`, where 
-    `C` is the promotion of the core types of the elements in `terms`. The returned value 
-    of this function (for any of its methods) is invariant under the permutation of 
-    `terms`, and it also does not reference any data in `terms`.
+    The returned value of this function (for any of its methods) is invariant under the 
+    permutation of `terms`, and it also does not reference any data in `terms`.
 """
 function combine(f::F, ::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
                  simplification::Bool=true) where {F<:AbstractCallable, T<:SignedReal}
@@ -244,7 +241,22 @@ end
 
 function combine(::Type{T}, terms::AbstractVector{<:PauliStrOrSum}, 
                  simplification::Bool=true) where {T<:SignedReal}
-    combine((pair::Pair)->pair.second, T, terms, simplification)
+    checkCoreDataTypeForPauliSum(T)
+    isempty(terms) && (return PauliSum(T))
+
+    T1 = getCoreDataType(eltype(terms))
+    typeStable = isconcretetype(T1)
+
+    if !typeStable && all(x->(x isa PauliStr), terms)
+        return PauliSum(T, genMemory(PauliStr, terms), one(T), simplification)
+    end
+
+    #> The coefficients are concatenated following the core data-type promotion rule
+    extC = Complex{typeStable ? T1 : foldr(promoteCoreType, terms, init=Union{})}
+    strs = reduce(vcat, map(t->((t isa PauliStr) ? genMemory(t) : t.str), terms))
+    unit = genMemory(one(extC)) #> The coefficient carried by every `PauliStr`
+    coeffs = reduce(vcat, map(t->((t isa PauliStr) ? unit : t.coeff), terms))
+    PauliSum(T, strs, coeffs, simplification)
 end
 
 function combine(::Type{T}, terms::AbstractVector{PauliStr}, simplification::Bool=true

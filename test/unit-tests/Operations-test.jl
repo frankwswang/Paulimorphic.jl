@@ -207,6 +207,32 @@ end
     @test combine(Union{PauliStr, PauliSum{Int8}}[sX, sX]) isa PauliSum{Int8}
     @test combine(Union{PauliStr, PauliSum{Int8}}[]) isa PauliSum{Int8}
     @test combine(PauliSum[hInt8, PauliSum([sX], Int16[1])]) isa PauliSum{Int16}
+    #>> With `T` specified, the coefficients of equal strings are merged at the precision 
+    #>> level of `extendType(T, complex(C))` and converted to `Complex{T}` last, in the 
+    #>> same way as by `add(T, h1, h2)`; `C` is the promotion of the core data types of the 
+    #>> `PauliSum` in `terms`
+    hHalf = PauliSum([sX], [0.5])
+    @test combine(Int, [hHalf, hHalf]) == add(Int, hHalf, hHalf) == PauliSum([sX], [1])
+    @test combine(Int, [hHalf, hHalf]) isa PauliSum{Int}
+    @test_throws InexactError combine(Int, [hHalf, hHalf, hHalf]) #> `1.5`
+    hWide = PauliSum([sX], [1.0 + 2.0^-40])
+    @test combine(Float32, [hWide, hc]) == add(Float32, hWide, hc) == 
+          PauliSum([sX], [Float32(2.0^-40)])
+    h200, hNeg150 = PauliSum([sX], [200]), PauliSum([sX], [-150])
+    @test combine(Int8, [h200, hNeg150]) == add(Int8, h200, hNeg150) == 
+          PauliSum([sX], Int8[50])
+    #>> A fixed-width integer overflow at that precision level throws 
+    #>> (`extendType(Float64, Int8) == Int8`); a wider `T` merges the same terms safely
+    hMax = PauliSum([sX], Int8[100])
+    @test_throws OverflowError combine(Float64, [hMax, hMax])
+    @test_throws OverflowError add(Float64, hMax, hMax)
+    @test combine(Int16, [hMax, hMax]) == add(Int16, hMax, hMax) == 
+          PauliSum([sX], Int16[200])
+    #>> A `PauliStr` in `terms` carries the coefficient `one(Complex{T})`
+    @test combine(Int, Union{PauliStr, PauliSum}[sX, hHalf, hHalf]) == PauliSum([sX], [2])
+    #>> In contrast, the coefficients returned by a callable first argument are converted 
+    #>> to `Complex{T}` before the merge
+    @test_throws InexactError combine(pair->pair.second, Int, [hHalf, hHalf])
 end
 
 @testset "sub" begin

@@ -2005,7 +2005,7 @@ end
 
 Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` that satisfies 
 `selector(term) == true`. `selector` is a callable that `sumCoeffs` invokes while scanning 
-through all terms in `h`, which must has the following method signature:
+through all terms in `h`; it must have the following method signature:
 
     selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
 

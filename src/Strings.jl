@@ -622,13 +622,14 @@ by a callable object `selector`, which must have the following method signature:
 
     selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
 
-By iterating through all the terms in `PauliSum`, `selector` is used to retain all the 
-terms (when input as a `Pair`) for which it returns `true`. This constructor respects the 
-term order of `h` and performs no phase absorption, merging, or re-sorting. Consequently, 
-if `h` is in the canonical form (or the simplified form), so is the result, as a 
-subsequence formed by the retained strings remains strictly ascending. By default 
-(`checkForm=true`), `h` is required to be in the canonical form. To check whether `h` is in 
-the canonical form before calling this function, resort to [`isCanonical`](@ref).
+where `term.str` directly refers to a `PauliStr` stored in `h` (i.e., no data copying). By 
+iterating through all the terms in `PauliSum`, `selector` is used to retain all the terms 
+(when input as a `Pair`) for which it returns `true`. This constructor respects the term 
+order of `h` and performs no phase absorption, merging, or re-sorting. Consequently, if `h` 
+is in the canonical form (or the simplified form), so is the result, as a subsequence 
+formed by the retained strings remains strictly ascending. By default (`checkForm=true`), 
+`h` is required to be in the canonical form. To check whether `h` is in the canonical form 
+before calling this function, resort to [`isCanonical`](@ref).
 
 !!! warning
     Unlike other constructor methods, the retained strings are NOT reconstructed 
@@ -2002,12 +2003,17 @@ end
               ) where {T<:SignedReal, R<:SignedReal} -> 
     Complex{R}
 
-Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` whose Pauli 
-string `str` satisfies `selector(str) == true`. `selector` must be a callable that accepts 
-a term's [`PauliStr`](@ref) and returns a `Bool` (i.e., `selector(str)::Bool`); omitting it 
-selects every term of `h`. If no term is selected, `zero(Complex{R})` is returned. `R` is 
-subject to the same restriction as the core data type of any [`PauliSum`](@ref) instance 
-and defaults to that of `h`.
+Return the sum (as a `Complex{R}`) of the coefficients of every term in `h` that satisfies 
+`selector(term) == true`. `selector` must be a callable that scans through all terms in `h` 
+and has the following method signature:
+
+    selector(term::Pair{PauliStr, Complex{T}}) where {T<:SignedReal} -> Bool
+
+where `term.str` directly refers to a [`PauliStr`](@ref) stored in `h` (i.e., no data 
+copying) with `term.second` being its associated coefficient. Omitting it (i.e.,the second 
+method signature) automatically selects every term of `h`. If no term is selected, 
+`zero(Complex{R})` is returned. `R` is subject to the same restriction as the core data 
+type of any [`PauliSum`](@ref) instance and defaults to that of `h`.
 
 The accumulation is performed at the precision level of 
 `complex($(extendType|>repr)(R, T))` and converted to `Complex{R}` only once at the end. 
@@ -2026,7 +2032,7 @@ julia> h = PauliSum([pauli"XI", pauli"YY", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.
 julia> sumCoeffs(h) #> Naive left-to-right accumulation would return 5.0
 6.0 + 0.0im
 
-julia> sumCoeffs(s -> countWeight(s) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
+julia> sumCoeffs(term->countWeight(term.first) < 2, h) #> Weight-1 terms: 1.0 + 1e16 - 1e16
 1.0 + 0.0im
 ```
 """
@@ -2036,7 +2042,7 @@ function sumCoeffs(selector::F, h::PauliSum{T}, ::Type{R}=T; checkForm::Bool=tru
     accuT = (complex∘extendType)(R, T)
     checkPauliOpForm(h, checkForm)
     nTerm = countTerms(h)
-    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1])::Bool)
+    scope = (i for i in 1:nTerm if selector(h.str[begin+i-1] => h.coeff[begin+i-1])::Bool)
     neumaierSum(i->h.coeff[begin+i-1], accuT, scope) |> Complex{R}
 end
 

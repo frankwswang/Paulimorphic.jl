@@ -669,8 +669,15 @@ end
 
 @testset "sumCoeffs" begin
     h = PauliSum([pauli"XI", pauli"YI", pauli"ZI", pauli"IZ"], [1e16, 5.0, 1.0, -1e16])
-    @test sumCoeffs(h) == Complex(6.0)                      #> Naive accumulation gives 4.0
-    @test sumCoeffs(s -> s != pauli"YI", h) == Complex(1.0) #> Naive accumulation gives 0.0
+    @test sumCoeffs(h) == Complex(6.0) #> Naive accumulation gives 4.0
+    #> `selector` receives each term as a `Pair` of its string and its coefficient (at the 
+    #> core data type of `h`, whatever `R` is), same as in the term-filtering construction 
+    #> of `PauliSum`; hence one `selector` picks the same terms in both
+    notYI = term->(term.first != pauli"YI")
+    @test sumCoeffs(notYI, h) == Complex(1.0) #> Naive accumulation gives 0.0
+    isPos = term->(real(term.second) > 0)
+    @test sumCoeffs(isPos, h) === sumCoeffs(PauliSum(isPos, h)) === Complex(1e16 + 6.0)
+    @test sumCoeffs(term->(term isa Pair{PauliStr, ComplexF64}), h, Float32) == 6.0f0
     @test sumCoeffs(h, Float32) == Complex{Float32}(6.0)
     @test sumCoeffs(PauliSum([pauli"X"], [1//3])) == Complex(1//3) #> Exact fallback path
     #> A floating-point overflow gives an infinite sum, as plain additions do
@@ -704,7 +711,7 @@ end
     stamp!(indexTerm(hd, 1, false).first, 1, symX) #> `Z` -> `X`
     @test !isCanonical(hd)
     @test_throws ArgumentError sumCoeffs(hd)
-    @test_throws ArgumentError sumCoeffs(s -> true, hd, Float32)
+    @test_throws ArgumentError sumCoeffs(term->true, hd, Float32)
     @test sumCoeffs(hd; checkForm=false) == Complex(3.0)
     @test sumCoeffs(PauliSum(hd)) == Complex(3.0) #> The merged rebuild
     #>> A phase left inside a stored string (through the aliasing form of `indexTerm`)

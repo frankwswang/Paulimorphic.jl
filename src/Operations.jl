@@ -764,12 +764,11 @@ function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum,
 
     op1 === op2 && (return true)
 
-    isCan, op1Local = toExactCanonicalForm(op1)
-    isCan || (return false)
-    isCan, op2Local = toExactCanonicalForm(op2)
-    isCan || (return false)
+    #> Both forms are formatted before the check to ensure argument-permutation invariance
+    isCan1, op1Local = toExactCanonicalForm(op1)
+    isCan2, op2Local = toExactCanonicalForm(op2)
 
-    op1Local == op2Local
+    isCan1 && isCan2 && op1Local == op2Local
 end
 
 

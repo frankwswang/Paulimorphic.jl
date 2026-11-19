@@ -1093,6 +1093,11 @@ end
     stamp!(indexTerm(hOver, 1, false).first, 1, symX) #> `X` is stored twice
     @test_throws OverflowError checkAdjoint(hOver, PauliSum([pauli"X"], Int16[200]))
     @test checkAdjoint(hOver, hOver) #> Judged by `isHermitian`, which needs no copy here
+    #>> A floating-point operand with mergeable terms settles the result for either order 
+    #>> of the operands, before that copy is needed
+    hQuarters = PauliSum([pauli"X", pauli"Z"], [0.25, 0.25])
+    stamp!(indexTerm(hQuarters, 1, false).first, 1, symX) #> `X` is stored twice
+    @test !checkAdjoint(hQuarters, hOver) && !checkAdjoint(hOver, hQuarters)
 
     #> Infinite coefficients are compared by value as well: no product is evaluated, so no 
     #> argument mirrors `onlyFinite` of `checkCommute`

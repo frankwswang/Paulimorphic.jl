@@ -1026,6 +1026,11 @@ end
 function checkAdjoint(op1::PauliStrOrSum, op2::PauliStrOrSum)
     op1 === op2 && (return isHermitian(op1))
 
+    #> Impose argument-permutation invariance
+    if op2 isa PauliSum{<:AbstractFloat} && !(op1 isa PauliSum{<:AbstractFloat})
+        return checkAdjoint(op2, op1)
+    end
+
     isCan, op1Local = toExactCanonicalForm(op1, true)
     isCan || (return false)
     isCan, op2Local = toExactCanonicalForm(op2, true)

@@ -465,9 +465,9 @@ function growNBodyOperators!(termCache::PauliTermDict{T},
 
         #> After the shape of `orbInte` is verified to be consistent with `orbSecExtents`
         for (n, isSec2, idx) in zip(1:N, spinSecConfig, eachindex(iModeStart))
-            iStart = toBitIntData(Int, iModeStart[idx])
+            iStart = iModeStart[idx]
             modeCount = length(enc[begin+isSec2].first)
-            windowSize = modeCount - iStart + 1
+            windowSize = modeCount - toBitIntData(Int, iStart, :iStart) + 1
             nOrb = orbSecExtents[begin+n-1]
             if windowSize < 1
                 throw(ArgumentError("`iModeStart[$idx]` should not exceed the mode count "*

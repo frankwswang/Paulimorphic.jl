@@ -1,4 +1,4 @@
-export scale!, checkCommute, checkAntiCom, evalCommute, evalAntiCom
+export scale!, checkCommute, checkAntiCom, checkAdjoint, evalCommute, evalAntiCom
 
 public add, combine, sub, mul, toAdjoint
 
@@ -988,13 +988,53 @@ function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
 end
 
 
+"""
+    checkAdjoint(op1::PauliStr, op2::PauliStr) -> Bool
 
-function checkAdjoint(op1::PauliSum, op2::PauliSum)
+    checkAdjoint(op1::PauliStr, op2::PauliSum) -> Bool
+
+    checkAdjoint(op1::PauliSum, op2::PauliStr) -> Bool
+
+    checkAdjoint(op1::PauliSum, op2::PauliSum) -> Bool
+
+Return `true` if `op1` and `op2` are the Hermitian adjoints of each other. The judgment is 
+exact, so two operators that are the adjoints of each other in exact arithmetic can fail 
+the test if their coefficients carry floating-point rounding residues.  When `op1` and 
+`op2` are identical objects (verified via `Base.:===`), this function falls back to 
+`isHermitian(op1)` is returned (see [`isHermitian`](@ref)).
+
+Unlike [`checkCommute`](@ref), this function does not follow the implicit identity-padding 
+convention (see [`PauliStr`](@ref) and [`PauliSum`](@ref)). Unless both of them are zero 
+operators, `op1` and `op2` explicitly acting on different numbers of sites (indicated by 
+[`countSites`](@ref)) are not considered the adjoints of each other.
+
+# Verification of mergeable terms
+When `op1` and `op2` are not identical and either of them has mergeable terms, the function 
+will return `false` if the core data type of that operator is not an exact numeric type 
+(e.g., `AbstractFloat`) to avoid potential false positive resulted from rounding errors 
+during the merging. To have such an operator verified with its terms merged, canonicalize 
+it first (e.g., via `PauliSum(op1)`).
+"""
+function checkAdjoint(op1::PauliStr, op2::PauliStr)::Bool
+    #> Two phase factors are the complex conjugates of each other iff their product is 1
+    isequal(mul(op1.phase, op2.phase), posRea) && 
+    isequal(op1.n, op2.n) && 
+    isequal(op1.x, op2.x) && 
+    isequal(op1.z, op2.z)
+end
+
+function checkAdjoint(op1::PauliStrOrSum, op2::PauliStrOrSum)
+    op1 === op2 && (return isHermitian(op1))
+
     isCan, op1Local = toExactCanonicalForm(op1, true)
     isCan || (return false)
     isCan, op2Local = toExactCanonicalForm(op2, true)
     isCan || (return false)
-    toAdjoint(op1Local) == op2Local
+
+    op1Local.str == op2Local.str || (return false) #> Strings are phase-less
+    all(zip(op1Local.coeff, op2Local.coeff)) do (coeff1, coeff2)
+        checkConj(coeff1, coeff2) #> Comparison without performing complex conjugation
+    end
 end
 
 

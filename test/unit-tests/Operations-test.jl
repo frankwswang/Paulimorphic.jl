@@ -1007,6 +1007,100 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
 end
 
 
+@testset "checkAdjoint" begin
+    #> Two `PauliStr`: equal single-site operators and site counts, conjugate phases
+    for (phase, phaseConj) in ((posRea, posRea), (posImg, negImg), 
+                               (negRea, negRea), (negImg, posImg))
+        s = PauliStr(2, symX, phase)
+        @test  checkAdjoint(s, PauliStr(2, symX, phaseConj))
+        @test !checkAdjoint(s, PauliStr(2, symY, phaseConj))
+        @test  checkAdjoint(s, s) == isHermitian(s) == (phase == phaseConj)
+    end
+
+    #> No implicit identity padding, unlike `checkCommute`
+    @test !checkAdjoint(pauli"X", pauli"XI") && checkCommute(pauli"X", pauli"XI")
+    @test !checkAdjoint(pauli"X", PauliSum([pauli"XI"], [1]))
+    @test !checkAdjoint(PauliSum([pauli"X"], [1]), PauliSum([pauli"XI"], [1]))
+
+    #> Agreement with `toAdjoint` on random strings, for either order of the operands
+    rng = Xoshiro(44)
+    bl = true
+    for _ in 1:128
+        s1, s2 = randStr(rng, rand(rng, 0:3)), randStr(rng, rand(rng, 0:3))
+        bl &= checkAdjoint(s1, s1') && checkAdjoint(s1', s1)
+        bl &= (checkAdjoint(s1, s2) == (s1' == s2) == checkAdjoint(s2, s1))
+        #>> A `PauliStr` is compared with a `PauliSum` as a single term
+        bl &= checkAdjoint(s1, PauliSum([s1'], 1)) && checkAdjoint(PauliSum([s1'], 1), s1)
+        bl &= (checkAdjoint(s1, PauliSum([s2], 1)) == (s1' == s2))
+    end
+    @test bl
+
+    #> The same agreement on random sums (in the simplified form); identical objects give 
+    #> the same answer as `isHermitian`
+    rng = Xoshiro(45)
+    bl = true
+    for _ in 1:64
+        n = rand(rng, 1:3)
+        hA, hB = randSum(rng, n, rand(rng, 0:4)), randSum(rng, n, rand(rng, 0:4))
+        bl &= checkAdjoint(hA, hA') && checkAdjoint(hA', hA)
+        bl &= (checkAdjoint(hA, hA) == isHermitian(hA) == (hA == hA'))
+        bl &= (checkAdjoint(hA, hB) == (hA' == hB) == checkAdjoint(hB, hA))
+    end
+    @test bl
+
+    #> The coefficients are compared by value across different core data types, and the 
+    #> terms with zero coefficients are disregarded
+    hInt = PauliSum([pauli"X", pauli"Y"], [2, 3im])
+    hRat = PauliSum([pauli"X", pauli"Y"], Complex{Rational{Int}}[2, -3im])
+    @test  checkAdjoint(hInt, hRat) && checkAdjoint(hRat, hInt)
+    @test  checkAdjoint(hInt, PauliSum([pauli"X", pauli"Y"], [2.0, -3.0im]))
+    @test !checkAdjoint(hInt, PauliSum([pauli"X", pauli"Y"], [2.0, -3.5im]))
+    hZero = PauliSum([pauli"XI", pauli"ZZ"], [0.0, 1.0im], false)
+    @test  checkAdjoint(hZero, PauliSum([pauli"ZZ"], [-1im]))
+    @test  checkAdjoint(hZero, toAdjoint(hZero, false)) && checkAdjoint(hZero, hZero')
+    @test  checkAdjoint(PauliSum(Int), PauliSum([pauli"XX"], [0.0], false))
+
+    #> Mergeable terms are merged for an exact core data type and never for a 
+    #> floating-point one, in which case only identical objects can still pass (through 
+    #> `isHermitian`)
+    for T in (Rational{Int}, Float64)
+        isExact = !(T <: AbstractFloat)
+        hT = PauliSum([pauli"X", pauli"Y"], Complex{T}[1//2, Complex(0, 1//2)])
+        #>> `hSplit` holds the operator of `hT`, storing `X` twice
+        hSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, 1//2), 1//4])
+        stamp!(indexTerm(hSplit, 1, false).first, 1, symX) #> The first stored term is `Z`
+        @test !isCanonical(hSplit) && PauliSum(hSplit) == hT
+        @test checkAdjoint(hSplit, hT') == checkAdjoint(hT', hSplit) == isExact
+        @test checkAdjoint(PauliSum(hSplit), hT')
+        #>> `hTwice` is Hermitian whether or not its terms are merged
+        hTwice = PauliSum([pauli"X", pauli"Z"], Complex{T}[1//4, 1//2])
+        stamp!(indexTerm(hTwice, 1, false).first, 1, symX) #> `X` is stored twice
+        @test isHermitian(hTwice) && checkAdjoint(hTwice, hTwice)
+        @test checkAdjoint(hTwice, deepcopy(hTwice)) == isExact
+    end
+
+    #> No conjugate is constructed, so the judgment is also made where the conjugate of a 
+    #> coefficient is not representable by its core data type
+    hMin = PauliSum([pauli"X"], [Complex(Int8(0), typemin(Int8))])
+    hPos = PauliSum([pauli"X"], [Complex(Int16(0), Int16(128))])
+    @test_throws OverflowError toAdjoint(hMin)
+    @test  checkAdjoint(hMin, hPos) && checkAdjoint(hPos, hMin)
+    @test !checkAdjoint(hMin, hMin) && !checkAdjoint(hMin, deepcopy(hMin))
+
+    #> A canonical-form copy follows the overflow checking policy of `PauliSum`
+    hOver = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
+    stamp!(indexTerm(hOver, 1, false).first, 1, symX) #> `X` is stored twice
+    @test_throws OverflowError checkAdjoint(hOver, PauliSum([pauli"X"], Int16[200]))
+    @test checkAdjoint(hOver, hOver) #> Judged by `isHermitian`, which needs no copy here
+
+    #> Infinite coefficients are compared by value as well: no product is evaluated, so no 
+    #> argument mirrors `onlyFinite` of `checkCommute`
+    hInf = PauliSum([pauli"X", pauli"Y"], [Complex(Inf, 0.0), Complex(0.0, Inf)])
+    @test checkAdjoint(hInf, hInf') && !checkAdjoint(hInf, hInf)
+end
+
+
 @testset "toAdjoint(::PauliStr)" begin
     #> Phase conjugation table: conj(im^k) == im^((4-k) mod 4)
     for (phase, phaseConj) in ((posRea, posRea), (posImg, negImg), 

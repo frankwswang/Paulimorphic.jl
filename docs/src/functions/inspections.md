@@ -39,6 +39,7 @@ isCanonical
 compareSites
 checkCommute
 checkAntiCom
+checkAdjoint
 getFrustrationInfo
 checkMajoranaEnc
 checkDiracEnc

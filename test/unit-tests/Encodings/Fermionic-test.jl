@@ -298,6 +298,27 @@ end
     cpy = PauliSum(collect(a1.str), collect(a1.coeff))
     cpy.str[begin].phase = negImg
     @test !checkDiracEnc([cpy] => [adjoint(a1)])
+
+    #> The adjoint condition is judged from canonical forms that represent the operators 
+    #> exactly: the terms that the `PauliSum` constructor would merge are merged for exact 
+    #> core data types, whereas a floating-point operator that stores such terms fails the 
+    #> condition
+    for T in (Rational{Int}, Float64)
+        isExact = !(T <: AbstractFloat)
+        aT, cT = PauliSum(T, a1), PauliSum(T, adjoint(a1))
+        #>> `aSplit` and `cSplit` hold the operators of `aT` and `cT`, storing `X` twice
+        aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, 1//2), 1//4])
+        cSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, -1//2), 1//4])
+        for op in (aSplit, cSplit)
+            stamp!(indexTerm(op, 1, false).first, 1, symX) #> The first stored term is `Z`
+        end
+        @test PauliSum(aSplit) == aT && PauliSum(cSplit) == cT
+        @test checkDiracEnc([aSplit] => [cT]) == isExact
+        @test checkDiracEnc([aT] => [cSplit]) == isExact
+        @test checkDiracEnc([PauliSum(aSplit)] => [PauliSum(cSplit)])
+    end
 end
 
 @testset "toMajoranaEnc" begin
@@ -397,6 +418,23 @@ end
     aMut.str[begin].phase = Paulimorphic.negImg
     aMut.coeff[begin] *= evalPhase(Paulimorphic.posImg)
     @test toMajoranaPair(aMut => c1) == mPair
+
+    #> The verification judges the adjoint condition in the same way as `checkDiracEnc`: a 
+    #> floating-point operator that stores terms the `PauliSum` constructor would merge 
+    #> fails it, whereas the unverified conversion merges them all the same
+    for T in (Rational{Int}, Float64)
+        cT = PauliSum(T, c1)
+        aSplit = PauliSum([pauli"X", pauli"Y", pauli"Z"], 
+                          Complex{T}[1//4, Complex(0, 1//2), 1//4])
+        stamp!(indexTerm(aSplit, 1, false).first, 1, symX) #> `aSplit` stores `X` twice
+        if T <: AbstractFloat
+            @test_throws "Hermitian adjoint" toMajoranaPair(aSplit => cT)
+        else
+            @test toMajoranaPair(aSplit => cT) == mPair
+        end
+        @test toMajoranaPair(PauliSum(aSplit) => cT) == mPair
+        @test toMajoranaPair(aSplit => cT, false) == mPair
+    end
 end
 
 @testset "buildMajoranaFrame" begin

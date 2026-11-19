@@ -976,6 +976,16 @@ function evalAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=tr
 end
 
 
+
+function checkAdjoint(op1::PauliSum, op2::PauliSum)
+    isCan, op1Local = toExactCanonicalForm(op1, true)
+    isCan || (return false)
+    isCan, op2Local = toExactCanonicalForm(op2, true)
+    isCan || (return false)
+    toAdjoint(op1Local) == op2Local
+end
+
+
 """
     toAdjoint(str::PauliStr) -> PauliStr
 

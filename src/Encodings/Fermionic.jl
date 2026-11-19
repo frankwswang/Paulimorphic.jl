@@ -412,10 +412,12 @@ toDiracEnc(enc::PairwiseStrEnc) = toDiracEnc(Rational{Int}, enc)
     Pair{<:PauliSum, <:PauliSum}
 
 Convert a single-mode Dirac-operator pair `opPair`, in which `opPair.first` and 
-`opPair.second` respectively represent the annihilation operator ``\\hat{a}`` and the 
-creation operator ``\\hat{c}`` of the same fermionic mode, into the corresponding pair of 
-Majorana operators returned as `res`, where `res.first` holds ``\\hat{a} + \\hat{c}`` and 
-`res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``.
+`opPair.second` are both in the canonical form (verified via [`isCanonical`](@ref)), into 
+the corresponding pair of Majorana operators returned as `res`, where `res.first` holds 
+``\\hat{a} + \\hat{c}`` and `res.second` holds ``\\mathrm{i} \\, (\\hat{c} - \\hat{a})``.
+Specifically, `opPair.first` and `opPair.second` should respectively represent the 
+annihilation operator ``\\hat{a}`` and the creation operator ``\\hat{c}`` of the same 
+fermionic mode.
 
 When `checkForDiracPair=true`, `opPair` is first verified to form a valid single-mode 
 Dirac pair; any violation is reported by a thrown error, and both operators must explicitly 
@@ -436,11 +438,16 @@ true
 """
 function toMajoranaPair(opPair::Pair{T1, T2}, checkForDiracPair::Bool=true
                         ) where {T1<:PauliSum, T2<:PauliSum}
+    for (str, op) in zip((:first, :second), opPair)
+        if !isCanonical(op, false)
+            throw(ArgumentError("`opPair.$str` should be in the canonical form."))
+        end
+    end
     annOp, creOp = opPair
     unit = (one∘promote_type)(getCoreDataType(T1), getCoreDataType(T2))
 
     if checkForDiracPair
-        if PauliSum(creOp) != toAdjoint(annOp)
+        if !checkAdjoint(annOp, creOp)
             throw(ArgumentError("`opPair.first` must be the Hermitian adjoint of "*
                                 "`opPair.second`."))
         end
@@ -516,6 +523,15 @@ instead.
 """
 function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false; 
                        strRestricted::Bool=false)::Bool
+    for (str, sec) in zip((:first, :second), enc)
+        for (i, op) in enumerate(sec)
+            if !isCanonical(op, false)
+                throw(ArgumentError("The $i-th operator in `enc.$str` is not in the "*
+                                    "canonical form."))
+            end
+        end
+    end
+
     nMode = length(enc.first)
 
     if iszero(nMode)
@@ -553,7 +569,7 @@ function checkDiracEnc(enc::PairwiseSumEnc, explicitError::Bool=false;
     end
 
     for p in 1:nMode
-        if adjoint(annOps[begin+p-1]) != PauliSum(creOps[begin+p-1])
+        if !checkAdjoint(annOps[begin+p-1], creOps[begin+p-1])
             if explicitError
                 throw(ArgumentError("Each creation operator should be the adjoint of the "*
                                     "annihilation operator of the same mode (i.e., "*

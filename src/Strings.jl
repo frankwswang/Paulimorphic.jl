@@ -771,8 +771,8 @@ const PauliStrOrSum = Union{PauliStr, PauliSum}
 getCoreDataType(::Type{PauliSum{T}}) where {T<:SignedReal} = T
 getCoreDataType(::Type{<:PauliSum}) = SignedReal
 getCoreDataType(::Type{PauliStr}) = Int
-getCoreDataType(type::Type{<:PauliStrOrSum}) = 
-promote_type(getCoreDataType(typeintersect(type, PauliSum)), getCoreDataType(PauliStr))
+#> `PauliStr` does not affect the promotion of core data types on the path of `PauliSum`
+getCoreDataType(T::Type{<:PauliStrOrSum}) = getCoreDataType(typeintersect(T, PauliSum))
 
 
 """

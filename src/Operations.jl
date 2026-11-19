@@ -18,7 +18,7 @@ promoteCoreType(op, (real∘typeof)(val))
 promoteCoreType(op::PauliStrOrSum, pair::PStrCoeffPair) = promoteCoreType(op, pair.second)
 
 #>> `promoteCoreType(::PauliStr, ::PauliStr)` is left out to avoid inconsistency between 
-#>> `promoteCoreType(::PauliSum, promoteCoreType(::PauliStr, ::PauliStr))` and
+#>> `promoteCoreType(::PauliSum, promoteCoreType(::PauliStr, ::PauliStr))` and 
 #>> `promoteCoreType(::PauliStr, promoteCoreType(::PauliSum, ::PauliStr))`.
 promoteCoreType(::PauliSum{T1}, ::PauliSum{T2}) where {T1<:SignedReal, T2<:SignedReal} = 
 promote_type(T1, T2)
@@ -165,13 +165,20 @@ Base.:+(t1::PauliStrOrSum, t2::PauliStrOrSum) = add(t1, t2)
 
 Sum over all the `PauliStr` or `PauliSum` in `terms` and return the result as a `PauliSum`. 
 In the second method signature, the core data type of returned `PauliSum` (mirroring `T` in 
-the first method) is the promotion of the core data types of all the elements in `terms`. 
+the first method) is the promotion of the core data types of all the `PauliSum` in `terms`. 
 All the `PauliStr` (paired with their associated coefficients) extracted from `terms` are 
 concatenated and then merged once by the `PauliSum` constructor, to which `simplification` 
 is forwarded as the same-named argument. A chained summation of three or more terms 
 connected by operator `+` without manual intermediate associations (e.g., `t1 + t2 + t3`) 
 falls back to calling the second method with all the terms encapsulated into the argument 
 `terms` and `simplification=true`.
+
+!!! info
+    No `PauliStr` takes part in the above promotion of core data types, and `Int` is only 
+    resorted to as the final core data type when `terms` holds no `PauliSum`. As an 
+    exception, when `eltype(terms)` admits a concrete `PauliSum{T}`, its core data type `T` 
+    is used regardless of the elements of `terms` (e.g., when `terms` is a 
+    `Vector{Union{PauliStr, PauliSum{Float64}}}`).
 
 This function also provides a third method signature:
 

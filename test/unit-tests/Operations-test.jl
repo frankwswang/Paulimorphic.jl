@@ -187,6 +187,26 @@ end
     pick = pair -> (pair.first == sX ? 1 : 2.0)
     @test combine(pick, Float64, [sX, sZ]) == combine(pick, Float64, mixed) == 
           PauliSum([sX, sZ], [1.0, 2.0])
+    #>> A `PauliStr` takes no part in the promotion of core data types, so the core data 
+    #>> type of a chained sum does not depend on where its strings are placed; `Int` is 
+    #>> only resorted to when the sum holds no `PauliSum`
+    hInt8 = PauliSum([sZ], Int8[1])
+    @test (sX + sX) isa PauliSum{Int} && (sX + sX + sX) isa PauliSum{Int}
+    @test (hInt8 + sX) isa PauliSum{Int8} && (sX + hInt8) isa PauliSum{Int8}
+    @test (hInt8 + sX + sX) isa PauliSum{Int8} && (sX + hInt8 + sX) isa PauliSum{Int8}
+    @test (sX + sX + hInt8) isa PauliSum{Int8}
+    @test sX + sX + hInt8 == hInt8 + sX + sX == PauliSum([sZ, sX], Int8[1, 2])
+    #>> An explicitly grouped `sX + sX` is a `PauliSum{Int}` on its own, which then takes 
+    #>> part in the promotion
+    @test ((sX + sX) + hInt8) isa PauliSum{Int}
+    #>> `combine` follows the same rule, in which `eltype(terms)` decides whenever it only 
+    #>> admits `PauliSum` of one core data type
+    @test combine(Union{PauliStr, PauliSum}[sX, hInt8]) isa PauliSum{Int8}
+    @test combine(Union{PauliStr, PauliSum}[sX, sX]) isa PauliSum{Int}
+    @test combine(Union{PauliStr, PauliSum{Int8}}[sX, hInt8]) isa PauliSum{Int8}
+    @test combine(Union{PauliStr, PauliSum{Int8}}[sX, sX]) isa PauliSum{Int8}
+    @test combine(Union{PauliStr, PauliSum{Int8}}[]) isa PauliSum{Int8}
+    @test combine(PauliSum[hInt8, PauliSum([sX], Int16[1])]) isa PauliSum{Int16}
 end
 
 @testset "sub" begin
@@ -850,9 +870,10 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test !isCanonical(hPerm)
     @test checkCommute(hBig, hPerm) && checkCommute(hPerm, hBig, false)
     @test evalCommute(hPerm, hBig) == evalCommute(hBig, hPerm, false) == PauliSum(Float64)
-    #>> A canonical form that merges terms is not an exact image of its operand, since the 
-    #>> merge can round (`hRnd`) or overflow (`hDup1` and `hDup2`). Operands that are equal 
-    #>> only in such forms are left to their products, unless they are the same object
+    #>> For floating-point core data types, a canonical form that merges terms is not an 
+    #>> exact image of its operand, since the merge can round (`hRnd`) or overflow (`hDup1` 
+    #>> and `hDup2`). Operands that are equal only in such forms are left to their 
+    #>> products, unless they are the same object
     hRnd = PauliSum([pauli"Z", pauli"X", pauli"Y"], [1.0, 1.0, 2.0^-60])
     stamp!(indexTerm(hRnd, 3, false).first, 1, symX) #> The third stored term is `Y`
     hMerged = PauliSum([pauli"Z", pauli"X"], [1.0, 1.0])
@@ -871,6 +892,58 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test_throws ArgumentError evalCommute(hDup1, hDup2)
     @test !checkCommute(hDup1, hDup2, false)
     @test  checkCommute(hDup1, hDup1) && evalCommute(hDup1, hDup1) == PauliSum(Float64)
+    #>> For exact core data types, the merge is exact, so operands that are equal in their 
+    #>> canonical forms count as equal operands: `hHalves` stores `Z` twice, and its 
+    #>> product with `hOver` is not representable
+    hHalves = PauliSum([pauli"Z", pauli"X"], Int8[50, 50])
+    stamp!(indexTerm(hHalves, 2, false).first, 1, symZ) #> The second stored term is `X`
+    @test PauliSum(hHalves) == hOver && !isCanonical(hHalves)
+    @test checkCommute(hHalves, hOver) && checkCommute(hOver, hHalves, false)
+    @test evalCommute(hOver, hHalves) == PauliSum(Int8)
+    @test evalCommute(hHalves, hOver) isa PauliSum{Int8}
+
+    #> The zero operator (anti)commutes with every finite operator, whichever value 
+    #> `onlyFinite` takes; a floating-point operand counts as one when every coefficient it 
+    #> stores is zero
+    hZeroTerm = PauliSum([pauli"X"], [0.0], false)
+    for hZero in (PauliSum(Float64), hZeroTerm), flag in (true, false)
+        @test checkCommute(hZero, hBig, flag) && checkCommute(hBig, hZero, flag)
+        @test checkAntiCom(hZero, hBig, flag) && checkAntiCom(hBig, hZero, flag)
+        @test evalCommute(hZero, hBig, flag) == evalAntiCom(hBig, hZero, flag) == 
+              PauliSum(Float64)
+    end
+    @test_throws ArgumentError checkAntiCom(PauliSum(Float64), hInf)
+    @test !checkAntiCom(PauliSum(Float64), hInf, false)
+    #>> Coefficients that only cancel out once equal strings are merged do not make a 
+    #>> floating-point operand the zero operator: such a merge is subject to rounding, and 
+    #>> the evaluations work on the stored terms. `hNull` stores `X` three times, and the 
+    #>> judgments on it stay consistent with the evaluations
+    hNull = PauliSum([pauli"X", pauli"Y", pauli"Z"], [1.0, 2.0, -3.0])
+    fill!(hNull.str, pauli"X")
+    @test PauliSum(hNull) == PauliSum(Float64)
+    for hTenth in (PauliSum([pauli"Z"], [0.1]), PauliSum([pauli"X"], [0.1]))
+        @test checkCommute(hNull, hTenth) == (countTerms(evalCommute(hNull, hTenth)) == 0)
+        @test checkAntiCom(hNull, hTenth) == (countTerms(evalAntiCom(hNull, hTenth)) == 0)
+    end
+    @test !checkCommute(hNull, PauliSum([pauli"Z"], [0.1]))
+    @test !checkAntiCom(hNull, PauliSum([pauli"X"], [0.1]))
+    #>> `hTinyX` stores `XI` six times with coefficients that add up to `2.0^-60`, which 
+    #>> its merge rounds to zero
+    hTinyX = PauliSum([pauli"XI", pauli"YI", pauli"ZI", pauli"XX", pauli"XY", pauli"XZ"], 
+                      [2.0^-60, -2.0^52 - 2, -2.0^53, -3 * 2.0^52, 3 * 2.0^52, 
+                       3 * 2.0^52 + 2])
+    fill!(hTinyX.str, pauli"XI")
+    hOneZ = PauliSum([pauli"ZI"], [1.0])
+    @test PauliSum(hTinyX) == PauliSum(Float64)
+    @test !checkCommute(hTinyX, hOneZ) && !checkCommute(hOneZ, hTinyX, false)
+    @test checkCommute(hTinyX, hOneZ) == (countTerms(evalCommute(hTinyX, hOneZ)) == 0)
+    @test checkAntiCom(hTinyX, hOneZ) == (countTerms(evalAntiCom(hTinyX, hOneZ)) == 0)
+    #>> For exact core data types, the same layout is the zero operator
+    hNullInt = PauliSum([pauli"X", pauli"Y", pauli"Z"], [1, 2, -3])
+    fill!(hNullInt.str, pauli"X")
+    hOneInt = PauliSum([pauli"Z"], [1])
+    @test checkCommute(hNullInt, hOneInt) && checkAntiCom(hOneInt, hNullInt)
+    @test evalCommute(hNullInt, hOneInt) == evalAntiCom(hOneInt, hNullInt) == PauliSum(Int)
 
     #> Equal (or opposite) infinite coefficients in the two products are never taken as 
     #> equal (or opposite) products: [hEq1, hEq2] == 1.35e308 (Z - X), and {hOpp1, hOpp2} 

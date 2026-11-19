@@ -966,6 +966,28 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     end
     @test_throws ArgumentError checkAntiCom(PauliSum(Float64), hInf)
     @test !checkAntiCom(PauliSum(Float64), hInf, false)
+    #>> Neither the judgments nor the evaluations depend on the order of the operands, also 
+    #>> when the terms of one of them cannot be merged at its core data type: `hOverDup` 
+    #>> stores `X` twice, and so does `hZeroDup` (with zero coefficients)
+    hOverDup = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
+    hZeroDup = PauliSum([pauli"X", pauli"Z"], [0.0, 0.0], false)
+    for hDup in (hOverDup, hZeroDup)
+        stamp!(indexTerm(hDup, 1, false).first, 1, symX) #> The first stored term is `Z`
+    end
+    #>> Neither `checkAntiCom` nor `evalAntiCom` makes a canonical-form copy of an operand: 
+    #>> the two agree on `hOverDup` paired with the zero operator, or with an operand of a 
+    #>> wider core data type that represents both of their products
+    for hOther in (PauliSum(Int8), PauliSum([pauli"Z"], Int16[1]))
+        @test checkAntiCom(hOther, hOverDup) && checkAntiCom(hOverDup, hOther)
+        @test countTerms(evalAntiCom(hOther, hOverDup)) == 0
+        @test countTerms(evalAntiCom(hOverDup, hOther)) == 0
+    end
+    #>> `checkCommute` and `evalCommute` first compare the canonical forms of both 
+    #>> operands, so they reject `hOverDup` wherever it is placed
+    for (opL, opR) in ((hZeroDup, hOverDup), (hOverDup, hZeroDup))
+        @test_throws OverflowError checkCommute(opL, opR)
+        @test_throws OverflowError evalCommute(opL, opR)
+    end
     #>> Coefficients that only cancel out once equal strings are merged do not make a 
     #>> floating-point operand the zero operator: such a merge is subject to rounding, and 
     #>> the evaluations work on the stored terms. `hNull` stores `X` three times, and the 

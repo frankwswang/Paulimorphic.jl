@@ -7,9 +7,7 @@ on:
   workflow_dispatch:
 concurrency:
   # Skip intermediate builds: always.
-  # Cancel intermediate builds: only if it is a pull request build.
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   versions:
     # Lists, as 'MAJOR.MINOR', every minor release older than the current stable one that

@@ -369,7 +369,7 @@ following two validation protocols:
   monomial, meaning `prefactor` is fixed at `1`, and no exchange symmetry is validated for 
   `orbInte` or assumed for its underlying operator. As a result, tensor elements with 
   distinct indices may be added together to be associated with the same operator monomial 
-  (after reforming them in canonical form), e.g., for any two distinct modes ``i`` and 
+  (after reforming them in the canonical form), e.g., for any two distinct modes ``i`` and 
   ``j``: 
   ```math
     \\hat{c}_i \\hat{c}_j \\hat{a}_j \\hat{a}_i = 

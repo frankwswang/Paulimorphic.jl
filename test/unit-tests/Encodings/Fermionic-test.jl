@@ -177,7 +177,7 @@ end
     @test cre[1] == PauliSum([xI, yI], [Complex{Rational{Int}}(1//2, 0), 
                                         Complex{Rational{Int}}(0, -1//2)])
 
-    #> Checked canonical fermionic commutation relation
+    #> Checked canonical fermionic anticommutation relation
     idSum = PauliSum([PauliStr(2)], Complex{Rational{Int}}(1))
     for p in 1:2, q in 1:2
         resPQ = ann[p] * cre[q] + cre[q] * ann[p]

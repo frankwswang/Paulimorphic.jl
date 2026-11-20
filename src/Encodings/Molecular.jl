@@ -660,7 +660,7 @@ regardless of the value of `format`.
     returned `PauliSum` is obtained from a single compensated summation over all of its 
     contributions in the Hamiltonian.
 
-# Simplified method
+# Shorthand method
 
     encodeElecHam(format::NBodyOrdering, 
                   enc::Union{NTuple{2, Pair{<:AbstractVector{<:PauliSum}, 

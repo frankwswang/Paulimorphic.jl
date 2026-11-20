@@ -53,20 +53,18 @@ struct StrictGraph{T<:Integer}
     adjacency::Memory{Set{T}}
 
     function StrictGraph(order::Integer, ::Type{T}=typeof(order)) where {T<:Integer}
-        if !(0 <= order <= typemax(Int))
-            throw(DomainError(order, "`order` must be in `0:typemax(Int)`."))
-        end
-        order = Int(order)
-        if applicable(typemax, T) && order > typemax(T) #> Skipped if `T` is unbounded
+        orderInt = toBitIntData(order, :order)
+        orderInt < 0 && throw(DomainError(order, "`order` must be non-negative."))
+        if applicable(typemax, T) && orderInt > typemax(T) #> Skipped if `T` is unbounded
             throw(DomainError(order, "`order` must not exceed `typemax($T)` so that every "*
                                      "vertex label of the constructed graph is "*
                                      "representable."))
         end
-        adj = Memory{Set{T}}(undef, order)
+        adj = Memory{Set{T}}(undef, orderInt)
         for i in eachindex(adj)
             adj[i] = Set{T}()
         end
-        new{T}(order, adj)
+        new{T}(orderInt, adj)
     end
 end
 
@@ -379,9 +377,10 @@ mutable struct NodeEdgeInfo{T<:Integer}   #> Info of an assumed line graph
     rootOrder::T                          #> Current maximal index for potential root nodes
 
     function NodeEdgeInfo(order::T) where {T<:Integer}
-        edgeLabel = Memory{NTuple{2, T}}(undef, Int(order)) #> Number of nodes: `order`
-        backtrack = Memory{T}(undef, Int(order))
-        cliqueRep = Memory{T}(undef, Int(order) + 1)   #> At most `order+1` root-graph nodes
+        orderInt = toBitIntData(order, :order)
+        edgeLabel = Memory{NTuple{2, T}}(undef, orderInt) #> Number of nodes: `order`
+        backtrack = Memory{T}(undef, orderInt)
+        cliqueRep = Memory{T}(undef, orderInt + 1)   #> At most `order+1` root-graph nodes
         edgeLabel .= Ref(( T(0), T(0) ))
         backtrack .= T(0)
         cliqueRep .= T(0)
@@ -813,7 +812,8 @@ function breadthFirstSearch(f::F, graph::StrictGraph{T}, startingPoint::MissingO
                     return (lastNode, head) #> Matched node and call count of `f`
                 else
                     tailLast = tail
-                    for child in graph.adjacency[begin+Int(lastNode)-1]
+                    lastNodeInt = toBitIntData(lastNode, :lastNode)
+                    for child in graph.adjacency[begin+lastNodeInt-1]
                         childInt = Int(child)
                         if !register[begin+childInt-1]
                             register[begin+childInt-1] = true

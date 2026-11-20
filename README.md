@@ -72,7 +72,7 @@ length(edges)                         # `6`
 
 ### Julia (64-bit) compatibility
 
-Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The earliest supported release, the current stable release, and the latest prerelease are continuously tested; the results can be found [here][GA-CI-url].
+Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The latest compatibility tests can be found [here][GA-CI-url]. Backward compatibility with previous Julia releases is not guaranteed but can also be checked [here][GA-CI-Backward].
 
 ### Installation in the Julia [REPL](https://docs.julialang.org/en/v1/stdlib/REPL/)
 
@@ -107,6 +107,7 @@ Objects defined by Paulimorphic that are exported or declared [`public`](https:/
 
 [GA-CI-img]:      https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml/badge.svg
 [GA-CI-url]:      https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml
+[GA-CI-Backward]: https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI-Backward.yml
 
 [codecov-img]:    https://codecov.io/gh/frankwswang/Paulimorphic.jl/branch/main/graph/badge.svg
 [codecov-url]:    https://codecov.io/gh/frankwswang/Paulimorphic.jl

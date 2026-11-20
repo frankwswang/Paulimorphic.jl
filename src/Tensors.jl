@@ -10,12 +10,12 @@ using SparseArrays: spzeros, SparseMatrixCSC
 
 Return `true` if `candidate` is considered a valid integer-index label, of which every two 
 elements are equal if and only if the objects they index are considered the same object. In 
-other words, `candidate` should obey the following canonical form: every element must be 
+other words, `candidate` should obey the following labeling rule: every element must be 
 an `Integer` no smaller than `iStart` and no larger than one plus the maximum of all its 
 preceding elements; in particular, the first element must equal `iStart`. Hence, the 
 distinct values in a valid `candidate` always form a contiguous integer range starting at 
 `iStart`, and for any fixed `iStart`, exactly one valid labeling exists per equality 
-pattern. If `candidate` violates this canonical form, `isIndexLabel` returns `false`.
+pattern. If `candidate` violates this labeling rule, `isIndexLabel` returns `false`.
 """
 function isIndexLabel(candidate::NonEmptyTuple{Integer}, 
                       iStart::Integer=first(candidate))::Bool
@@ -361,10 +361,10 @@ accumulation is realized by
 the entry is exactly zero, the entry value is not stored. To ensure deterministic entry 
 values regardless of different formats of `h` with equivalent mathematical expressions, a 
 check for the canonical form of `h` is performed at the beginning of the function call. 
-If `h` is already in the canonical form, it is directly used for the subsequent 
-accumulation subroutine. Otherwise, an `ArgumentError` is thrown when 
-`requireCanonical=true`, or a copy equivalent to `PauliSum(h, false)` is constructed and 
-used for the subroutine when `requireCanonical=false`.
+If `h` is already in the canonical form (verified via [`isCanonical`](@ref)), it is 
+directly used for the subsequent accumulation subroutine. Otherwise, an `ArgumentError` is 
+thrown when `requireCanonical=true`, or a copy equivalent to `PauliSum(h, false)` is 
+constructed and used for the subroutine when `requireCanonical=false`.
 
 # Examples
 ```jldoctest

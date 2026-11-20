@@ -16,19 +16,16 @@ jobs:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    # A failing prerelease build is reported as an annotation instead of failing the
-    # workflow.
-    continue-on-error: ${{ matrix.version == 'pre' }}
     permissions: # needed to allow julia-actions/cache to delete old caches it has created
       actions: write
       contents: read
     strategy:
       fail-fast: false
       matrix:
+        # The current stable release, the only one whose support is guaranteed. Older 
+        # releases and prereleases are tested by `CI-Backward.yml` and `CI-Prerelease.yml`.
         version:
-          - 'min' # earliest supported minor release (from `[compat]` in Project.toml)
-          - '1'   # latest stable release
-          - 'pre' # latest prerelease
+          - '1'
         os:
           - ubuntu-latest
           - macOS-latest

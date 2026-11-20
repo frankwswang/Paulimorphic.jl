@@ -1,0 +1,83 @@
+name: CI-Backward
+on:
+  push:
+    branches:
+      - main
+    tags: ['*']
+  workflow_dispatch:
+concurrency:
+  # Skip intermediate builds: always.
+  group: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  versions:
+    # Lists, as 'MAJOR.MINOR', every minor release older than the current stable one that
+    # `[compat]` in Project.toml admits; setup-julia resolves each to its latest patch.
+    name: Resolve Julia versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - name: "List the Julia versions to test"
+        id: list
+        shell: julia --color=yes {0}
+        run: |
+          using TOML
+          using Pkg: Versions # Pkg's own parser of `[compat]` entries (not a public API)
+
+          compat = Versions.semver_spec(TOML.parsefile("Project.toml")["compat"]["julia"])
+          # `VERSION` is the current stable release (installed by the previous step).
+          major, minor = Int(VERSION.major), Int(VERSION.minor)
+          versions = ["$major.$m" for m in 0:(minor - 1)
+                      if !isempty(intersect(compat, Versions.VersionSpec("$major.$m")))]
+          list = "[" * join(("\"$v\"" for v in versions), ", ") * "]"
+          println("Julia versions to test: ", list)
+          open(io -> println(io, "list=", list), ENV["GITHUB_OUTPUT"], "a")
+  test:
+    needs: versions
+    # An empty matrix is an error, so the job is skipped when no older release is admitted.
+    if: needs.versions.outputs.list != '[]'
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions: # needed to allow julia-actions/cache to delete old caches it has created
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # From the `versions` job, e.g. ['1.12', '1.13'] for `julia = "^1.12"` when 1.14 is the
+        # current stable release.
+        version: ${{ fromJSON(needs.versions.outputs.list) }}
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        arch:
+          - x64
+          - aarch64
+        exclude:
+          - os: ubuntu-latest
+            arch: aarch64
+          - os: macOS-latest
+            arch: x64
+          - os: windows-latest
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@latest
+      - name: "Code test"
+        uses: julia-actions/julia-runtest@latest
+        env:
+          JULIA_NUM_THREADS: 2

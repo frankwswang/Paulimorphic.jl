@@ -22,7 +22,7 @@
 
 ### Julia (64-bit) compatibility
 
-Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The earliest supported release, the current stable release, and the latest prerelease are continuously tested; the results can be found [here](https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml).
+Paulimorphic requires Julia **1.12 or later** and aims to support the [**current stable release** of 64-bit Julia](https://julialang.org/downloads/#current_stable_release) as soon as possible. The latest compatibility tests can be found [here](https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI.yml). Backward compatibility with previous Julia releases is not guaranteed but can also be checked [here](https://github.com/frankwswang/Paulimorphic.jl/actions/workflows/CI-Backward.yml).
 
 ### Installation in the Julia [REPL](https://docs.julialang.org/en/v1/stdlib/REPL/)
 

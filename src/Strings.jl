@@ -570,7 +570,7 @@ terms and not on the order in which they are listed. Finally, the Pauli terms in
 constructed `PauliSum` are stored (and indexed) in strictly ascending order of their 
 strings (by `isless(::PauliStr, ::PauliStr)`).
 
-# Canonical and simplified forms
+# Canonical form and simplified form
 The internal layout of the `PauliSum` returned by this constructor, where the `PauliStr` 
 corresponding to each term shares a common site count and carries the trivial phase 
 `PhaseFactor(0)` that evaluates to one (via [`evalPhase`](@ref)), combined with the 
@@ -788,8 +788,8 @@ which can be used to avoid copying. Additionally, `res.second` corresponds to th
 coefficient associated with the `i`-th term. `i` must be in `1:length(h.str)`.
 
 !!! warning
-    When `copyStr=false`, mutating `res.first` modifies `h` in place and can 
-    disturb its canonical layout.
+    When `copyStr=false`, mutating `res.first` modifies `h` in place, after which `h` may 
+    no longer be in the canonical form.
 """
 function indexTerm(h::PauliSum, i::Integer, copyStr::Bool=true)
     iInt = toBitIntData(i, :i)
@@ -836,8 +836,8 @@ Return all terms of `h` as a `Vector` of `Pair`s in the canonical term order, wh
 (by default), the returned strings hold no reference to the data in `h`.
 
 !!! warning
-    When `copyStr=false`, mutating any returned string modifies `h` in place and can 
-    disturb its canonical layout.
+    When `copyStr=false`, mutating any returned string modifies `h` in place, after which 
+    `h` may no longer be in the canonical form.
 """
 function listTerms(h::PauliSum, copyStr::Bool=true)
     map(h.str, h.coeff) do str, coeff
@@ -1235,7 +1235,7 @@ the threshold are kept (`>=`) or dropped (`>`). For floating-point `T`, the defa
 of `tolerance` is `8eps(T)`: a small multiple of the machine epsilon, enough to discard the 
 round-off residuals left by operator assembly when the coefficients are well conditioned; 
 otherwise, the default value of `tolerance` is `zero(T)`. By default (`checkForm=true`), 
-`h` is required to be in the canonical form (verified by [`isCanonical`](@ref)), which 
+`h` is required to be in the canonical form (verified via [`isCanonical`](@ref)), which 
 the returned sum then inherits; when `checkForm=false`, the check is skipped and the 
 returned sum merely keeps the term order of `h`.
 
@@ -1668,13 +1668,13 @@ to the corresponding reframed string.
 
 After the reframed strings are constructed, they are then collected (along with the 
 coefficients associated with their respective original strings held by `h`) to construct 
-`res::PauliSum{T}` in canonical form. If `simplification=true`, the same simplification 
-procedure used by the constructor of [`PauliSum`](@ref) is applied to `res` before it is 
-returned. Depending on the specific choice of `filler`, or the value of `nSite` compared to 
-`countSites(h)`, `res` may not be algebraically equivalent to `h`. Only when 
-`filler=symI` and `nSite >= countSites(h)` is `res` guaranteed to represent the same 
-operator as `h` (up to numerical round-off errors from merging equal strings, which 
-cannot occur when `h` is in the canonical form).
+`res::PauliSum{T}` in the canonical form. If `simplification=true`, the same simplification 
+procedure used by the `PauliSum` constructor (when the same-named argument is set to 
+`true`) is applied to `res` before it is returned. Depending on the specific choice of 
+`filler`, or the value of `nSite` compared to `countSites(h)`, `res` may not be 
+algebraically equivalent to `h`. Only when `filler=symI` and `nSite >= countSites(h)` is 
+`res` guaranteed to represent the same operator as `h` (up to numerical round-off errors 
+from merging equal strings, which cannot occur when `h` is in the canonical form).
 
 # Mechanism illustration (`[c1, c2, c3]` represents a three-site string, `fl` the filler):
 ```text
@@ -2051,8 +2051,8 @@ For floating-point precisions, the selected coefficients are accumulated via
 [Neumaier summation](https://doi.org/10.1002/zamm.19740540106), following the term order of 
 `h`. The accumulation order is the same as the order in which the terms are stored in `h`. 
 By default, `checkForm::Bool=true` so that `h` is required to be in the canonical form 
-(verified by [`isCanonical`](@ref)) and `sumCoeffs(h) == sumCoeffs(PauliSum(h))` as long as 
-`h` only has finite (non `NaN`) coefficients. For exact coefficient types (e.g., 
+(verified via [`isCanonical`](@ref)) and `sumCoeffs(h) == sumCoeffs(PauliSum(h))` as long 
+as `h` only has finite (non `NaN`) coefficients. For exact coefficient types (e.g., 
 `Rational`), the accumulation is carried out by exact addition with overflow checking.
 
 # Examples

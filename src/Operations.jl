@@ -800,10 +800,10 @@ may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
 exact [canonical forms](@ref `PauliSum`) that are also equal to each other, `true` is 
 returned. The two forms are constructed with the core data type promoted from those of 
-`op1` and `op2`, respectively. Moreover, a `PauliSum` with mergeable terms cannot be 
-reconstructed in the exact canonical form with a non-exact core data type (e.g., 
-`AbstractFloat`); with an exact one (e.g., `Int` or `Rational{Int}`), its terms can still 
-be merged, following the overflow checking policy of `PauliSum`.
+`op1` and `op2`. Moreover, a `PauliSum` with mergeable terms cannot be reconstructed in the 
+exact canonical form with a non-exact core data type (e.g., `AbstractFloat`); with an exact 
+one (e.g., `Int` or `Rational{Int}`), its terms can still be merged, following the overflow 
+checking policy of `PauliSum`.
 """
 function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
@@ -921,8 +921,8 @@ may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
 exact [canonical forms](@ref `PauliSum`) that are also equal to each other, a zero-term 
 `PauliSum` is returned. The two forms are constructed with the core data type promoted from 
-those of `op1` and `op2`, respectively. Moreover, a `PauliSum` with mergeable terms cannot 
-be reconstructed in the exact canonical form with a non-exact core data type (e.g., 
+those of `op1` and `op2`. Moreover, a `PauliSum` with mergeable terms cannot be 
+reconstructed in the exact canonical form with a non-exact core data type (e.g., 
 `AbstractFloat`); with an exact one (e.g., `Int` or `Rational{Int}`), its terms can still 
 be merged, following the overflow checking policy of `PauliSum`.
 """

@@ -1185,9 +1185,9 @@ end
 toExactCanonicalForm(s::PauliStr, ::Bool=false) = (true => lazyCanonicalize(s))
 
 #> A type-imposed version of the same modest formatter. Specifically, `op` is first rebuilt 
-#> as `opNew` with the imposed core data type `T`, then the same criteria (plus exact term
-#> coefficient-matching for `T<:AbstractFloat`) is applied to `opNew` to determine whether 
-#> it is and exact copy of `op`, and return the correspondingly formatted `Pair`.
+#> as `opNew` with the imposed core data type `T`, then the same criteria (plus exact term 
+#> coefficient-matching for `T<:AbstractFloat`) are applied to `opNew` to determine whether 
+#> it is an exact copy of `op`, and return the correspondingly formatted `Pair`.
 function toExactCanonicalForm(::Type{T}, op::PauliStr, ::Bool=false) where {T<:SignedReal}
     if T <: getCoreDataType(PauliStr)
         toExactCanonicalForm(op)

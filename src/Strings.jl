@@ -1708,7 +1708,7 @@ true
 function reframe(h::PauliSum, nSite::Integer=countSites(h); lowToHigh::Bool=true, 
                  filler::PauliSym=symI, simplification::Bool=true)
     nSiteInt = toBitIntData(nSite, :nSite)
-    nSiteInt < 0 && throw(DomainError(nSiteInt, "`nSite` must be non-negative."))
+    nSiteInt < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
 
     coeffs = h.coeff
     strs = map(h.str) do oldStr

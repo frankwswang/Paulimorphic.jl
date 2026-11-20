@@ -218,7 +218,7 @@ function checkPauliSumMatConfig(::Type{T}, h::PauliSum, nSite::Integer
     nSiteInt = toBitIntData(nSite, :nSite)
     nSiteMin = countSites(h)
     if nSiteInt < nSiteMin
-        throw(DomainError(nSiteInt, "`nSite` must be at least `countSites(h)==$nSiteMin`."))
+        throw(DomainError(nSite, "`nSite` must be at least `countSites(h)==$nSiteMin`."))
     end
 
     nSiteInt
@@ -395,12 +395,12 @@ true
 function toMatrix(::Type{T}, h::PauliSum{T1}, nSite::Integer=countSites(h); 
                   requireCanonical::Bool=true, reverseKron::Bool=false
                   ) where {T<:SignedReal, T1<:SignedReal}
-    nSite = checkPauliSumMatConfig(T, h, nSite)
-    order = getPauliOpMatOrder(nSite)
+    nSiteInt = checkPauliSumMatConfig(T, h, nSite)
+    order = getPauliOpMatOrder(nSiteInt)
 
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false)
-    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite; reverseKron)
+    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSiteInt; reverseKron)
     nXM, (xMasks, zMasks, coeffs) = matInfo
 
     colPtrs = Vector{Int}(undef, order+1)
@@ -533,9 +533,9 @@ function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}},
                    h::PauliSum{T1}, nSite::Integer=countSites(h); 
                    requireCanonical::Bool=true, reverseKron::Bool=false
                    ) where {T<:SignedReal, T1<:SignedReal}
-    nSite = checkPauliSumMatConfig(T, h, nSite)
-    if !(size(dst, 1) == size(dst, 2) == getPauliOpMatOrder(nSite))
-        throw(ArgumentError("`dst` must be a square matrix of order `2^$nSite`."))
+    nSiteInt = checkPauliSumMatConfig(T, h, nSite)
+    if !(size(dst, 1) == size(dst, 2) == getPauliOpMatOrder(nSiteInt))
+        throw(ArgumentError("`dst` must be a square matrix of order `2^$nSiteInt`."))
     end
 
     function assign!(pair::Pair{NTuple{2, Int}, Complex{T}}, ::Int)
@@ -546,7 +546,7 @@ function toMatrix!(dst::Union{AbstractMatrix{Complex{T}}, AbstractMatrix{T}},
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false) #> Format `h` before mutation
     fill!(dst, zero(Complex{T})) #> Reset `dst` with non-zero entries
-    traverseMatrixEntries(assign!, T, hLocal, nSite; requireCanonical=false, reverseKron)
+    traverseMatrixEntries(assign!, T, hLocal, nSiteInt; requireCanonical=false, reverseKron)
 
     dst
 end
@@ -640,11 +640,11 @@ function traverseMatrixEntries(processor::F, ::Type{T}, h::PauliSum{T1},
                                nSite::Integer=countSites(h); requireCanonical::Bool=true, 
                                reverseKron::Bool=false
                                ) where {T<:SignedReal, T1<:SignedReal, F<:AbstractCallable}
-    nSite = checkPauliSumMatConfig(T, h, nSite)
-    order = getPauliOpMatOrder(nSite)
+    nSiteInt = checkPauliSumMatConfig(T, h, nSite)
+    order = getPauliOpMatOrder(nSiteInt)
     checkPauliOpForm(h, requireCanonical)
     hLocal = requireCanonical ? h : lazyCanonicalize(h, false)
-    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSite; reverseKron)
+    matInfo = formatPauliOpMatInfo(extendType(T, T1), hLocal, nSiteInt; reverseKron)
     xMasks, zMasks, coeffs = matInfo.second
     evaluator = genPauliOpMatEntryEvaluator(T, xMasks, zMasks, coeffs)
 

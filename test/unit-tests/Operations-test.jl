@@ -1012,6 +1012,14 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     @test !checkCommute(hOverDup, hHalfZ) && !checkCommute(hHalfZ, hOverDup)
     @test evalCommute(hOverDup, hHalfZ) == PauliSum([pauli"Y"], [Complex(0.0, -200.0)])
     @test evalCommute(hHalfZ, hOverDup) == PauliSum([pauli"Y"], [Complex(0.0, 200.0)])
+    #>> `evalCommute` still depends on the order of the operands where the commutator 
+    #>> itself does, since [a, b] == -[b, a]: when a coefficient of one of them is the 
+    #>> `typemin` of the core data type, the other one is not representable. The judgments 
+    #>> agree for both orders there as well
+    hX64, hZ1 = PauliSum([pauli"X"], Int8[64]), PauliSum([pauli"Z"], Int8[1])
+    @test evalCommute(hX64, hZ1) == PauliSum([pauli"Y"], Complex{Int8}[-128im])
+    @test_throws OverflowError evalCommute(hZ1, hX64) #> `128im` is not a `Complex{Int8}`
+    @test !checkCommute(hX64, hZ1) && !checkCommute(hZ1, hX64)
     #>> Coefficients that only cancel out once equal strings are merged do not make a 
     #>> floating-point operand the zero operator: such a merge is subject to rounding, and 
     #>> the evaluations work on the stored terms. `hNull` stores `X` three times, and the 
@@ -1179,6 +1187,13 @@ end
     hFlat = PauliSum([pauli"X"], [200.0])
     @test !checkAdjoint(hOver, hFlat) && !checkAdjoint(hFlat, hOver)
     @test  checkAdjoint(hWide, hFlat) &&  checkAdjoint(hFlat, hWide)
+    #>> A zero-coefficient term is disregarded as well when the operand that stores it is 
+    #>> the one converted to the promoted type
+    hSpare = PauliSum([pauli"X", pauli"Z"], Int8[1, 0], false)
+    @test countTerms(hSpare) == 2
+    for hOne in (PauliSum([pauli"X"], Int16[1]), PauliSum([pauli"X"], [1.0]))
+        @test checkAdjoint(hSpare, hOne) && checkAdjoint(hOne, hSpare)
+    end
     #>> A coefficient that the promotion rounds does not pass for the rounded value
     pow53 = Int64(2)^53 #> `pow53 + 1` is rounded to `2.0^53` as a `Float64`
     hOdd = PauliSum([pauli"X"], [pow53 + 1])

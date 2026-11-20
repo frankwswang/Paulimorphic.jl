@@ -1184,6 +1184,36 @@ end
 
 toExactCanonicalForm(s::PauliStr, ::Bool=false) = (true => lazyCanonicalize(s))
 
+#> A type-imposed version of the same modest formatter. Specifically, `op` is first rebuilt 
+#> as `opNew` with the imposed core data type `T`, then the same criteria (plus exact term
+#> coefficient-matching for `T<:AbstractFloat`) is applied to `opNew` to determine whether 
+#> it is and exact copy of `op`, and return the correspondingly formatted `Pair`.
+function toExactCanonicalForm(::Type{T}, op::PauliStr, ::Bool=false) where {T<:SignedReal}
+    if T <: getCoreDataType(PauliStr)
+        toExactCanonicalForm(op)
+    else
+        true => PauliSum(genMemory(op), one(T))
+    end::Pair{Bool, PauliSum{T}}
+end
+
+function toExactCanonicalForm(::Type{T}, op::PauliSum, simplification::Bool=false
+                              )::Pair{Bool, PauliSum{T}} where {T<:SignedReal}
+    if T <: (getCoreDataType∘typeof)(op)
+        toExactCanonicalForm(op, simplification)
+    else
+        coeffs = convert(Memory{Complex{T}}, op.coeff) #> Conversion before term merging
+        opNew = PauliSum(T, op.str, coeffs, false)
+
+        if T <: AbstractFloat && (coeffs != op.coeff || countTerms(opNew) < countTerms(op))
+            false => opNew #> `opNew` is not an exact copy of `op`
+        elseif simplification && any(iszero, opNew.coeff)
+             true => PauliSum(pair->!iszero(pair.second), opNew, false)
+        else
+             true => opNew #> Exact core-data types allow canonicalization
+        end
+    end
+end
+
 
 """
     curtail(h::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 

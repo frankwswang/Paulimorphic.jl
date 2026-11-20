@@ -122,10 +122,10 @@ mutable struct PauliStr <: DiscreteOperator
     const n::Int
 
     function PauliStr(nSite::Integer=0, siteOp::PauliSym=symI, phase::PhaseFactor=posRea)
-        nSite = toBitIntData(nSite, :nSite)
-        nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+        nSiteInt = toBitIntData(nSite, :nSite)
+        nSiteInt < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         nSitePerWord = 8 * sizeof(UInt)
-        nWord = cld(nSite, nSitePerWord)
+        nWord = cld(nSiteInt, nSitePerWord)
         allOneBits = ~zero(UInt) #> Same as `typemax(UInt)`
         xEle = (siteOp == symX || siteOp == symY) ? allOneBits : zero(UInt)
         zEle = (siteOp == symZ || siteOp == symY) ? allOneBits : zero(UInt)
@@ -133,19 +133,19 @@ mutable struct PauliStr <: DiscreteOperator
         zStr = Memory{UInt}(undef, nWord); fill!(zStr, zEle)
 
         #> Enforce resetting the padding bits to be zero
-        new(xStr, zStr, phase, nSite) |> sanitize!
+        new(xStr, zStr, phase, nSiteInt) |> sanitize!
     end
 
     function PauliStr(xWords::AbstractVector{UInt}, zWords::AbstractVector{UInt}, 
                       phase::PhaseFactor, nSite::Integer=8*sizeof(UInt)*length(xWords))
-        nSite = toBitIntData(nSite, :nSite)
-        nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+        nSiteInt = toBitIntData(nSite, :nSite)
+        nSiteInt < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
         maxWordNum = length(xWords)
         if maxWordNum != length(zWords)
             throw(ArgumentError("`xWords` and `zWords` must have the same length."))
         end
         #> Ensure string fields are not linked to inputs
-        nWord = cld(nSite, 8sizeof(UInt))
+        nWord = cld(nSiteInt, 8sizeof(UInt))
         xStr = Memory{UInt}(undef, nWord)
         zStr = Memory{UInt}(undef, nWord)
 
@@ -158,7 +158,7 @@ mutable struct PauliStr <: DiscreteOperator
         copyto!(zStr, firstindex(zStr), zWords, firstindex(zWords), nWordLoad)
 
         #> Enforce resetting the padding bits to be zero
-        new(xStr, zStr, phase, nSite) |> sanitize!
+        new(xStr, zStr, phase, nSiteInt) |> sanitize!
     end
 
     function PauliStr(list::AbstractVector{PauliSym}, phase::PhaseFactor=posRea)
@@ -332,16 +332,16 @@ the explicit site count returns the implicit identity `symI`, hence `i` need onl
 positive. The phase of `str` (`str.phase`) does not affect the returned value.
 """
 function indexSite(str::PauliStr, i::Integer, indexImplicitSite::Bool=false)
-    i = toBitIntData(i, :i)
+    iInt = toBitIntData(i, :i)
     nSite = countSites(str)
     if indexImplicitSite
-        i < 1 && throw(DomainError(i, "`i` must be a positive integer."))
-        i > nSite && (return symI)
+        iInt < 1 && throw(DomainError(i, "`i` must be a positive integer."))
+        iInt > nSite && (return symI)
     else
-        1 <= i <= nSite || throw(DomainError(i, "`i` must be in 1:$nSite."))
+        1 <= iInt <= nSite || throw(DomainError(i, "`i` must be in 1:$nSite."))
     end
     nSitePerWord = 8 * sizeof(UInt)
-    iWord, iBit = fldmod1(i, nSitePerWord)
+    iWord, iBit = fldmod1(iInt, nSitePerWord)
     mask = one(UInt) << (iBit - 1)
     hasX = !iszero(str.x[begin+iWord-1] & mask)
     hasZ = !iszero(str.z[begin+iWord-1] & mask)
@@ -412,14 +412,14 @@ Return the `String` representation of the single-site Pauli operator acting on s
 in `1:`[`countSites(pStr)`](@ref `countSites`).
 """
 function toString(pStr::PauliStr, i::Integer; denseString::Bool=false)
-    i = toBitIntData(i, :i)
-    sym = indexSite(pStr, i)
+    iInt = toBitIntData(i, :i)
+    sym = indexSite(pStr, iInt)
 
     if sym == symI
         denseString ? string(CONSTVAR!!pauliChars[begin]) : ""
     else
         char = CONSTVAR!!pauliChars[begin + Int(sym)]
-        char * (denseString ? "" : getSubscriptStr(i))
+        char * (denseString ? "" : getSubscriptStr(iInt))
     end
 end
 
@@ -792,11 +792,11 @@ coefficient associated with the `i`-th term. `i` must be in `1:length(h.str)`.
     disturb its canonical layout.
 """
 function indexTerm(h::PauliSum, i::Integer, copyStr::Bool=true)
-    i = toBitIntData(i, :i)
+    iInt = toBitIntData(i, :i)
     nTerm = length(h.str)
-    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
-    str = h.str[begin+i-1]
-    (copyStr ? PauliStr(str) : str) => h.coeff[begin+i-1]
+    1 <= iInt <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
+    str = h.str[begin+iInt-1]
+    (copyStr ? PauliStr(str) : str) => h.coeff[begin+iInt-1]
 end
 
 
@@ -819,11 +819,11 @@ is a copy of `h.str[begin+i-1]`.
     zero-coefficient terms, rebuild the mutated `h` via `PauliSum(h, true)`.
 """
 function setCoeff!(h::PauliSum, coeff::SRealOrComplex, i::Integer, copyStr::Bool=true)
-    i = toBitIntData(i, :i)
+    iInt = toBitIntData(i, :i)
     nTerm = length(h.str)
-    1 <= i <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
-    h.coeff[begin+i-1] = coeff
-    indexTerm(h, i, copyStr)
+    1 <= iInt <= nTerm || throw(DomainError(i, "`i` must be in 1:$nTerm."))
+    h.coeff[begin+iInt-1] = coeff
+    indexTerm(h, iInt, copyStr)
 end
 
 
@@ -1184,6 +1184,36 @@ end
 
 toExactCanonicalForm(s::PauliStr, ::Bool=false) = (true => lazyCanonicalize(s))
 
+#> A type-imposed version of the same modest formatter. Specifically, `op` is first rebuilt 
+#> as `opNew` with the imposed core data type `T`, then the same criteria (plus exact term 
+#> coefficient-matching for `T<:AbstractFloat`) are applied to `opNew` to determine whether 
+#> it is an exact copy of `op`, and return the correspondingly formatted `Pair`.
+function toExactCanonicalForm(::Type{T}, op::PauliStr, ::Bool=false) where {T<:SignedReal}
+    if T <: getCoreDataType(PauliStr)
+        toExactCanonicalForm(op)
+    else
+        true => PauliSum(genMemory(op), one(T))
+    end::Pair{Bool, PauliSum{T}}
+end
+
+function toExactCanonicalForm(::Type{T}, op::PauliSum, simplification::Bool=false
+                              )::Pair{Bool, PauliSum{T}} where {T<:SignedReal}
+    if T <: (getCoreDataType∘typeof)(op)
+        toExactCanonicalForm(op, simplification)
+    else
+        coeffs = convert(Memory{Complex{T}}, op.coeff) #> Conversion before term merging
+        opNew = PauliSum(T, op.str, coeffs, false)
+
+        if T <: AbstractFloat && (coeffs != op.coeff || countTerms(opNew) < countTerms(op))
+            false => opNew #> `opNew` is not an exact copy of `op`
+        elseif simplification && any(iszero, opNew.coeff)
+             true => PauliSum(pair->!iszero(pair.second), opNew, false)
+        else
+             true => opNew #> Exact core-data types allow canonicalization
+        end
+    end
+end
+
 
 """
     curtail(h::PauliSum{T}, tolerance::Real=(T<:AbstractFloat ? 8eps(T) : zero(T)); 
@@ -1326,12 +1356,12 @@ julia> shift!(pauli"IIXXII", 3, true)    #> right shift: site 3 → site 6, site
 ```
 """
 function shift!(str::PauliStr, nShift::Integer, lowToHigh::Bool=true)
-    nShift = toBitIntData(nShift, :nShift)
-    nShift < 0 && throw(DomainError(nShift, "`nShift` must be non-negative."))
-    (iszero(nShift) || iszero(str.n)) && return str #> Nothing to shift
+    nShiftInt = toBitIntData(nShift, :nShift)
+    nShiftInt < 0 && throw(DomainError(nShift, "`nShift` must be non-negative."))
+    (iszero(nShiftInt) || iszero(str.n)) && return str #> Nothing to shift
 
     nSitePerWord = 8 * sizeof(UInt)
-    wordShift, bitOffset = divrem(nShift, nSitePerWord)
+    wordShift, bitOffset = divrem(nShiftInt, nSitePerWord)
     shiftBits!(str.x, wordShift, bitOffset, lowToHigh)
     shiftBits!(str.z, wordShift, bitOffset, lowToHigh)
 
@@ -1462,26 +1492,26 @@ lowToHigh = true  (dstStart=2, srcRange=2:3):
 """
 function paste!(dst::PauliStr, dstStart::Integer, 
                 src::PauliStr, srcRange::UnitRange{<:Integer}=1:src.n; lowToHigh::Bool=true)
-    dstStart = toBitIntData(dstStart, :dstStart)
-    srcRange = toBitIntData(srcRange, :srcRange)
+    dstStartInt = toBitIntData(dstStart, :dstStart)
+    srcRangeInt = toBitIntData(srcRange, :srcRange)
 
     nSiteDst = dst.n
-    if !(1 <= dstStart <= nSiteDst)
+    if !(1 <= dstStartInt <= nSiteDst)
         throw(DomainError(dstStart, "`dstStart` must be in 1:$(nSiteDst)."))
     end
 
-    nSitePasted = length(srcRange)
+    nSitePasted = length(srcRangeInt)
     iszero(nSitePasted) && (return dst)
 
     nSiteSrc = src.n
-    srcSiteLo = first(srcRange)
-    if !(1 <= srcSiteLo && last(srcRange) <= nSiteSrc)
+    srcSiteLo = first(srcRangeInt)
+    if !(1 <= srcSiteLo && last(srcRangeInt) <= nSiteSrc)
         throw(DomainError(srcRange, "A non-empty `srcRange` must be in 1:$nSiteSrc."))
     end
 
     dst === src && (src = PauliStr(src)) #> Ensure buffer ownership invariant
 
-    shiftedStart = dstStart - (lowToHigh ? 0 : nSitePasted)
+    shiftedStart = dstStartInt - (lowToHigh ? 0 : nSitePasted)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for `src`
              nSitePasted += shiftedStart
             srcSiteLo -= shiftedStart
@@ -1583,19 +1613,19 @@ lowToHigh = true  (startSite=2, nSite=3):   lowToHigh = false (startSite=1, nSit
 """
 function stamp!(dst::PauliStr, startSite::Integer, opSym::PauliSym, nSite::Integer=1; 
                 lowToHigh::Bool=true)
-    startSite = toBitIntData(startSite, :startSite)
-    nSite = toBitIntData(nSite, :nSite)
+    startSiteInt = toBitIntData(startSite, :startSite)
+    nSiteInt = toBitIntData(nSite, :nSite)
 
     nSiteDst = dst.n
-    if !(1 <= startSite <= nSiteDst)
+    if !(1 <= startSiteInt <= nSiteDst)
         throw(DomainError(startSite, "`startSite` must be in 1:$(nSiteDst)."))
     end
 
-    nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
-    iszero(nSite) && (return dst)
-    nSiteStamped = nSite
+    nSiteInt < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+    iszero(nSiteInt) && (return dst)
+    nSiteStamped = nSiteInt
 
-    shiftedStart = startSite - (lowToHigh ? 0 : nSiteStamped)
+    shiftedStart = startSiteInt - (lowToHigh ? 0 : nSiteStamped)
     dstSiteLo = if shiftedStart < 0 #> Lower-side truncation for the window
             nSiteStamped += shiftedStart
             1
@@ -1677,14 +1707,14 @@ true
 """
 function reframe(h::PauliSum, nSite::Integer=countSites(h); lowToHigh::Bool=true, 
                  filler::PauliSym=symI, simplification::Bool=true)
-    nSite = toBitIntData(nSite, :nSite)
-    nSite < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
+    nSiteInt = toBitIntData(nSite, :nSite)
+    nSiteInt < 0 && throw(DomainError(nSite, "`nSite` must be non-negative."))
 
     coeffs = h.coeff
     strs = map(h.str) do oldStr
-        newStr = PauliStr(nSite, filler, oldStr.phase)
-        if nSite > 0
-            iSiteStart = ifelse(lowToHigh, 1, nSite)
+        newStr = PauliStr(nSiteInt, filler, oldStr.phase)
+        if nSiteInt > 0
+            iSiteStart = ifelse(lowToHigh, 1, nSiteInt)
             paste!(newStr, iSiteStart, oldStr; lowToHigh)
         end
         newStr
@@ -1795,11 +1825,11 @@ true
 """
 function compareSites(pStr1::PauliStr, pStr2::PauliStr; startSite::Integer=1, 
                       finalSite::Integer=max( countSites(pStr1), countSites(pStr2) ))
-    startSite = toBitIntData(startSite, :startSite)
-    finalSite = toBitIntData(finalSite, :finalSite)
-    startSite > 0 || throw(DomainError(startSite, "`startSite` must be positive."))
+    startSiteInt = toBitIntData(startSite, :startSite)
+    finalSiteInt = toBitIntData(finalSite, :finalSite)
+    startSiteInt > 0 || throw(DomainError(startSite, "`startSite` must be positive."))
 
-    siteWindow = startSite:finalSite
+    siteWindow = startSiteInt:finalSiteInt
     compareBits(pStr1.x, pStr2.x, siteWindow) || (return false)
     compareBits(pStr1.z, pStr2.z, siteWindow)
 end
@@ -2068,16 +2098,8 @@ function checkFinitePauliCoeffs(op::T, opName::Symbol, explicitError::Bool=true
 end
 
 
-#> Return `true` if `op` is a zero operator. Same as for `isHermitian` and `isIdentity`, 
-#> term merging is only performed for `PauliSum{T}` where `T` is an exact core data type.
-isZeroOperator(::PauliStr) = false
+#> An internal quick check of if `op` is an explicit zero operator. Thus, it does not 
+#> perform any canonicalization and should be used only in assistive fast-path checking.
+isExplicitZeroOp(::PauliStr) = false
 
-function isZeroOperator(h::PauliSum{T}) where {T<:SignedReal}
-    if all(iszero, h.coeff)
-        true
-    elseif T <: AbstractFloat || isCanonical(h)
-        false
-    else
-        all(iszero, lazyCanonicalize(h, false).coeff)
-    end
-end
+isExplicitZeroOp(op::PauliSum) = all(iszero, op.coeff)

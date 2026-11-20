@@ -966,6 +966,60 @@ hTop = PauliSum([pauli"Z"], [typemax(Int)])
     end
     @test_throws ArgumentError checkAntiCom(PauliSum(Float64), hInf)
     @test !checkAntiCom(PauliSum(Float64), hInf, false)
+    #>> Neither the judgments nor the evaluations depend on the order of the operands, also 
+    #>> when the terms of one of them cannot be merged at its core data type: `hOverDup` 
+    #>> stores `X` twice, and so does `hZeroDup` (with zero coefficients)
+    hOverDup = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
+    hZeroDup = PauliSum([pauli"X", pauli"Z"], [0.0, 0.0], false)
+    for hDup in (hOverDup, hZeroDup)
+        stamp!(indexTerm(hDup, 1, false).first, 1, symX) #> The first stored term is `Z`
+    end
+    #>> Neither `checkAntiCom` nor `evalAntiCom` makes a canonical-form copy of an operand: 
+    #>> the two agree on `hOverDup` paired with the zero operator, or with an operand of a 
+    #>> wider core data type that represents both of their products
+    for hOther in (PauliSum(Int8), PauliSum([pauli"Z"], Int16[1]))
+        @test checkAntiCom(hOther, hOverDup) && checkAntiCom(hOverDup, hOther)
+        @test countTerms(evalAntiCom(hOther, hOverDup)) == 0
+        @test countTerms(evalAntiCom(hOverDup, hOther)) == 0
+    end
+    #>> `checkCommute` and `evalCommute` first compare the canonical forms of both 
+    #>> operands, which are formed at the promoted core data type. With a partner of its 
+    #>> own core data type, `hOverDup` cannot form one (`100 + 100` is not an `Int8`), so 
+    #>> they reject it wherever it is placed
+    hNone8 = PauliSum(Int8)
+    for (opL, opR) in ((hNone8, hOverDup), (hOverDup, hNone8))
+        @test_throws OverflowError checkCommute(opL, opR)
+        @test_throws OverflowError evalCommute(opL, opR)
+    end
+    #>> With an `Int16` partner, the canonical form of `hOverDup` is `200 X`, and the 
+    #>> products decide when the two forms differ: [200 X, Z] == -400im Y
+    hWideZ = PauliSum([pauli"Z"], Int16[1])
+    @test !checkCommute(hOverDup, hWideZ) && !checkCommute(hWideZ, hOverDup)
+    @test evalCommute(hOverDup, hWideZ) == PauliSum([pauli"Y"], Complex{Int16}[-400im])
+    @test evalCommute(hWideZ, hOverDup) == PauliSum([pauli"Y"], Complex{Int16}[400im])
+    #>> `hWideX` has the same canonical form, so the two count as equal operands, although 
+    #>> their product is not representable
+    hWideX = PauliSum([pauli"X"], Int16[200])
+    @test_throws OverflowError mul(hOverDup, hWideX)
+    @test checkCommute(hOverDup, hWideX) && checkCommute(hWideX, hOverDup)
+    @test evalCommute(hOverDup, hWideX) == evalCommute(hWideX, hOverDup) == PauliSum(Int16)
+    #>> With a floating-point partner, no terms are merged for the comparison: `hOverDup` 
+    #>> is left to the products, like a floating-point operand that stores `X` twice
+    for (opL, opR) in ((hZeroDup, hOverDup), (hOverDup, hZeroDup))
+        @test checkCommute(opL, opR) && countTerms(evalCommute(opL, opR)) == 0
+    end
+    hHalfZ = PauliSum([pauli"Z"], [0.5])
+    @test !checkCommute(hOverDup, hHalfZ) && !checkCommute(hHalfZ, hOverDup)
+    @test evalCommute(hOverDup, hHalfZ) == PauliSum([pauli"Y"], [Complex(0.0, -200.0)])
+    @test evalCommute(hHalfZ, hOverDup) == PauliSum([pauli"Y"], [Complex(0.0, 200.0)])
+    #>> `evalCommute` still depends on the order of the operands where the commutator 
+    #>> itself does, since [a, b] == -[b, a]: when a coefficient of one of them is the 
+    #>> `typemin` of the core data type, the other one is not representable. The judgments 
+    #>> agree for both orders there as well
+    hX64, hZ1 = PauliSum([pauli"X"], Int8[64]), PauliSum([pauli"Z"], Int8[1])
+    @test evalCommute(hX64, hZ1) == PauliSum([pauli"Y"], Complex{Int8}[-128im])
+    @test_throws OverflowError evalCommute(hZ1, hX64) #> `128im` is not a `Complex{Int8}`
+    @test !checkCommute(hX64, hZ1) && !checkCommute(hZ1, hX64)
     #>> Coefficients that only cancel out once equal strings are merged do not make a 
     #>> floating-point operand the zero operator: such a merge is subject to rounding, and 
     #>> the evaluations work on the stored terms. `hNull` stores `X` three times, and the 
@@ -1114,16 +1168,38 @@ end
     @test  checkAdjoint(hMin, hPos) && checkAdjoint(hPos, hMin)
     @test !checkAdjoint(hMin, hMin) && !checkAdjoint(hMin, deepcopy(hMin))
 
-    #> A canonical-form copy follows the overflow checking policy of `PauliSum`
+    #> Operands of different core data types are compared at the promoted one, where a 
+    #> canonical-form copy follows the overflow checking policy of `PauliSum`
     hOver = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
     stamp!(indexTerm(hOver, 1, false).first, 1, symX) #> `X` is stored twice
-    @test_throws OverflowError checkAdjoint(hOver, PauliSum([pauli"X"], Int16[200]))
+    hWide = PauliSum([pauli"X"], Int16[200])
+    @test checkAdjoint(hOver, hWide) && checkAdjoint(hWide, hOver) #> `200 X` as `Int16`
+    hNarrow = PauliSum([pauli"X"], Int8[100])
+    @test_throws OverflowError checkAdjoint(hOver, hNarrow)
+    @test_throws OverflowError checkAdjoint(hNarrow, hOver)
     @test checkAdjoint(hOver, hOver) #> Judged by `isHermitian`, which needs no copy here
-    #>> A floating-point operand with mergeable terms settles the result for either order 
-    #>> of the operands, before that copy is needed
+    #>> At a floating-point promoted type, no terms are merged: an operand with mergeable 
+    #>> terms settles the result for either order of the operands, whichever core data type 
+    #>> it has
     hQuarters = PauliSum([pauli"X", pauli"Z"], [0.25, 0.25])
     stamp!(indexTerm(hQuarters, 1, false).first, 1, symX) #> `X` is stored twice
     @test !checkAdjoint(hQuarters, hOver) && !checkAdjoint(hOver, hQuarters)
+    hFlat = PauliSum([pauli"X"], [200.0])
+    @test !checkAdjoint(hOver, hFlat) && !checkAdjoint(hFlat, hOver)
+    @test  checkAdjoint(hWide, hFlat) &&  checkAdjoint(hFlat, hWide)
+    #>> A zero-coefficient term is disregarded as well when the operand that stores it is 
+    #>> the one converted to the promoted type
+    hSpare = PauliSum([pauli"X", pauli"Z"], Int8[1, 0], false)
+    @test countTerms(hSpare) == 2
+    for hOne in (PauliSum([pauli"X"], Int16[1]), PauliSum([pauli"X"], [1.0]))
+        @test checkAdjoint(hSpare, hOne) && checkAdjoint(hOne, hSpare)
+    end
+    #>> A coefficient that the promotion rounds does not pass for the rounded value
+    pow53 = Int64(2)^53 #> `pow53 + 1` is rounded to `2.0^53` as a `Float64`
+    hOdd = PauliSum([pauli"X"], [pow53 + 1])
+    @test Float64(pow53 + 1) === 2.0^53
+    @test !checkAdjoint(hOdd, PauliSum([pauli"X"], [2.0^53]))
+    @test !checkAdjoint(PauliSum([pauli"X"], [2.0^53]), hOdd)
 
     #> Infinite coefficients are compared by value as well: no product is evaluated, so no 
     #> argument mirrors `onlyFinite` of `checkCommute`

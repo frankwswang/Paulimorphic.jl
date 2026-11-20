@@ -754,8 +754,9 @@ end
 #> Check if `op1` and `op2` are equal, under the premise that they both are operators with 
 #> only finite term coefficients. The equality is determined by whether they are identical 
 #> or form equal forms. An exact canonical form is potentially restored via 
-#> `toExactCanonicalForm`. If any operator has at least one non-finite coefficient, the 
-#> function exits with `missing`, or throws an `ArgumentError` when `explicitError=true`.
+#> `toExactCanonicalForm` at the promoted core data type of `op1` and `op2`. If any 
+#> operator has at least one non-finite coefficient, the function exits with `missing`, or 
+#> throws an `ArgumentError` when `explicitError=true`.
 function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum, 
                                   explicitError::Bool=false)::MissingOr{Bool}
     #> Early exit as soon as one operator has non-finite coefficients
@@ -764,12 +765,12 @@ function checkEqualFinitePauliOps(op1::PauliStrOrSum, op2::PauliStrOrSum,
 
     op1 === op2 && (return true)
 
-    isCan, op1Local = toExactCanonicalForm(op1)
-    isCan || (return false)
-    isCan, op2Local = toExactCanonicalForm(op2)
-    isCan || (return false)
+    #> Both ops are formatted before the check to ensure argument-permutation invariance
+    T = promoteCoreType(op1, op2) #> Promoted core data type
+    isCan1, op1Local = toExactCanonicalForm(T, op1)
+    isCan2, op2Local = toExactCanonicalForm(T, op2)
 
-    op1Local == op2Local
+    isCan1 && isCan2 && op1Local == op2Local
 end
 
 
@@ -798,8 +799,11 @@ In the cases where both `op1` and `op2` hold no non-finite coefficient, their co
 may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
 exact [canonical forms](@ref `PauliSum`) that are also equal to each other, `true` is 
-returned. Specifically, a `PauliSum` with a non-exact core data type (e.g., 
-`AbstractFloat`) cannot form an exact canonical form when it has mergeable terms.
+returned. The two forms are constructed with the core data type promoted from those of 
+`op1` and `op2`. Moreover, a `PauliSum` with mergeable terms cannot be reconstructed in the 
+exact canonical form with a non-exact core data type (e.g., `AbstractFloat`); with an exact 
+one (e.g., `Int` or `Rational{Int}`), its terms can still be merged, following the overflow 
+checking policy of `PauliSum`.
 """
 function checkCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)::Bool
     z1, x1 = op1.z, op1.x
@@ -817,7 +821,7 @@ function checkCommute(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     ismissing(res) ? (return false) : (res && (return true))
 
     #> Zero operators commute with any operators
-    (isZeroOperator(op1) || isZeroOperator(op2)) && (return true)
+    (isExplicitZeroOp(op1) || isExplicitZeroOp(op2)) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
@@ -861,7 +865,7 @@ function checkAntiCom(op1::PauliStrOrSum, op2::PauliStrOrSum, onlyFinite::Bool=t
     allFinite || (return false)
 
     #> Zero operators anticommute with any operators
-    (isZeroOperator(op1) || isZeroOperator(op2)) && (return true)
+    (isExplicitZeroOp(op1) || isExplicitZeroOp(op2)) && (return true)
 
     prod1 = mul(op1, op2)::PauliSum
     checkFinitePauliCoeffs(prod1, Symbol("op1 * op2"), onlyFinite) || (return false)
@@ -916,8 +920,11 @@ In the cases where both `op1` and `op2` hold no non-finite coefficient, their co
 may be determined without evaluating `op1 * op2` or `op2 * op1`. In particular, as long as 
 `op1` and `op2` are identical objects (verified via `Base.:===`) or can form (or reform) 
 exact [canonical forms](@ref `PauliSum`) that are also equal to each other, a zero-term 
-`PauliSum` is returned. Specifically, a `PauliSum` with a non-exact core data type (e.g., 
-`AbstractFloat`) cannot form an exact canonical form when it has mergeable terms.
+`PauliSum` is returned. The two forms are constructed with the core data type promoted from 
+those of `op1` and `op2`. Moreover, a `PauliSum` with mergeable terms cannot be 
+reconstructed in the exact canonical form with a non-exact core data type (e.g., 
+`AbstractFloat`); with an exact one (e.g., `Int` or `Rational{Int}`), its terms can still 
+be merged, following the overflow checking policy of `PauliSum`.
 """
 function evalCommute(op1::PauliStr, op2::PauliStr, ::Bool=true)
     prod1 = mul(op1, op2)
@@ -1020,13 +1027,14 @@ operators, `op1` and `op2` explicitly acting on different numbers of sites (indi
 [`countSites`](@ref)) are not considered the adjoints of each other.
 
 # Verification of mergeable terms
-When `op1` and `op2` are not identical and either of them has mergeable terms, the function 
-will return `false` if the core data type of that operator is not an exact numeric type 
-(e.g., `AbstractFloat`) to avoid potential false positives resulting from rounding errors 
-during the merging. To have such an operator verified with its terms merged, canonicalize 
-it first (e.g., via `PauliSum(op1)`). For an exact core data type (e.g., `Int` or 
-`Rational{Int}`), the terms are merged for the verification, following the overflow 
-checking policy of `PauliSum`.
+The verification is made at the promoted core data type of `op1` and `op2`. When `op1` and 
+`op2` are not identical and either of them has mergeable terms, the function will return 
+`false` if that type is not an exact numeric type (e.g., `AbstractFloat`) to avoid 
+potential false positives resulting from rounding errors during the merging. To have such 
+an operator verified with its terms merged, canonicalize it first (e.g., via 
+`PauliSum(op1)`). For an exact promoted core data type (e.g., `Int` or `Rational{Int}`), 
+the terms are merged at that type for the verification, following the overflow checking 
+policy of `PauliSum`.
 """
 function checkAdjoint(op1::PauliStr, op2::PauliStr)::Bool
     #> Two phase factors are the complex conjugates of each other iff their product is 1
@@ -1039,15 +1047,11 @@ end
 function checkAdjoint(op1::PauliStrOrSum, op2::PauliStrOrSum)
     op1 === op2 && (return isHermitian(op1))
 
-    #> Impose argument-permutation invariance
-    if op2 isa PauliSum{<:AbstractFloat} && !(op1 isa PauliSum{<:AbstractFloat})
-        return checkAdjoint(op2, op1)
-    end
-
-    isCan, op1Local = toExactCanonicalForm(op1, true)
-    isCan || (return false)
-    isCan, op2Local = toExactCanonicalForm(op2, true)
-    isCan || (return false)
+    #> Both ops are formatted before the check to ensure argument-permutation invariance
+    T = promoteCoreType(op1, op2) #> Promoted core data type
+    isCan1, op1Local = toExactCanonicalForm(T, op1, true)
+    isCan2, op2Local = toExactCanonicalForm(T, op2, true)
+    (isCan1 && isCan2) || (return false)
 
     op1Local.str == op2Local.str || (return false) #> Strings are phase-less
     all(zip(op1Local.coeff, op2Local.coeff)) do (coeff1, coeff2)

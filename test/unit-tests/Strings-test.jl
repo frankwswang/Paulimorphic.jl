@@ -1,6 +1,6 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isZeroOperator
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isExplicitZeroOp
 using Random
 
 @testset "Strings.jl" begin
@@ -586,11 +586,10 @@ setCoeff!(hIds, -4, 3)
 setCoeff!(hIds, -3, 3)
 @test !isIdentity(hIds)    #> 3 + 2 - 3 == 2
 
-#> `isHermitian`, `isIdentity`, and the internal `isZeroOperator` only rely on the 
-#> canonical form of a `PauliSum` when it represents the operator exactly. The terms that 
-#> the constructor would merge are merged for the judgment when the core data type is an 
-#> exact numeric type, whereas a floating-point `PauliSum` that stores such terms is judged 
-#> from its stored terms alone
+#> `isHermitian`, `isIdentity` only rely on the canonical form of a `PauliSum` when it 
+#> represents the operator exactly. The terms that the constructor would merge are merged 
+#> for the judgment when the core data type is an exact numeric type, whereas a 
+#> floating-point `PauliSum` that stores such terms is judged from its stored terms alone.
 for T in (Int, Rational{Int}, Float64)
     isExact = !(T <: AbstractFloat)
     #>> `hSelf` stores `X` three times: `-im*X + X + im*X == X`
@@ -604,8 +603,9 @@ for T in (Int, Rational{Int}, Float64)
     #>> `hNone` stores `X` three times: `-3*X + X + 2*X == 0`
     hNone = PauliSum([pauli"X", pauli"Y", pauli"Z"], T[1, 2, -3])
     fill!(hNone.str, pauli"X")
-    @test isZeroOperator(hNone) == isExact && isZeroOperator(PauliSum(hNone))
     @test isHermitian(hNone) && !isIdentity(hNone)
+    #>> `isExplicitZeroOp` does not rely on canonicalization at all
+    @test !isExplicitZeroOp(hNone) && isExplicitZeroOp(PauliSum(hNone))
 end
 #>> A floating-point `PauliSum` that restores its canonical form without merging terms is 
 #>> still judged by the operator it represents, and so is one that retains zero-coefficient 
@@ -621,14 +621,14 @@ setCoeff!(hSpare, 1e-300, 2)
 #>> strings), although it stores `X` twice
 hReal = PauliSum([pauli"X", pauli"Z"], [0.1, 0.2])
 stamp!(indexTerm(hReal, 1, false).first, 1, symX) #> The first stored term is `Z`
-@test isHermitian(hReal) && !isZeroOperator(hReal) && !isIdentity(hReal)
+@test isHermitian(hReal) && !isExplicitZeroOp(hReal) && !isIdentity(hReal)
 #>> For exact core data types, the merge follows the overflow checking policy of `PauliSum`
 hTwice = PauliSum([pauli"X", pauli"Z"], Int8[100, 100])
 stamp!(indexTerm(hTwice, 1, false).first, 1, symX) #> `hTwice` stores `X` twice
-@test_throws OverflowError isZeroOperator(hTwice)
+@test !isExplicitZeroOp(hTwice) #> `isExplicitZeroOp` simply fails instead of throwing
 @test_throws OverflowError isIdentity(hTwice)
 @test isHermitian(hTwice) #> Settled by the stored terms, without merging them
-@test isZeroOperator(PauliSum(Int8)) && !isZeroOperator(pauli"I")
+@test isExplicitZeroOp(PauliSum(Int8)) && !isExplicitZeroOp(pauli"I")
 
 @testset "toPauliStr" begin
     #> Single term with a coefficient expressible as a phase
@@ -744,6 +744,166 @@ end
     @test_throws DomainError curtail(hd, -1.0) #> `tolerance` is validated before the form
     @test curtail(hd, checkForm=false).coeff == ComplexF64[2.0, 1.0]
     @test curtail(hd, 1.5, checkForm=false).coeff == ComplexF64[2.0]
+end
+
+#> Tests for the site manipulators: a list of 130 single-site operators with no period 
+#> (every displaced copy of it differs from it on the sites they share), which spans three 
+#> words of `.x` and `.z` when `UInt` is 64-bit.
+longList = PauliSym[(symI, symZ, symX, symY)[begin + count_ones(7k) % 4] for k in 1:130]
+
+@testset "sanitize!" begin
+    w = 8 * sizeof(UInt) #> Number of sites packed into one word of `.x` and `.z`
+    #> The bits above site `.n` (written here through the fields) are cleared from the 
+    #> final word of both buffers, in place.
+    s = PauliStr(3)
+    fill!(s.x, ~zero(UInt))
+    fill!(s.z, ~zero(UInt))
+    @test s != pauli"YYY"
+    @test sanitize!(s) === s && s == pauli"YYY"
+    #> Only the final word can hold such bits: the words before it are left as they are
+    s = PauliStr(w + 2)
+    fill!(s.x, ~zero(UInt))
+    @test sanitize!(s) == PauliStr(w + 2, symX)
+    @test first(s.x) == ~zero(UInt) && last(s.x) == UInt(3)
+    #> A final word without padding is left as it is, and so is a string without any word.
+    @test last(sanitize!(PauliStr(2w, symY)).x) == ~zero(UInt)
+    @test sanitize!(PauliStr()) == PauliStr()
+    #> A string that already satisfies the invariant is unchanged, along with its phase.
+    @test sanitize!(pauli"-iXZY") == pauli"-iXZY"
+end
+
+@testset "shift!" begin
+    #> The operator on site `k` moves to site `k + nShift` by default, and to site 
+    #> `k - nShift` when `lowToHigh=false`. The vacated sites carry the identity, and the 
+    #> operators pushed out of `1:n` are dropped.
+    @test shift!(pauli"XYZI", 2) == pauli"IIXY"
+    @test shift!(pauli"IXYZ", 2, false) == pauli"YZII"
+    @test shift!(pauli"XYZ", 3) == shift!(pauli"XYZ", 1000, false) == pauli"III"
+    #> The string is mutated in place, and keeps its site count and its phase.
+    s = pauli"-iXZI"
+    @test shift!(s, 1) === s && s == pauli"-iIXZ"
+    #> Nothing to shift
+    @test shift!(pauli"-XYZ", 0) == pauli"-XYZ"
+    @test shift!(PauliStr(), 5) == PauliStr()
+    @test_throws DomainError shift!(pauli"XYZ", -1)
+
+    #> Strings of several words: a shift moves whole words and bits within a word, and the 
+    #> operators pushed above site `n` leave no bit behind in the final word.
+    ids = n->fill(symI, n)
+    @test shift!(PauliStr(longList), 64) == PauliStr(vcat(ids(64), longList[1:66]))
+    @test shift!(PauliStr(longList), 67) == PauliStr(vcat(ids(67), longList[1:63]))
+    @test shift!(PauliStr(longList), 67, false) == PauliStr(vcat(longList[68:130], ids(67)))
+    @test shift!(PauliStr(longList), 130) == shift!(PauliStr(longList), 1000, false) == 
+          PauliStr(130)
+end
+
+@testset "paste!" begin
+    #> By default, the sites `srcRange` of `src` (all of them when unspecified) overwrite 
+    #> those of `dst` from site `dstStart` upward; the part of the selection that falls 
+    #> above site `n` of `dst` is truncated.
+    @test paste!(pauli"ZZZZZ", 2, pauli"XIY") == pauli"ZXIYZ"
+    @test paste!(pauli"ZZZ", 2, pauli"XIY") == pauli"ZXI"
+    @test paste!(pauli"ZZZZ", 2, pauli"XIY", 2:3) == pauli"ZIYZ"
+    #> `lowToHigh=false`: site `last(srcRange)` of `src` lands on site `dstStart`, and the 
+    #> rest of the selection extends downward; its part that falls below site 1 of `dst` 
+    #> is truncated.
+    @test paste!(pauli"ZZZZZ", 4, pauli"XIY", lowToHigh=false) == pauli"ZXIYZ"
+    @test paste!(pauli"ZZZ", 1, pauli"XIY", lowToHigh=false) == pauli"YZZ"
+    @test paste!(pauli"ZZZZ", 3, pauli"XIY", 1:2, lowToHigh=false) == pauli"ZXIZ"
+    #> `dst` is mutated in place and keeps its phase, while `src` is left intact.
+    dst, src = pauli"-ZZZ", pauli"iXY"
+    @test paste!(dst, 2, src) === dst && dst == pauli"-ZXY" && src == pauli"iXY"
+    #> An empty `srcRange` selects nothing, wherever it lies.
+    @test paste!(pauli"ZZ", 1, pauli"XX", 3:2) == paste!(pauli"ZZ", 2, PauliStr()) == 
+          pauli"ZZ"
+    #> Input validation
+    @test_throws DomainError paste!(pauli"ZZ", 0, pauli"X")
+    @test_throws DomainError paste!(pauli"ZZ", 3, pauli"X")
+    @test_throws DomainError paste!(PauliStr(), 1, pauli"X")
+    @test_throws DomainError paste!(pauli"ZZ", 1, pauli"X", 1:2)
+    @test_throws DomainError paste!(pauli"ZZ", 1, pauli"X", 0:1)
+
+    #> Strings of several words: the pasted window can start and end inside a word, cover 
+    #> whole words in between, and be read from other words of `src` than the ones it is 
+    #> written to in `dst`, with or without an offset of bits.
+    src = PauliStr(longList)
+    zs = n->fill(symZ, n)
+    @test paste!(PauliStr(200, symZ), 65, src) == PauliStr(vcat(zs(64), longList, zs(6)))
+    @test paste!(PauliStr(140, symZ), 6, src) == PauliStr(vcat(zs(5), longList, zs(5)))
+    @test paste!(PauliStr(66, symZ), 1, src, 65:130) == PauliStr(longList[65:130])
+    @test paste!(PauliStr(10, symZ), 3, src, 62:67) == 
+          PauliStr(vcat(zs(2), longList[62:67], zs(2)))
+    @test paste!(PauliStr(100, symZ), 70, src, lowToHigh=false) == 
+          PauliStr(vcat(longList[61:130], zs(30)))
+    #> `dst` can be `src` itself
+    @test paste!(src, 6, src) == PauliStr(vcat(longList[1:5], longList[1:125]))
+end
+
+@testset "stamp!" begin
+    #> By default, a window of `nSite` sites (one when unspecified) is overwritten from 
+    #> site `startSite` upward; its part that falls above site `n` of `dst` is truncated.
+    @test stamp!(pauli"ZZZ", 2, symX) == pauli"ZXZ"
+    @test stamp!(pauli"ZZZZ", 2, symY, 2) == pauli"ZYYZ"
+    @test stamp!(pauli"ZZZ", 2, symX, 3) == pauli"ZXX"
+    @test stamp!(pauli"XYZ", 1, symI, 2) == pauli"IIZ"
+    #> `lowToHigh=false`: the window ends at site `startSite` and extends downward; its 
+    #> part that falls below site 1 is truncated.
+    @test stamp!(pauli"ZZZZ", 3, symX, 2, lowToHigh=false) == pauli"ZXXZ"
+    @test stamp!(pauli"ZZZ", 1, symX, 3, lowToHigh=false) == pauli"XZZ"
+    #> `dst` is mutated in place and keeps its phase; an empty window changes nothing.
+    s = pauli"-iZZ"
+    @test stamp!(s, 1, symY) === s && s == pauli"-iYZ"
+    @test stamp!(pauli"XYZ", 2, symI, 0) == pauli"XYZ"
+    #> Input validation
+    @test_throws DomainError stamp!(pauli"ZZ", 0, symX)
+    @test_throws DomainError stamp!(pauli"ZZ", 3, symX)
+    @test_throws DomainError stamp!(PauliStr(), 1, symX)
+    @test_throws DomainError stamp!(pauli"ZZ", 1, symX, -1)
+
+    #> Strings of several words: a window across a word boundary, one that ends at the 
+    #> last site of a word, and one that covers every word.
+    window = (lo, hi, op)->PauliStr([lo <= k <= hi ? op : symZ for k in 1:130])
+    @test stamp!(PauliStr(130, symZ), 60, symY, 10) == window(60, 69, symY)
+    @test stamp!(PauliStr(130, symZ), 64, symX, 3, lowToHigh=false) == window(62, 64, symX)
+    @test stamp!(PauliStr(130, symZ), 1, symX, 130) == PauliStr(130, symX)
+end
+
+@testset "reframe" begin
+    h = PauliSum([pauli"XZ", pauli"YIX"], [1, 2]) #> Stored on 3 sites as `XZI` and `YIX`
+    #> Every string is rebuilt within a frame of `nSite` sites, aligned with the frame at 
+    #> the low end by default and at the high end when `lowToHigh=false`: the uncovered 
+    #> sites of a wider frame carry `filler` (the identity when unspecified), and a 
+    #> narrower frame crops the string.
+    @test reframe(h, 5) == PauliSum([pauli"XZIII", pauli"YIXII"], [1, 2])
+    @test reframe(h, 5, lowToHigh=false) == PauliSum([pauli"IIXZI", pauli"IIYIX"], [1, 2])
+    @test reframe(h, 4, filler=symY) == PauliSum([pauli"XZIY", pauli"YIXY"], [1, 2])
+    @test reframe(h, 4, filler=symY, lowToHigh=false) == 
+          PauliSum([pauli"YXZI", pauli"YYIX"], [1, 2])
+    @test reframe(h, 2) == PauliSum([pauli"XZ", pauli"YI"], [1, 2])
+    @test reframe(h, 2, lowToHigh=false) == PauliSum([pauli"ZI", pauli"IX"], [1, 2])
+    @test countSites(reframe(h, 70)) == 70 && reframe(reframe(h, 70), 3) == h
+    #> The frame defaults to the site count of `h`, and the result shares no data with `h`.
+    r = reframe(h)
+    @test r == h && r.coeff !== h.coeff && first(r.str) !== first(h.str)
+    #> The reframed strings are collected by the `PauliSum` constructor: the equal ones are 
+    #> merged, and a zero coefficient is only retained when `simplification=false`.
+    @test reframe(h, 0) == PauliSum([PauliStr()], [3])
+    hc = PauliSum([pauli"XZ", pauli"XY"], [1, -1])
+    @test reframe(hc, 1) == PauliSum(Int)
+    @test reframe(hc, 1, simplification=false) == PauliSum([pauli"X"], [0], false)
+    #> The phase of a stored string is transferred, and so ends up in the coefficient.
+    hp = PauliSum([pauli"XZ"], [2])
+    indexTerm(hp, 1, false).first.phase = posImg
+    @test reframe(hp, 3) == PauliSum([pauli"XZI"], [2im])
+    #> The zero operator stays as it is; `nSite` must be non-negative
+    @test reframe(PauliSum(Float64), 4) == PauliSum(Float64)
+    @test_throws DomainError reframe(h, -1)
+
+    #> Strings of several words
+    hl = PauliSum([PauliStr(longList)], [1.5])
+    @test reframe(hl, 66, lowToHigh=false) == PauliSum([PauliStr(longList[65:130])], [1.5])
+    @test reframe(hl, 140, filler=symY) == 
+          PauliSum([PauliStr(vcat(longList, fill(symY, 10)))], [1.5])
 end
 
 @testset "compareBits: shifted windows" begin

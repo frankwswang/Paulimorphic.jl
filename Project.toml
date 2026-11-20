@@ -1,6 +1,6 @@
 name = "Paulimorphic"
 uuid = "376270d6-9d58-4fff-a93d-64e77d6b6083"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Weishi Wang and contributors"]
 
 [workspace]

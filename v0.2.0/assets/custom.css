@@ -1,0 +1,9 @@
+/* Render KaTeX's typewriter font (`\mathtt`) with the same font stack Documenter uses for
+   code, so that code-related symbols in math blocks match inline code spans. JuliaMono's
+   x-height (0.55em) is larger than that of KaTeX's fonts (0.44em), so its size is reduced
+   to match the lowercase height of the surrounding math. */
+.katex .mathtt {
+    font-family: 'JuliaMono', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 
+                 'DejaVu Sans Mono', monospace;
+    font-size: 0.8em;
+}

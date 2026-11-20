@@ -570,7 +570,7 @@ terms and not on the order in which they are listed. Finally, the Pauli terms in
 constructed `PauliSum` are stored (and indexed) in strictly ascending order of their 
 strings (by `isless(::PauliStr, ::PauliStr)`).
 
-# Canonical and simplified forms
+# Canonical form and simplified form
 The internal layout of the `PauliSum` returned by this constructor, where the `PauliStr` 
 corresponding to each term shares a common site count and carries the trivial phase 
 `PhaseFactor(0)` that evaluates to one (via [`evalPhase`](@ref)), combined with the 

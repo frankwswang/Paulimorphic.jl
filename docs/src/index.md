@@ -8,7 +8,7 @@
 * **Operator algebra**: operator summation, scalar–operator and operator–operator multiplication, Hermitian adjoints, commutation and anticommutation evaluations, etc.
 * **Multi-level data manipulation**: shifting and pasting single-site operators; reframing and truncating Pauli sums, etc.
 * **Matrix representations**: sparse-matrix generation for Pauli strings and Pauli sums in the computational basis and in-place filling of preallocated matrices.
-* **Frustration-graph analysis**: constructing the anticommutation graph of operators, backed by lightweight graph-theory analysis functionalities, such as connected components, breadth-first search, isomorphism detection, and root-graph reconstruction.
+* **Frustration-graph analysis**: constructing the anticommutation graph of operators, backed by lightweight graph-theory functionalities, such as connected components, breadth-first search, isomorphism detection, and root-graph reconstruction.
 * **Fermion-to-qubit encodings**: Jordan–Wigner, parity, and Bravyi–Kitaev Majorana encodings, conversion between Majorana and Dirac forms, and validity checkers for both.
 * **Molecular electronic Hamiltonians**: encoding from one- and two-body molecular integral tensors with spin-sectored encodings, selectable operator ordering (`NormalOrder` or `PairedOrder`), and validation of integral symmetries (Hermiticity, particle exchange, and index-pair transposition).
 

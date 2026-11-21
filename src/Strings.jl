@@ -250,7 +250,12 @@ function Base.isless(a::PauliStr, b::PauliStr)
     bStrWeight = countWeight(b)
     aStrWeight != bStrWeight && (return (aStrWeight < bStrWeight))
 
-    @inbounds for i in 1:length(a.x)
+    directOrderPauliStr(a, b)
+end
+
+#> Direct comparison of two `PauliStr` regardless of site count discrepancy
+function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
+    @inbounds for i in 1:length(a.x) #> By single-site operator (`I < Z < X < Y`)
         ax, bx = a.x[end-i+1], b.x[end-i+1]
         az, bz = a.z[end-i+1], b.z[end-i+1]
         bitsDiff = (ax ⊻ bx) | (az ⊻ bz)
@@ -262,7 +267,7 @@ function Base.isless(a::PauliStr, b::PauliStr)
         end
     end
 
-    UInt8(a.phase) < UInt8(b.phase)
+    UInt8(a.phase) < UInt8(b.phase) #> By phase (`posRea < posImg < negRea < negImg`)
 end
 
 

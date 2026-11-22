@@ -1039,13 +1039,9 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
     end
 
     if includeCoeffs #> Local sort at the end performs better than full sort at the start
-        magnitudes = map(evalMagnitude, coeffs) #> Hardware-agnostic replacement for `abs`
         function indexCoeff(k::Int)
-            @inbounds begin
-                pStrCoeff = coeffs[begin+k-1]
-                magnitude = magnitudes[begin+k-1]
-            end
-            (magnitude, real(pStrCoeff), imag(pStrCoeff))
+            @inbounds pStrCoeff = coeffs[begin+k-1]
+            (evalMagnitude(pStrCoeff), real(pStrCoeff), imag(pStrCoeff))
         end
 
         iStart = 1

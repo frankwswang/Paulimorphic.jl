@@ -250,13 +250,9 @@ function Base.isless(a::PauliStr, b::PauliStr)
     bStrWeight = countWeight(b)
     aStrWeight != bStrWeight && (return (aStrWeight < bStrWeight))
 
-    if isPlainPauliStr(a)
-        aKey = genPlainPauliStrKey(a)[(end-1):end]
-        bKey = genPlainPauliStrKey(b)[(end-1):end]
-        aKey < bKey
-    else
-        directOrderPauliStr(a, b)
-    end
+    #> In-bound direct comparison instead of `genPlainPauliStrKey` as the latter only pays 
+    #> off when the keys are cached for many pair-wise comparisons (as in `sortPermStrings`)
+    @inbounds directOrderPauliStr(a, b)
 end
 
 function isPlainPauliStr(str::PauliStr)
@@ -264,6 +260,8 @@ function isPlainPauliStr(str::PauliStr)
     2nWordInt <= sizeof(UInt128) && countSites(str) <= 8nWordInt
 end
 
+#> Sort key of a bit-plain `PauliStr`. Calling `isless` with two such keys must return 
+#> consistently with calling `isless` with their strings
 function genPlainPauliStrKey(str::PauliStr)
     isPlainPauliStr(str) || throw(AssertionError("`str` is not a bit-plain `PauliStr`."))
     nWord = length(str.x)
@@ -272,9 +270,12 @@ function genPlainPauliStrKey(str::PauliStr)
 end
 
 #> Order of `a` and `b` with the same site count by their single-site operators from the 
-#> highest site down, then by their phases. Pauli weights are not included for comparison.
-function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
-    if countSites(a) != countSites(b)
+#> highest site down, then by their phases. Pauli weights are not included for comparison. 
+#> The equality of the site counts guards the unchecked word accesses below, so it is 
+#> verified in a bounds-checking block. A caller that has already compared the site counts 
+#> may elide it with `@inbounds` because this function is annotated by `@inline`.
+@inline function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
+    @boundscheck if countSites(a) != countSites(b)
         throw(ArgumentError("`countSites(a) == countSites(b)` must return `true`."))
     end
 
@@ -1061,7 +1062,7 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
             end
             iS != jS && (return (iS < jS))
             iW != jW && (return (iW < jW))
-            directOrderPauliStr(iStr, jStr)
+            @inbounds directOrderPauliStr(iStr, jStr) #> Equal site counts since `iS == jS`
         end
         sort!(scope, lt=comparePStr, alg=Base.Sort.DEFAULT_STABLE)
     end

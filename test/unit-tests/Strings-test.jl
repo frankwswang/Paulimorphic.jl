@@ -1,7 +1,8 @@
 using Test
 using Paulimorphic
 using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, 
-                    isExplicitZeroOp, sortStrings!, checkPauliTermOrder
+                    isExplicitZeroOp, sortStrings!, checkPauliTermOrder, isPlainPauliStr, 
+                    genPlainPauliStrKey, directOrderPauliStr
 using Random
 
 @testset "Strings.jl" begin
@@ -238,6 +239,37 @@ end
     @test allunique(phasedStrs)
     @test !(phasedStrs[begin] < PauliStr([symX, symY])) &&
           !(PauliStr([symX, symY]) < phasedStrs[begin]) #> Equal content and phase: no order
+
+    #>≡≡≡ Consistency with the cached sort keys of `sortStrings!` ≡≡≡<#
+    #> `isless` compares the words of two strings directly, whereas `sortStrings!` sorts 
+    #> bit-plain strings by their keys from `genPlainPauliStrKey`: the two must order every 
+    #> pair of bit-plain strings alike (`filter` keeps the test word-size independent)
+    plainPool = filter(isPlainPauliStr, 
+                       [PauliStr(0), PauliStr(0, symI, negImg), pauli"I", pauli"X", 
+                        pauli"II", pauli"YY", pauli"IIII", pauli"IIIZ", pauli"YI", 
+                        pauli"ZZ", pauli"XX", pauli"ZY", pauli"-XZ", pauli"iZY", 
+                        PauliStr(genSparseList(64, 64 => symX)), 
+                        PauliStr([fill(symX, 63); symI]), 
+                        PauliStr(genSparseList(64, 32 => symX)), 
+                        PauliStr(genSparseList(64, 33 => symZ)), 
+                        PauliStr(genSparseList(64, 1 => symZ, 64 => symX)), 
+                        PauliStr(genSparseList(64, 1 => symZ, 64 => symY)), 
+                        PauliStr(genSparseList(64, 1 => symX, 64 => symX)), 
+                        PauliStr(genSparseList(64, 1 => symX, 64 => symX), negRea), 
+                        phasedStrs...])
+    @test length(plainPool) > length(phasedStrs)
+    @test all(isless(a, b) == isless(genPlainPauliStrKey(a), genPlainPauliStrKey(b)) 
+              for a in plainPool, b in plainPool)
+
+    #>≡≡≡ Site-count guard of `directOrderPauliStr` ≡≡≡<#
+    #> `isless` compares the site counts before it calls `directOrderPauliStr`, and elides 
+    #> the guard of the latter with `@inbounds`; a direct call still verifies its arguments
+    @test directOrderPauliStr(pauli"XZ", pauli"XY") #> `Z < Y` at the highest site
+    @test !directOrderPauliStr(pauli"XY", pauli"XZ")
+    @test_throws ArgumentError directOrderPauliStr(pauli"X", pauli"XX")
+    #> Strings whose buffers differ in length never reach the word comparison of `isless`
+    str64, str65 = PauliStr(genSparseList(64)), PauliStr(genSparseList(65))
+    @test str64 < str65 && !(str65 < str64)
 end
 
 @testset "indexSite" begin

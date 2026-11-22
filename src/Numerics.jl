@@ -355,3 +355,25 @@ end
 
 extendType(::Type{C}, ::Type{Complex{T}}) where {C<:SignedReal, T<:SignedReal} = 
 (complex∘extendType)(C, T)
+
+
+#> Spread bits in `word` onto a `UInt128`: ...00abcdef -> ......00000a0b0c0d0e0f
+function spreadBits(::Type{UInt128}, word::Unsigned)
+    nBit = 8*sizeof(word)
+    maxBits = 4*sizeof(UInt128)
+    if nBit > maxBits
+        throw(DomainError(nBit, "The bit width of `word` must no exceed $maxBits."))
+    end
+    bits = UInt128(word)
+    bits = (bits | (bits << 32)) & 0x00000000ffffffff00000000ffffffff
+    bits = (bits | (bits << 16)) & 0x0000ffff0000ffff0000ffff0000ffff
+    bits = (bits | (bits <<  8)) & 0x00ff00ff00ff00ff00ff00ff00ff00ff
+    bits = (bits | (bits <<  4)) & 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    bits = (bits | (bits <<  2)) & 0x33333333333333333333333333333333
+           (bits | (bits <<  1)) & 0x55555555555555555555555555555555
+end
+
+#> (...abcd, ...ijkl) -> ......aibjckdl
+function interleaveBits(::Type{UInt128}, oddWord::Unsigned, evenWord::Unsigned)
+    (spreadBits(UInt128, oddWord) << 1) | spreadBits(UInt128, evenWord)
+end

@@ -250,10 +250,28 @@ function Base.isless(a::PauliStr, b::PauliStr)
     bStrWeight = countWeight(b)
     aStrWeight != bStrWeight && (return (aStrWeight < bStrWeight))
 
-    directOrderPauliStr(a, b)
+    if isPlainPauliStr(a)
+        aKey = genPlainPauliStrKey(a)[(end-1):end]
+        bKey = genPlainPauliStrKey(b)[(end-1):end]
+        aKey < bKey
+    else
+        directOrderPauliStr(a, b)
+    end
 end
 
-#> Direct comparison of two `PauliStr` regardless of site count discrepancy
+function isPlainPauliStr(str::PauliStr)
+    nWordInt = sizeof(Int)
+    2nWordInt <= sizeof(UInt128) && countSites(str) <= 8nWordInt
+end
+
+function genPlainPauliStrKey(str::PauliStr)
+    isPlainPauliStr(str) || throw(AssertionError("`str` is not a bit-plain `PauliStr`."))
+    nWord = length(str.x)
+    word = iszero(nWord) ? zero(UInt128) : interleaveBits(UInt128, str.x[], str.z[])
+    (countSites(str), countWeight(str), word, UInt8(str.phase))
+end
+
+#> Direct comparison of two `PauliStr` regardless of site-count discrepancy
 function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
     @inbounds for i in 1:length(a.x) #> By single-site operator (`I < Z < X < Y`)
         ax, bx = a.x[end-i+1], b.x[end-i+1]
@@ -939,12 +957,6 @@ function absorbPhases!(strs::AbstractVector{PauliStr},
 end
 
 
-#> `evalMagnitude` serves as a hardware-agnostic replacement for `abs`
-function genPauliTermOrderKey((str, strCoeff)::Tuple{PauliStr, SRealOrComplex})
-    (str, evalMagnitude(strCoeff), real(strCoeff), imag(strCoeff))
-end
-
-
 """
     sortStrings!(strs::AbstractVector{PauliStr}, 
                  coeffs::AbstractVector{<:Union{T, Complex{T}}}, 
@@ -972,14 +984,8 @@ function sortStrings!(strs::AbstractVector{PauliStr},
     end
 
     if nTerm > 0
-        #> Sort the indices of the Pauli strings
-        scope = collect(1:nTerm)
-        sortFunc = if considerCoeff
-            (i::Int) -> genPauliTermOrderKey((strs[begin+i-1], coeffs[begin+i-1]))
-        else
-            (i::Int) -> strs[begin+i-1]
-        end
-        sort!(scope; by=sortFunc, alg=Base.Sort.DEFAULT_STABLE)
+        #> Sort the indices of Pauli strings by evaluating their sort keys once per term
+        scope = sortPermStrings(strs, ifelse(considerCoeff, coeffs, missing))
 
         #> Update elements in `coeffs` and `strs` using sorted `scope`
         #> `scope` is shifted when `coeffs` & `strs` are not one-based indexed
@@ -993,6 +999,70 @@ function sortStrings!(strs::AbstractVector{PauliStr},
     end
 
     nothing
+end
+
+#> Stable permutation of the (one-based) positions in `strs` that sorts `strs` following 
+#> the rules used by `isless(::PauliStr, ::PauliStr)`. When all `PauliStr` in `str` are 
+#> bit-plain (verified by `isPlainPauliStr`) a specialized fast path is executed. When 
+#> `coeffs` is not `Missing`, it participates in sorting as secondary keys.
+function sortPermStrings(strs::AbstractVector{PauliStr}, 
+                         coeffs::MissingOr{AbstractVector{<:SRealOrComplex}}=missing)
+    nTerm = length(strs)
+    scope = collect(1:nTerm)
+    includeCoeffs = !ismissing(coeffs)
+
+    if includeCoeffs && nTerm != length(coeffs)
+        throw(ArgumentError("`strs` and `coeffs` should have the same length."))
+    end
+
+    if all(isPlainPauliStr, strs)
+        keys = map(genPlainPauliStrKey, strs)
+        sort!(scope, by=i->(@inbounds keys[begin+i-1]))
+    else
+        siteWeightKeys = [(countSites(str), countWeight(str)) for str in strs]
+        function comparePStr(i::Int, j::Int) #> Mirror `Base.isless(::PauliStr, ::PauliStr)`
+            @inbounds begin
+                iS,   iW   = siteWeightKeys[begin+i-1]
+                jS,   jW   = siteWeightKeys[begin+j-1]
+                iStr, jStr = strs[begin+i-1], strs[begin+j-1]
+            end
+            iS != jS && (return (iS < jS))
+            iW != jW && (return (iW < jW))
+            directOrderPauliStr(iStr, jStr)
+        end
+        sort!(scope, lt=comparePStr, alg=Base.Sort.DEFAULT_STABLE)
+    end
+
+    if includeCoeffs #> Local sort at the end performs better than full sort at the start
+        coeffMagnitudes = map(evalMagnitude, coeffs)
+        function indexCoeff(k::Int)
+            @inbounds begin
+                coeff = coeffs[begin+k-1]
+                value = coeffMagnitudes[begin+k-1]
+            end
+            (value, real(coeff), imag(coeff))
+        end
+
+        iStart = 1
+        @inbounds while iStart < nTerm
+            str = strs[begin+scope[begin+iStart-1]-1]
+            iFinal = iStart
+
+            #> Find the equal strings in `iStart:iFinal`
+            while iFinal < nTerm && strs[begin+scope[begin+iFinal]-1] == str
+                iFinal += 1
+            end
+
+            if iFinal > iStart #> Do local coefficient sort within `iStart:iFinal`
+                sector = @view scope[(begin+iStart-1):(begin+iFinal-1)]
+                sort!(sector, by=indexCoeff, alg=Base.Sort.DEFAULT_STABLE)
+            end
+
+            iStart = iFinal + 1
+        end
+    end
+
+    scope
 end
 
 

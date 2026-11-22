@@ -549,6 +549,34 @@ end
     cplx = ComplexF64[2.0, -1.0, 3.0]
     Paulimorphic.sortStrings!(strs, cplx)
     @test cplx == [3.0, -1.0, 2.0]
+    #> The sort keys are evaluated once per term (packed into isbits keys for strings on at 
+    #> most 64 sites), yet the permutation stays that of a stable sort by 
+    #> `genPauliTermOrderKey`: the sorted strings are the same objects in the same order
+    rng = Xoshiro(46)
+    syms = (symI, symX, symY, symZ)
+    vals = (0.0, -0.0, 1.0, -1.0, 0.5, NaN)
+    bl = true
+    for _ in 1:200, nMax in (3, 64, 130)
+        pool = [PauliStr([syms[rand(rng, 1:4)] for _ in 1:rand(rng, 0:nMax)], 
+                         PhaseFactor(rand(rng, 0:3))) for _ in 1:rand(rng, 1:5)]
+        nTerm = rand(rng, 1:30)
+        strs = [PauliStr(rand(rng, pool)) for _ in 1:nTerm] #> Distinct equal objects
+        coeffs = [complex(vals[rand(rng, 1:6)], vals[rand(rng, 1:6)]) for _ in 1:nTerm]
+        for considerCoeff in (true, false)
+            orderKey = if considerCoeff
+                i -> let coeff=coeffs[i]
+                    (strs[i], Paulimorphic.evalMagnitude(coeff), real(coeff), imag(coeff))
+                end
+            else
+                i -> strs[i]
+            end
+            perm = sort!(collect(1:nTerm); by=orderKey, alg=Base.Sort.DEFAULT_STABLE)
+            strsSorted, coeffsSorted = copy(strs), copy(coeffs)
+            Paulimorphic.sortStrings!(strsSorted, coeffsSorted, considerCoeff)
+            bl &= all(strsSorted .=== strs[perm]) && isequal(coeffsSorted, coeffs[perm])
+        end
+    end
+    @test bl
 end
 
 #> `countWeight`

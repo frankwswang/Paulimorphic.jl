@@ -704,7 +704,8 @@ struct PauliSum{T<:SignedReal} <: DiscreteOperator
 
             #> Canonical order of the terms, which also fixes the accumulation order
             absorbPhases!(sBuffer, cBuffer)
-            sortStrings!(sBuffer, cBuffer, true) #>> Equal strings are adjacent
+            #>> Only sort terms if they are not already sorted
+            checkPauliTermOrder(sBuffer, cBuffer) || sortStrings!(sBuffer, cBuffer, true)
 
             k = 1
             mergedSize = 0
@@ -752,6 +753,33 @@ function checkCoreDataTypeForPauliSum(::Type{T}, typeName::Symbol=:T) where {T}
     end
 
     nothing
+end
+
+#> Generate a multi-component key of the coefficient associated with a Pauli term in a 
+#> comparison for sorting. `evalMagnitude` is the hardware-agnostic replacement for `abs`.
+genCoeffCompKey(coeff::SRealOrComplex) = (evalMagnitude(coeff), real(coeff), imag(coeff))
+
+#> Check whether the terms `(strs[i], coeffs[i])` are already in the order established by 
+#> `sortStrings!(strs, coeffs, true)`.
+function checkPauliTermOrder(strs::AbstractVector{PauliStr}, 
+                             coeffs::AbstractVector{<:SRealOrComplex})
+    nTerm = length(strs)
+    if nTerm != length(coeffs)
+        throw(ArgumentError("`strs` and `coeffs` should have the same length."))
+    end
+
+    @inbounds for i in 2:nTerm
+        strPrev = strs[begin+i-2]
+        strHere = strs[begin+i-1]
+        isless(strHere, strPrev) && (return false)
+        if strPrev == strHere
+            keyPrev = genCoeffCompKey(coeffs[begin+i-2])
+            keyHere = genCoeffCompKey(coeffs[begin+i-1])
+            isless(keyHere, keyPrev) && (return false)
+        end
+    end
+
+    true
 end
 
 function PauliSum(strs::AbstractVector{PauliStr}, coeffs::Union{AbstractVector{C}, C}, 
@@ -1041,7 +1069,7 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
     if includeCoeffs #> Local sort at the end performs better than full sort at the start
         function indexCoeff(k::Int)
             @inbounds pStrCoeff = coeffs[begin+k-1]
-            (evalMagnitude(pStrCoeff), real(pStrCoeff), imag(pStrCoeff))
+            genCoeffCompKey(pStrCoeff)
         end
 
         iStart = 1

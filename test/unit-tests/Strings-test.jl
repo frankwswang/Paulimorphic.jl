@@ -1,6 +1,7 @@
 using Test
 using Paulimorphic
-using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, isExplicitZeroOp
+using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, 
+                    isExplicitZeroOp, sortStrings!, checkPauliTermOrder
 using Random
 
 @testset "Strings.jl" begin
@@ -350,6 +351,20 @@ end
               [5, 3, 1, 4, 2, 6])
         @test PauliSum(strs[p], cs[p]) == ref
     end
+    #> Terms that are already in the canonical order skip the sort: merging them in that 
+    #> order yields the same result (bit for bit) as sorting them first
+    rng = Xoshiro(47)
+    syms = (symI, symX, symY, symZ)
+    bl = true
+    for _ in 1:200
+        strs = [PauliStr([syms[rand(rng, 1:4)] for _ in 1:2]) for _ in 1:rand(rng, 1:12)]
+        cs = [complex(randn(rng), randn(rng)) * 2.0^rand(rng, -30:30) for _ in strs]
+        orderKey = i->(strs[i], Paulimorphic.evalMagnitude(cs[i]), real(cs[i]), imag(cs[i]))
+        perm = sort!(collect(eachindex(strs)); by=orderKey, alg=Base.Sort.DEFAULT_STABLE)
+        hUnsorted, hSorted = PauliSum(strs, cs), PauliSum(strs[perm], cs[perm])
+        bl &= hUnsorted.str == hSorted.str && isequal(hUnsorted.coeff, hSorted.coeff)
+    end
+    @test bl
 
     @testset "Term-filtering construction" begin
         #> Stored order: ZI, IZ, XX
@@ -537,17 +552,21 @@ end
     #> are broken by `(evalMagnitude(c), real(c), imag(c))` (`Z` precedes `X` on one site)
     strs = [pauli"X", pauli"X", pauli"Z"]
     coeffs = [2.0, -1.0, 3.0]
-    @test Paulimorphic.sortStrings!(strs, coeffs) === nothing
+    @test sortStrings!(strs, coeffs) === nothing
+    @test checkPauliTermOrder(strs, coeffs)
     @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, -1.0, 2.0]
     #> `considerCoeff=false`: the sort is stable, so equal strings keep their input order
     strs = [pauli"X", pauli"X", pauli"Z"]
     coeffs = [2.0, -1.0, 3.0]
-    Paulimorphic.sortStrings!(strs, coeffs, false)
+    sortStrings!(strs, coeffs, false)
+    @test !checkPauliTermOrder(strs, coeffs)
+    @test checkPauliTermOrder(strs, [1.0, 1.0, 1.0])
     @test strs == [pauli"Z", pauli"X", pauli"X"] && coeffs == [3.0, 2.0, -1.0]
     #> Real and complex coefficients of equal values are ordered alike
     strs = [pauli"X", pauli"X", pauli"Z"]
     cplx = ComplexF64[2.0, -1.0, 3.0]
-    Paulimorphic.sortStrings!(strs, cplx)
+    sortStrings!(strs, cplx)
+    @test checkPauliTermOrder(strs, cplx)
     @test cplx == [3.0, -1.0, 2.0]
     #> The sort keys are evaluated once per term (packed into isbits keys for strings on at 
     #> most 64 sites), yet the permutation stays that of a stable sort by the tuples 
@@ -573,7 +592,8 @@ end
             end
             perm = sort!(collect(1:nTerm); by=orderKey, alg=Base.Sort.DEFAULT_STABLE)
             strsSorted, coeffsSorted = copy(strs), copy(coeffs)
-            Paulimorphic.sortStrings!(strsSorted, coeffsSorted, considerCoeff)
+            sortStrings!(strsSorted, coeffsSorted, considerCoeff)
+            bl &= (!considerCoeff || checkPauliTermOrder(strsSorted, coeffsSorted))
             bl &= all(strsSorted .=== strs[perm]) && isequal(coeffsSorted, coeffs[perm])
         end
     end

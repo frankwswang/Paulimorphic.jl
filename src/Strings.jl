@@ -271,8 +271,13 @@ function genPlainPauliStrKey(str::PauliStr)
     (countSites(str), countWeight(str), word, UInt8(str.phase))
 end
 
-#> Direct comparison of two `PauliStr` regardless of site-count discrepancy
+#> Order of `a` and `b` with the same site count by their single-site operators from the 
+#> highest site down, then by their phases. Pauli weights are not included for comparison.
 function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
+    if countSites(a) != countSites(b)
+        throw(ArgumentError("`countSites(a) == countSites(b)` must return `true`."))
+    end
+
     @inbounds for i in 1:length(a.x) #> By single-site operator (`I < Z < X < Y`)
         ax, bx = a.x[end-i+1], b.x[end-i+1]
         az, bz = a.z[end-i+1], b.z[end-i+1]
@@ -1002,7 +1007,7 @@ function sortStrings!(strs::AbstractVector{PauliStr},
 end
 
 #> Stable permutation of the (one-based) positions in `strs` that sorts `strs` following 
-#> the rules used by `isless(::PauliStr, ::PauliStr)`. When all `PauliStr` in `str` are 
+#> the rules used by `isless(::PauliStr, ::PauliStr)`. When all `PauliStr` in `strs` are 
 #> bit-plain (verified by `isPlainPauliStr`) a specialized fast path is executed. When 
 #> `coeffs` is not `Missing`, it participates in sorting as secondary keys.
 function sortPermStrings(strs::AbstractVector{PauliStr}, 
@@ -1016,8 +1021,8 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
     end
 
     if all(isPlainPauliStr, strs)
-        keys = map(genPlainPauliStrKey, strs)
-        sort!(scope, by=i->(@inbounds keys[begin+i-1]))
+        strKeys = map(genPlainPauliStrKey, strs)
+        sort!(scope, by=i->(@inbounds strKeys[begin+i-1]), alg=Base.Sort.DEFAULT_STABLE)
     else
         siteWeightKeys = [(countSites(str), countWeight(str)) for str in strs]
         function comparePStr(i::Int, j::Int) #> Mirror `Base.isless(::PauliStr, ::PauliStr)`
@@ -1034,13 +1039,13 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
     end
 
     if includeCoeffs #> Local sort at the end performs better than full sort at the start
-        coeffMagnitudes = map(evalMagnitude, coeffs)
+        magnitudes = map(evalMagnitude, coeffs) #> Hardware-agnostic replacement for `abs`
         function indexCoeff(k::Int)
             @inbounds begin
-                coeff = coeffs[begin+k-1]
-                value = coeffMagnitudes[begin+k-1]
+                pStrCoeff = coeffs[begin+k-1]
+                magnitude = magnitudes[begin+k-1]
             end
-            (value, real(coeff), imag(coeff))
+            (magnitude, real(pStrCoeff), imag(pStrCoeff))
         end
 
         iStart = 1

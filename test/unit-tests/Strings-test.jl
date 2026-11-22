@@ -550,8 +550,9 @@ end
     Paulimorphic.sortStrings!(strs, cplx)
     @test cplx == [3.0, -1.0, 2.0]
     #> The sort keys are evaluated once per term (packed into isbits keys for strings on at 
-    #> most 64 sites), yet the permutation stays that of a stable sort by 
-    #> `genPauliTermOrderKey`: the sorted strings are the same objects in the same order
+    #> most 64 sites), yet the permutation stays that of a stable sort by the tuples 
+    #> `(str, evalMagnitude(c), real(c), imag(c))`: the sorted strings are the same objects 
+    #> in the same order
     rng = Xoshiro(46)
     syms = (symI, symX, symY, symZ)
     vals = (0.0, -0.0, 1.0, -1.0, 0.5, NaN)

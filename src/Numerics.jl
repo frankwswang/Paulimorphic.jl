@@ -362,7 +362,7 @@ function spreadBits(::Type{UInt128}, word::Unsigned)
     nBit = 8*sizeof(word)
     maxBits = 4*sizeof(UInt128)
     if nBit > maxBits
-        throw(DomainError(nBit, "The bit width of `word` must no exceed $maxBits."))
+        throw(DomainError(nBit, "The bit width of `word` must not exceed $maxBits."))
     end
     bits = UInt128(word)
     bits = (bits | (bits << 32)) & 0x00000000ffffffff00000000ffffffff

@@ -1096,7 +1096,11 @@ julia> (h')' == h
 true
 ```
 """
-toAdjoint(h::PauliSum, simplification::Bool=true) = 
-PauliSum(map(toAdjoint, h.str), map(adaptConj, h.coeff), simplification)
+function toAdjoint(h::PauliSum, simplification::Bool=true)
+    hStrs = h.str
+    #> Strings with phase `posRea` are self-adjoint and need no `toAdjoint` which allocates
+    strs = all(str->isequal(posRea, str.phase), hStrs) ? hStrs : map(toAdjoint, hStrs)
+    PauliSum(strs, map(adaptConj, h.coeff), simplification)
+end
 
 Base.adjoint(op::PauliStrOrSum) = toAdjoint(op)

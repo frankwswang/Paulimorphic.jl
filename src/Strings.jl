@@ -269,11 +269,11 @@ function genPlainPauliStrKey(str::PauliStr)
     (countSites(str), countWeight(str), word, UInt8(str.phase))
 end
 
-#> The exception of `checkSiteCountMatch`, built once instead of at the throw site. A 
-#> function with `ArgumentError("...")` explicitly in its function body (i.e., at the throw 
-#> site) will count toward the inlining cost of every outer function it is inlined into 
-#> (even if the error is inside a `@boundscheck` block), which can lead to the outer 
-#> function to costly to be inlined (estimated by the compiler).
+#> The exception of `checkSiteCountMatch`, built once instead of at the throw site. A call 
+#> of `ArgumentError("...")` in the body of a function `f` (i.e., at the throw site) 
+#> remains an evaluation after optimization and counts toward the inlining cost of `f` and 
+#> of every outer function `f` is inlined into (even inside a `@boundscheck` block), which 
+#> can make an outer function too costly to be inlined (as estimated by the compiler).
 const CONSTVAR!!siteCountMismatchError = 
       ArgumentError("Two input `PauliStr` must have equal site counts (via `countSites`).")
 

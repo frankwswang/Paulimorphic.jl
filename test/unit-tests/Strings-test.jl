@@ -2,7 +2,7 @@ using Test
 using Paulimorphic
 using Paulimorphic: posRea, posImg, negRea, negImg, mul, sub, compareBits, 
                     isExplicitZeroOp, sortStrings!, checkPauliTermOrder, isPlainPauliStr, 
-                    genPlainPauliStrKey, directOrderPauliStr
+                    genPlainPauliStrKey, directOrderPauliStr, checkSiteCountMatch
 using Random
 
 @testset "Strings.jl" begin
@@ -262,11 +262,18 @@ end
               for a in plainPool, b in plainPool)
 
     #>≡≡≡ Site-count guard of `directOrderPauliStr` ≡≡≡<#
-    #> `isless` compares the site counts before it calls `directOrderPauliStr`, and elides 
-    #> the guard of the latter with `@inbounds`; a direct call still verifies its arguments
+    #> `directOrderPauliStr` reads the words of both strings without bounds checking, so 
+    #> its guard must hold on every call, including one that is inlined under `@inbounds`
+    @test checkSiteCountMatch(pauli"XZ", pauli"XY") === nothing
+    @test_throws ArgumentError checkSiteCountMatch(pauli"X", pauli"XX")
     @test directOrderPauliStr(pauli"XZ", pauli"XY") #> `Z < Y` at the highest site
     @test !directOrderPauliStr(pauli"XY", pauli"XZ")
     @test_throws ArgumentError directOrderPauliStr(pauli"X", pauli"XX")
+    function directOrderInbounds(a::PauliStr, b::PauliStr)
+        @inbounds directOrderPauliStr(a, b)
+    end
+    @test directOrderInbounds(pauli"XZ", pauli"XY")
+    @test_throws ArgumentError directOrderInbounds(pauli"X", pauli"XX")
     #> Strings whose buffers differ in length never reach the word comparison of `isless`
     str64, str65 = PauliStr(genSparseList(64)), PauliStr(genSparseList(65))
     @test str64 < str65 && !(str65 < str64)

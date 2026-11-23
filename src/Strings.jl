@@ -250,9 +250,9 @@ function Base.isless(a::PauliStr, b::PauliStr)
     bStrWeight = countWeight(b)
     aStrWeight != bStrWeight && (return (aStrWeight < bStrWeight))
 
-    #> In-bound direct comparison instead of `genPlainPauliStrKey` as the latter only pays 
-    #> off when the keys are cached for many pair-wise comparisons (as in `sortPermStrings`)
-    @inbounds directOrderPauliStr(a, b)
+    #> Direct comparison instead of `genPlainPauliStrKey` as the latter only pays off when 
+    #> the keys are cached for many pair-wise comparisons (as in `sortPermStrings`)
+    directOrderPauliStr(a, b)
 end
 
 function isPlainPauliStr(str::PauliStr)
@@ -269,15 +269,24 @@ function genPlainPauliStrKey(str::PauliStr)
     (countSites(str), countWeight(str), word, UInt8(str.phase))
 end
 
+#> The exception of `checkSiteCountMatch`, built once instead of at the throw site. A 
+#> function with `ArgumentError("...")` explicitly in its function body (i.e., at the throw 
+#> site) will count toward the inlining cost of every outer function it is inlined into 
+#> (even if the error is inside a `@boundscheck` block), which can lead to the outer 
+#> function to costly to be inlined (estimated by the compiler).
+const CONSTVAR!!siteCountMismatchError = 
+      ArgumentError("Two input `PauliStr` must have equal site counts (via `countSites`).")
+
+function checkSiteCountMatch(a::PauliStr, b::PauliStr)
+    countSites(a) == countSites(b) || throw(CONSTVAR!!siteCountMismatchError)
+    nothing
+end
+
 #> Order of `a` and `b` with the same site count by their single-site operators from the 
 #> highest site down, then by their phases. Pauli weights are not included for comparison. 
-#> The equality of the site counts guards the unchecked word accesses below, so it is 
-#> verified in a bounds-checking block. A caller that has already compared the site counts 
-#> may elide it with `@inbounds` because this function is annotated by `@inline`.
-@inline function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
-    @boundscheck if countSites(a) != countSites(b)
-        throw(ArgumentError("`countSites(a) == countSites(b)` must return `true`."))
-    end
+#> The equality of the site counts guards the unchecked word accesses below.
+function directOrderPauliStr(a::PauliStr, b::PauliStr)::Bool #> `a` < `b` -> `true`
+    checkSiteCountMatch(a, b)
 
     @inbounds for i in 1:length(a.x) #> By single-site operator (`I < Z < X < Y`)
         ax, bx = a.x[end-i+1], b.x[end-i+1]
@@ -1062,7 +1071,7 @@ function sortPermStrings(strs::AbstractVector{PauliStr},
             end
             iS != jS && (return (iS < jS))
             iW != jW && (return (iW < jW))
-            @inbounds directOrderPauliStr(iStr, jStr) #> Equal site counts since `iS == jS`
+            directOrderPauliStr(iStr, jStr) #> Equal site counts since `iS == jS`
         end
         sort!(scope, lt=comparePStr, alg=Base.Sort.DEFAULT_STABLE)
     end
